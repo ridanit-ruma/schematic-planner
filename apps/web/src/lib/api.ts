@@ -102,11 +102,18 @@ async function send(path: string, init: RequestInit, retry: boolean): Promise<Re
   }
   if (accessToken !== null) headers.set('Authorization', `Bearer ${accessToken}`);
 
-  const response = await fetch(`${config.apiUrl}${path}`, {
-    ...init,
-    headers,
-    credentials: 'include',
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${config.apiUrl}${path}`, { ...init, headers, credentials: 'include' });
+  } catch {
+    // fetch reports every network-level failure as the same opaque error, so say
+    // what was attempted rather than repeating "Failed to fetch" at the reader.
+    throw new ApiError(
+      0,
+      `Could not reach the server at ${config.apiUrl}. It may be offline, or this address may ` +
+        'not be allowed to call it.',
+    );
+  }
 
   if (response.status === 401 && retry && (await refreshAccessToken())) {
     return send(path, init, false);
