@@ -120,9 +120,9 @@ export class PlansService {
     // batch of new nodes piles up on the origin until somebody presses Arrange.
     if (!applied.nodes.some((node) => node.position === null)) return applied;
 
-    const { positions } = await layoutPlan(applied, { scope: 'unpinned' });
+    const { positions, sizes } = await layoutPlan(applied, { scope: 'unpinned' });
     return this.collab.withDocument(planId, (document) => {
-      commitLayout(document, positions, ORIGIN_LAYOUT);
+      commitLayout(document, positions, ORIGIN_LAYOUT, sizes);
       return this.documents.project(planId, document).doc;
     });
   }
@@ -131,13 +131,13 @@ export class PlansService {
     await this.access.requirePlan(userId, planId, 'EDITOR');
 
     const doc = await this.current(planId);
-    const { positions } = await layoutPlan(doc, {
+    const { positions, sizes } = await layoutPlan(doc, {
       direction: input.direction,
       scope: input.scope,
     });
 
     return this.collab.withDocument(planId, (document) => {
-      commitLayout(document, positions, ORIGIN_AGENT);
+      commitLayout(document, positions, ORIGIN_AGENT, sizes);
       return this.documents.project(planId, document).doc;
     });
   }
@@ -220,14 +220,15 @@ export class PlansService {
     if (input.spec === undefined) return base;
 
     const withStructure = this.fromSpec(base, input.spec);
-    const { positions } = await layoutPlan(withStructure, { scope: 'unpinned' });
+    const { positions, sizes } = await layoutPlan(withStructure, { scope: 'unpinned' });
 
     return {
       ...withStructure,
-      nodes: withStructure.nodes.map((node) => {
-        const position = positions.get(node.slug);
-        return position === undefined ? node : { ...node, position };
-      }),
+      nodes: withStructure.nodes.map((node) => ({
+        ...node,
+        ...(positions.get(node.slug) !== undefined && { position: positions.get(node.slug) ?? null }),
+        ...(sizes.get(node.slug) !== undefined && { size: sizes.get(node.slug) ?? null }),
+      })),
     };
   }
 

@@ -26,6 +26,41 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
   const detailed = zoom >= DETAIL_ZOOM;
   const { node, childCount } = data;
 
+  // A node that holds others is drawn as the boundary around them, labelled at
+  // the top edge where nothing else sits. Drawn as a card it would land on top
+  // of its own first child.
+  if (childCount > 0) {
+    return (
+      <div
+        className={cn(
+          'h-full w-full rounded-[2px] border-[1.5px] border-rule-strong bg-surface-2/50',
+          selected === true && 'border-accent',
+        )}
+      >
+        <div className="flex items-center gap-2 px-3 py-2">
+          <span
+            aria-hidden
+            className="h-3.5 w-1 shrink-0"
+            style={{ background: STATUS_COLOR[node.status] }}
+          />
+          <span className="truncate text-xs font-medium text-ink">{node.title}</span>
+          {detailed ? <span className="slug truncate text-ink-faint">{node.slug}</span> : null}
+          <span className="ml-auto shrink-0 text-2xs text-ink-faint">{childCount}</span>
+        </div>
+        <Handle
+          type="target"
+          position={HandlePosition.Left}
+          className="!size-2 !rounded-none !border !border-rule-strong !bg-surface"
+        />
+        <Handle
+          type="source"
+          position={HandlePosition.Right}
+          className="!size-2 !rounded-none !border !border-rule-strong !bg-surface"
+        />
+      </div>
+    );
+  }
+
   const excerpt = node.body.trim().split('\n')[0] ?? '';
 
   return (

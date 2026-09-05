@@ -25,12 +25,19 @@ export interface PlanState {
 export type PlanStore = ReturnType<typeof createPlanStore>;
 
 function toFlowNode(node: PlanNode, childCount: number): PlanFlowNode {
+  const isContainer = childCount > 0;
   return {
     id: node.slug,
     type: 'plan',
     position: node.position ?? { x: 0, y: 0 },
     data: { node, childCount },
-    ...(node.kind === 'group' && { zIndex: -1 }),
+    // A container is drawn at the bounds layout gave it and sits behind the
+    // nodes it holds; anything else is a fixed-size card.
+    ...(isContainer && { zIndex: -1 }),
+    ...(isContainer &&
+      node.size !== null && {
+        style: { width: node.size.width, height: node.size.height },
+      }),
   };
 }
 

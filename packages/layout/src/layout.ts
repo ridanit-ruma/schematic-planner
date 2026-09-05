@@ -1,6 +1,11 @@
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js';
 import { buildPlanGraph, type PlanDoc, type Position } from '@schematic/schema';
 
+export interface Size {
+  readonly width: number;
+  readonly height: number;
+}
+
 export type LayoutDirection = 'RIGHT' | 'DOWN';
 
 export interface LayoutOptions {
@@ -19,6 +24,12 @@ export interface LayoutOptions {
 export interface LayoutResult {
   /** Only the nodes this run is allowed to move. */
   readonly positions: ReadonlyMap<string, Position>;
+  /**
+   * Bounds ELK computed for nodes that contain others. A container has to be
+   * drawn at the size that actually holds its children; drawn at the size of an
+   * ordinary card it lands on top of the first one.
+   */
+  readonly sizes: ReadonlyMap<string, Size>;
 }
 
 const DEFAULTS = {
@@ -87,17 +98,21 @@ export async function layoutPlan(
   });
 
   const computed = new Map<string, Position>();
+  const sizes = new Map<string, Size>();
   const collect = (nodes: readonly ElkNode[] | undefined, offset: Position): void => {
     for (const node of nodes ?? []) {
       const x = offset.x + (node.x ?? 0);
       const y = offset.y + (node.y ?? 0);
       computed.set(node.id, { x, y });
+      if ((node.children?.length ?? 0) > 0 && node.width !== undefined && node.height !== undefined) {
+        sizes.set(node.id, { width: Math.round(node.width), height: Math.round(node.height) });
+      }
       collect(node.children, { x, y });
     }
   };
   collect(laid.children, { x: 0, y: 0 });
 
-  if (settings.scope === 'all') return { positions: round(computed) };
+  if (settings.scope === 'all') return { positions: round(computed), sizes };
 
   const pinned = doc.nodes.filter((node) => node.pinned && node.position !== null);
   const shift = translationKeepingPinned(pinned, computed);
@@ -109,7 +124,7 @@ export async function layoutPlan(
     if (point === undefined) continue;
     positions.set(node.slug, { x: point.x + shift.x, y: point.y + shift.y });
   }
-  return { positions: round(positions) };
+  return { positions: round(positions), sizes };
 }
 
 /**

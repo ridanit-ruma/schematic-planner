@@ -26,11 +26,20 @@ export function commitNodePosition(
   );
 }
 
-/** Apply a batch of positions from an auto-layout run in one transaction. */
+export interface NodeSize {
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * Apply a batch of positions from an auto-layout run in one transaction, plus
+ * the bounds computed for any node that contains others.
+ */
 export function commitLayout(
   doc: Y.Doc,
   positions: ReadonlyMap<string, Position>,
   origin: unknown,
+  sizes?: ReadonlyMap<string, NodeSize>,
 ): void {
   const nodes = nodesMap(doc);
   Y.transact(
@@ -40,6 +49,11 @@ export function commitLayout(
         const node = nodes.get(slug);
         if (node === undefined) continue;
         node.set('position', { x: Math.round(position.x), y: Math.round(position.y) });
+      }
+      for (const [slug, size] of sizes ?? []) {
+        const node = nodes.get(slug);
+        if (node === undefined) continue;
+        node.set('size', { width: Math.round(size.width), height: Math.round(size.height) });
       }
     },
     origin,

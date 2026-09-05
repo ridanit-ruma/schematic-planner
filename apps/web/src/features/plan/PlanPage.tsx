@@ -120,8 +120,8 @@ function PlanWorkspace({
     // fetched on first use rather than shipped in the initial bundle.
     const { layoutPlan } = await import('@schematic/layout');
     const plan = readPlanDoc(doc).doc;
-    const { positions } = await layoutPlan(plan, { scope: 'unpinned' });
-    commitLayout(doc, positions, ORIGIN_LAYOUT);
+    const { positions, sizes } = await layoutPlan(plan, { scope: 'unpinned' });
+    commitLayout(doc, positions, ORIGIN_LAYOUT, sizes);
   };
 
   const exportZip = async (): Promise<void> => {
