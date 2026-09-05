@@ -9,13 +9,13 @@ const repoUrl = 'https://github.com/ridanit-ruma/schematic-planner';
 const AGENT_CALL = `create_plan({
   title: "Billing rework",
   nodes: [
-    { slug: "ledger-schema", title: "Ledger schema", status: "done" },
-    { slug: "pricing-rules", title: "Pricing rules", status: "in_progress" },
+    { slug: "ledger-schema", title: "Ledger schema" },
+    { slug: "pricing-rules", title: "Pricing rules" },
     { slug: "render-pdf",    title: "Render PDF" }
   ],
   edges: [
-    { kind: "depends_on", from: "pricing-rules", to: "ledger-schema" },
-    { kind: "depends_on", from: "render-pdf",    to: "pricing-rules" }
+    { from: "pricing-rules", to: "ledger-schema" },
+    { from: "render-pdf",    to: "pricing-rules" }
   ]
 })`;
 

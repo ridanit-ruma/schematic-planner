@@ -17,13 +17,13 @@ const CREATE_PLAN = `{
   "arguments": {
     "title": "Billing rework",
     "nodes": [
-      { "slug": "ledger-schema", "title": "Ledger schema", "status": "done" },
-      { "slug": "pricing-rules", "title": "Pricing rules", "status": "in_progress" },
-      { "slug": "render-pdf",    "title": "Render PDF",    "kind": "task" }
+      { "slug": "ledger-schema", "title": "Ledger schema" },
+      { "slug": "pricing-rules", "title": "Pricing rules" },
+      { "slug": "render-pdf",    "title": "Render PDF" }
     ],
     "edges": [
-      { "kind": "depends_on", "from": "pricing-rules", "to": "ledger-schema" },
-      { "kind": "depends_on", "from": "render-pdf",    "to": "pricing-rules" }
+      { "from": "pricing-rules", "to": "ledger-schema" },
+      { "from": "render-pdf",    "to": "pricing-rules" }
     ]
   }
 }`;
@@ -33,11 +33,13 @@ const APPLY_OPS = `{
   "arguments": {
     "planId": "…",
     "ops": [
-      { "op": "upsert_node", "node": { "slug": "tax", "title": "Tax by region",
-                                       "kind": "decision", "status": "blocked" } },
-      { "op": "upsert_edge", "edge": { "kind": "depends_on",
-                                       "from": "tax", "to": "pricing-rules" } },
-      { "op": "upsert_node", "node": { "slug": "ledger-schema", "status": "done" } }
+      { "op": "upsert_node",
+        "node": { "slug": "tax", "title": "Tax by region",
+                  "kind": "decision", "status": "blocked" } },
+      { "op": "upsert_edge",
+        "edge": { "from": "tax", "to": "pricing-rules" } },
+      { "op": "upsert_node",
+        "node": { "slug": "ledger-schema", "status": "done" } }
     ]
   }
 }`;
