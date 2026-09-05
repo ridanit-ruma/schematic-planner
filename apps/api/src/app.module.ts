@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 
 import { AuthModule } from './auth/auth.module.js';
 import { JwtAuthGuard } from './auth/jwt.guard.js';
+import { PlanOpExceptionFilter } from './common/plan-op.filter.js';
 import { PrismaModule } from './common/prisma.module.js';
 import { ConfigModule } from './config/config.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -24,6 +25,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module.js';
     // Applied to every route, so a new endpoint is protected unless it opts out
     // with @Public(). The opposite default fails silently.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_FILTER, useClass: PlanOpExceptionFilter },
   ],
 })
 export class AppModule {}

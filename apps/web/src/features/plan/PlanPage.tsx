@@ -1,6 +1,6 @@
 import { uniqueSlug, type PlanNodeStatus, type PlanOp } from '@schematic/schema';
 import { ORIGIN_LAYOUT, ORIGIN_LOCAL, applyOps, commitLayout, readPlanDoc } from '@schematic/ydoc';
-import { ReactFlowProvider } from '@xyflow/react';
+import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import { useCallback, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import { useStore } from 'zustand';
@@ -52,6 +52,7 @@ function PlanWorkspace({
   const selected = useStore(store, (state) => state.selected);
   const select = useStore(store, (state) => state.select);
 
+  const { screenToFlowPosition } = useReactFlow();
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [shareUrl, setShareUrl] = useState<string | null>(null);
@@ -90,7 +91,25 @@ function PlanWorkspace({
       trimmed,
       nodes.map((node) => node.id),
     );
-    apply([{ op: 'upsert_node', node: { slug, title: trimmed } }]);
+
+    // Placed where the person is looking rather than at the origin, where it
+    // would land under whatever is already there. Left unpinned, so Arrange is
+    // still free to tidy it into the graph.
+    const centre = screenToFlowPosition({
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    });
+
+    apply([
+      {
+        op: 'upsert_node',
+        node: {
+          slug,
+          title: trimmed,
+          position: { x: Math.round(centre.x - 130), y: Math.round(centre.y - 70) },
+        },
+      },
+    ]);
     setNewTitle('');
     setAdding(false);
     select(slug);

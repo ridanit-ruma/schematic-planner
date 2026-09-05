@@ -11,7 +11,12 @@ import {
   type PlanOp,
   type PlanSpec,
 } from '@schematic/schema';
-import { ORIGIN_AGENT, applyOps as applyOpsToDoc, commitLayout } from '@schematic/ydoc';
+import {
+  ORIGIN_AGENT,
+  ORIGIN_LAYOUT,
+  applyOps as applyOpsToDoc,
+  commitLayout,
+} from '@schematic/ydoc';
 
 import { randomToken } from '../common/crypto.js';
 import { PrismaService } from '../common/prisma.service.js';
@@ -104,8 +109,20 @@ export class PlansService {
 
   async applyOps(userId: string, planId: string, ops: readonly PlanOp[]): Promise<PlanDoc> {
     await this.access.requirePlan(userId, planId, 'EDITOR');
-    return this.collab.withDocument(planId, (document) => {
+
+    const applied = await this.collab.withDocument(planId, (document) => {
       applyOpsToDoc(document, ops, ORIGIN_AGENT);
+      return this.documents.project(planId, document).doc;
+    });
+
+    // Agents declare structure and never coordinates, so everything they add
+    // arrives unplaced. Placing it here is what keeps that promise: without it a
+    // batch of new nodes piles up on the origin until somebody presses Arrange.
+    if (!applied.nodes.some((node) => node.position === null)) return applied;
+
+    const { positions } = await layoutPlan(applied, { scope: 'unpinned' });
+    return this.collab.withDocument(planId, (document) => {
+      commitLayout(document, positions, ORIGIN_LAYOUT);
       return this.documents.project(planId, document).doc;
     });
   }
