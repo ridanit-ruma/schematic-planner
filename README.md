@@ -422,8 +422,19 @@ Deliberately out of scope, so nobody spends time proposing them:
 
 ## License
 
-[GNU Affero General Public License v3.0](./LICENSE).
+Copyright © 2026 ruma.
+
+Licensed under the [GNU Affero General Public License v3.0 or later](./LICENSE)
+(`AGPL-3.0-only`).
 
 AGPL was chosen on purpose. Anyone may run, modify and self-host this — including
 commercially — but a modified version offered to others over a network must publish its
 source. That keeps self-hosting a real promise rather than a marketing line.
+
+---
+
+<div align="center">
+
+**Schematic Planner** · © 2026 ruma · AGPL-3.0-only
+
+</div>

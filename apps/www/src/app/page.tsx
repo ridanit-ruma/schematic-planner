@@ -1,15 +1,31 @@
+import Link from 'next/link';
+
 import { HeroSchematic } from '@/components/HeroSchematic';
 import { SiteChrome } from '@/components/SiteChrome';
 
 const appUrl = process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:5173';
+const repoUrl = 'https://github.com/ridanit-ruma/schematic-planner';
+
+const AGENT_CALL = `create_plan({
+  title: "Billing rework",
+  nodes: [
+    { slug: "ledger-schema", title: "Ledger schema", status: "done" },
+    { slug: "pricing-rules", title: "Pricing rules", status: "in_progress" },
+    { slug: "render-pdf",    title: "Render PDF" }
+  ],
+  edges: [
+    { kind: "depends_on", from: "pricing-rules", to: "ledger-schema" },
+    { kind: "depends_on", from: "render-pdf",    to: "pricing-rules" }
+  ]
+})`;
 
 const EXPORT_TREE = `plan-export.zip
 ├── README.md
 ├── 01-foundation/
-│   ├── 01-database.md
-│   └── 02-auth.md
-├── 02-editor/
-│   └── 01-canvas.md
+│   ├── 01-ledger-schema.md
+│   └── 02-pricing-rules.md
+├── 02-invoicing/
+│   └── 01-render-pdf.md
 ├── plan.canvas
 └── plan.json`;
 
@@ -33,12 +49,9 @@ export default function Home() {
               >
                 Start planning
               </a>
-              <a
-                href="https://github.com/schematic-planner/schematic-planner"
-                className="rounded-[2px] border border-rule px-4 py-2 text-sm text-ink"
-              >
-                Read the source
-              </a>
+              <Link href="/guide" className="rounded-[2px] border border-rule px-4 py-2 text-sm text-ink">
+                Read the guide
+              </Link>
             </div>
           </div>
 
@@ -48,57 +61,120 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="border-t border-rule">
-        <div className="mx-auto max-w-4xl px-6 py-16">
-          <h2 className="text-lg font-medium text-ink">How it goes</h2>
-          <ol className="mt-6 space-y-6">
-            <Step
-              title="Your agent writes the plan"
-              body="It already does this well. What it cannot do is hold the plan still across a
-                dozen messages."
-            />
-            <Step
-              title="The plan becomes a drawing"
-              body="One MCP call sends the whole structure. The server places every node — agents
-                declare what depends on what, never coordinates. You drag what you want moved, and
-                nothing moves it again."
-            />
-            <Step
-              title="You take the files with you"
-              body="Containment becomes directories, dependency order becomes the numbers on the
-                filenames. Commit the folder next to your source."
-            />
-          </ol>
-        </div>
-      </section>
+      <Band>
+        <h2 className="text-lg font-medium text-ink">The problem it solves</h2>
+        <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-ink-muted">
+          Coding agents write plans well. What they cannot do is hold one still. Ask for a feature
+          and you get a plausible task list, half of it forgotten three messages later, and the
+          architecture quietly reinvented on the next run. The plan was never anywhere: it was in
+          the conversation, and the conversation moved on.
+        </p>
+        <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-ink-muted">
+          Put the plan somewhere both of you can see, and that stops happening.
+        </p>
+      </Band>
 
-      <section className="border-t border-rule">
-        <div className="mx-auto grid max-w-4xl gap-10 px-6 py-16 md:grid-cols-2 md:items-start">
+      <Band>
+        <h2 className="text-lg font-medium text-ink">How it goes</h2>
+        <ol className="mt-6 space-y-6">
+          <Step
+            title="Your agent writes the plan"
+            body="However it likes — prose, a task list, a design note. That part already works."
+          />
+          <Step
+            title="One call turns it into a drawing"
+            body="The agent sends the structure and the server places every node. Agents declare
+              what depends on what and never coordinates, because a model asked for positions
+              produces a diagram nobody wants to read."
+          />
+          <Step
+            title="You move what you want moved"
+            body="A node you drag is pinned, and automatic layout leaves it alone from then on.
+              Everything else reflows around it."
+          />
+          <Step
+            title="The files come with you"
+            body="Containment becomes directories, dependency order becomes the numbers on the
+              filenames. Commit the folder next to your source and your agent reads it every run."
+          />
+        </ol>
+      </Band>
+
+      <Band>
+        <div className="grid gap-10 md:grid-cols-2 md:items-start">
+          <div>
+            <h2 className="text-lg font-medium text-ink">What an agent sees</h2>
+            <p className="mt-3 max-w-[52ch] text-sm leading-relaxed text-ink-muted">
+              Six tools behind a URL and a key. Nothing to install, nothing to keep in step with the
+              server. A whole plan arrives in one call, and every change after that goes through one
+              batched, atomic door — so forty nodes appear on your canvas at once rather than
+              crawling in one at a time.
+            </p>
+            <p className="mt-3 max-w-[52ch] text-sm leading-relaxed text-ink-muted">
+              Nodes are addressed by a slug you would recognise, so a retry changes nothing the
+              second time.
+            </p>
+            <Link href="/docs" className="mt-4 inline-block text-sm text-accent underline">
+              The tool reference
+            </Link>
+          </div>
+          <pre className="overflow-x-auto border border-rule bg-surface p-4 font-mono text-xs leading-relaxed text-ink">
+            {AGENT_CALL}
+          </pre>
+        </div>
+      </Band>
+
+      <Band>
+        <div className="grid gap-10 md:grid-cols-2 md:items-start">
           <div>
             <h2 className="text-lg font-medium text-ink">What comes out</h2>
             <p className="mt-3 max-w-[52ch] text-sm leading-relaxed text-ink-muted">
               A zip of plain Markdown with the graph in the frontmatter, plus a{' '}
               <code className="slug">.canvas</code> that opens in Obsidian with the layout intact.
-              Nothing in the format needs this service to be readable.
+              Nothing in the format needs this service to be readable, and the same plan always
+              exports to the same bytes.
             </p>
           </div>
           <pre className="overflow-x-auto border border-rule bg-surface p-4 font-mono text-xs leading-relaxed text-ink">
             {EXPORT_TREE}
           </pre>
         </div>
-      </section>
+      </Band>
 
-      <section className="border-t border-rule">
-        <div className="mx-auto max-w-4xl px-6 py-16">
-          <h2 className="text-lg font-medium text-ink">Run it yourself</h2>
-          <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-ink-muted">
-            The whole stack is AGPL-3.0 and starts from one Docker Compose file. No proprietary
-            authentication service, no managed-only dependency. If your source cannot leave your
-            network, neither do your plans.
-          </p>
+      <Band>
+        <h2 className="text-lg font-medium text-ink">Run it yourself</h2>
+        <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-ink-muted">
+          The whole stack is AGPL-3.0 and needs Node and Postgres. No proprietary authentication
+          service, no managed-only dependency, every setting an environment variable. If your source
+          cannot leave your network, neither do your plans.
+        </p>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <a href={repoUrl} className="rounded-[2px] border border-rule px-4 py-2 text-sm text-ink">
+            Read the source
+          </a>
+          <Link href="/guide" className="text-sm text-accent underline">
+            Or start with the guide
+          </Link>
         </div>
-      </section>
+      </Band>
+
+      <Band>
+        <h2 className="text-lg font-medium text-ink">Where it actually is</h2>
+        <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-ink-muted">
+          Pre-alpha, and worth saying plainly. Planning, drawing, live collaboration, the agent
+          surface, sharing and export all work. Account settings, workspace management and social
+          sign-in are not built. Export your plans; that is what the export is for.
+        </p>
+      </Band>
     </SiteChrome>
+  );
+}
+
+function Band({ children }: { children: React.ReactNode }) {
+  return (
+    <section className="border-t border-rule">
+      <div className="mx-auto max-w-4xl px-6 py-16">{children}</div>
+    </section>
   );
 }
 

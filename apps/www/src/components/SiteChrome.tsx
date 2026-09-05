@@ -18,6 +18,9 @@ export function SiteChrome({ children }: { children: ReactNode }) {
             <span className="text-sm font-semibold tracking-tight">Schematic Planner</span>
           </Link>
           <nav className="flex items-center gap-4 text-sm text-ink-muted">
+            <Link href="/guide" className="hover:text-ink">
+              Guide
+            </Link>
             <Link href="/docs" className="hover:text-ink">
               Docs
             </Link>
