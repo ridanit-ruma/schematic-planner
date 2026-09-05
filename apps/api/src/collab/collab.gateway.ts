@@ -2,11 +2,22 @@ import { Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy }
 import { HttpAdapterHost } from '@nestjs/core';
 import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import type { Duplex } from 'node:stream';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 
 import { CollabService } from './collab.service.js';
 
 export const COLLAB_PATH = '/collab';
+
+/**
+ * Hocuspocus does not read from the socket itself — `WebSocketLike` is only
+ * `send`, `close` and `readyState`. Whoever owns the socket has to pump frames
+ * into the connection it returns, which is what `attach` below does.
+ */
+function toUint8Array(data: RawData): Uint8Array {
+  if (Buffer.isBuffer(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  if (Array.isArray(data)) return toUint8Array(Buffer.concat(data));
+  return new Uint8Array(data);
+}
 
 /** Hocuspocus works in web standards; the node upgrade handler does not. */
 function toFetchRequest(request: IncomingMessage): Request {
@@ -55,8 +66,19 @@ export class CollabGateway implements OnApplicationBootstrap, OnModuleDestroy {
       // prefix is stripped before handing the request over.
       request.url = `/${planId}${url.search}`;
 
-      this.wss?.handleUpgrade(request, socket, head, (client) => {
-        this.collab.hocuspocus.handleConnection(client, toFetchRequest(request));
+      this.wss?.handleUpgrade(request, socket, head, (client: WebSocket) => {
+        const connection = this.collab.hocuspocus.handleConnection(
+          client,
+          toFetchRequest(request),
+        );
+
+        client.on('message', (data: RawData) => connection.handleMessage(toUint8Array(data)));
+        client.on('close', (code: number, reason: Buffer) => {
+          connection.handleClose({ code, reason: reason.toString() } as CloseEvent);
+        });
+        client.on('error', (error: Error) => {
+          this.logger.warn(`collaboration socket error: ${error.message}`);
+        });
       });
     });
 
