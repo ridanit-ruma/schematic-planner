@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { exportPlan } from '@schematic/exporter';
-import { normalizeEdge, planEdgeInputSchema, type PlanOp } from '@schematic/schema';
+import { normalizeEdge, planEdgeInputSchema, planOpsSchema } from '@schematic/schema';
 
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { PlansService } from '../plans/plans.service.js';
@@ -121,7 +121,9 @@ export class McpFactory {
       },
       async ({ planId, ops }) => {
         try {
-          const doc = await this.plans.applyOps(identity.userId, planId, ops as PlanOp[]);
+          // Validated narrow, then widened into the internal union. The agent
+          // never sees the placement fields the internal one carries.
+          const doc = await this.plans.applyOps(identity.userId, planId, planOpsSchema.parse(ops));
           return text(`Applied ${ops.length} operation(s).\n\n${renderPlan(doc, 'outline')}`);
         } catch (error) {
           return failure(reason(error));

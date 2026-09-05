@@ -1,10 +1,4 @@
-import {
-  planEdgeKinds,
-  planNodeKinds,
-  planNodeStatuses,
-  planOpSchema,
-  slugSchema,
-} from '@schematic/schema';
+import { planEdgeKinds, planNodeKinds, planNodeStatuses, slugSchema } from '@schematic/schema';
 import { z } from 'zod';
 
 /**
@@ -50,13 +44,49 @@ export const getPlanShape = {
   view: planViewSchema,
 };
 
+/** Every field but the slug is optional: an upsert merges into what is there. */
+const agentNodePatchSchema = z.object({
+  slug: slugSchema,
+  kind: z.enum(planNodeKinds).optional(),
+  title: z.string().min(1).max(200).optional(),
+  body: z.string().max(100_000).optional(),
+  status: z.enum(planNodeStatuses).optional(),
+  tags: z.array(z.string().min(1).max(40)).max(20).optional(),
+});
+
+/**
+ * Mirrors the internal operation union with the placement fields removed.
+ *
+ * Reusing the internal schema here would put `position` and `pinned` in the tool
+ * definition, and a model shown a coordinate field will fill it in — which is
+ * precisely the behaviour the layout rule exists to prevent.
+ */
+export const agentOpSchema = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('upsert_node'), node: agentNodePatchSchema }),
+  z.object({ op: z.literal('delete_node'), slug: slugSchema }),
+  z.object({ op: z.literal('upsert_edge'), edge: agentEdgeSchema }),
+  z.object({
+    op: z.literal('delete_edge'),
+    kind: z.enum(planEdgeKinds).default('depends_on'),
+    from: slugSchema,
+    to: slugSchema,
+  }),
+  z.object({
+    op: z.literal('set_plan'),
+    title: z.string().min(1).max(200).optional(),
+    description: z.string().max(2000).optional(),
+  }),
+]);
+
 export const applyOpsShape = {
   planId: z.string().min(1),
   ops: z
-    .array(planOpSchema)
+    .array(agentOpSchema)
     .min(1)
     .max(2000)
-    .describe('Applied atomically in one transaction. Upserts are keyed by slug, so retrying is safe'),
+    .describe(
+      'Applied atomically in one transaction. Upserts are keyed by slug, so retrying is safe',
+    ),
 };
 
 export const layoutShape = {
