@@ -1,0 +1,144 @@
+import {
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import * as argon2 from 'argon2';
+import { customAlphabet } from 'nanoid';
+
+import { hashToken, randomToken } from '../common/crypto.js';
+import { PrismaService } from '../common/prisma.service.js';
+import { APP_CONFIG, type AppConfig } from '../config/env.js';
+import type { AuthUser } from './auth.types.js';
+import type { LoginInput, RegisterInput } from './auth.dto.js';
+import { durationToMs } from './duration.js';
+
+const suffix = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 6);
+
+export interface AuthResult {
+  readonly user: AuthUser;
+  readonly accessToken: string;
+  readonly refreshToken: string;
+  readonly refreshExpiresAt: Date;
+}
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
+  ) {}
+
+  async register(input: RegisterInput, userAgent?: string): Promise<AuthResult> {
+    if (!this.config.allowRegistration) {
+      throw new ForbiddenException('Registration is closed on this instance');
+    }
+
+    const email = input.email.toLowerCase();
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing !== null) throw new ConflictException('That email is already registered');
+
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        name: input.name,
+        passwordHash: await argon2.hash(input.password),
+        // Everyone gets a workspace immediately: a plan has to live somewhere,
+        // and asking a new user to create one first is a step with no decision
+        // in it.
+        memberships: {
+          create: {
+            role: 'OWNER',
+            workspace: {
+              create: { name: `${input.name}'s workspace`, slug: await this.freeSlug(input.name) },
+            },
+          },
+        },
+      },
+    });
+
+    return this.issue({ id: user.id, email: user.email, name: user.name }, userAgent);
+  }
+
+  async login(input: LoginInput, userAgent?: string): Promise<AuthResult> {
+    const user = await this.prisma.user.findUnique({ where: { email: input.email.toLowerCase() } });
+
+    // Hash even when the user does not exist so that a missing account and a
+    // wrong password take the same amount of time to answer.
+    const hash = user?.passwordHash ?? (await argon2.hash(randomToken()));
+    const valid = await argon2.verify(hash, input.password).catch(() => false);
+
+    if (user === null || user.passwordHash === null || !valid) {
+      throw new UnauthorizedException('Incorrect email or password');
+    }
+
+    return this.issue({ id: user.id, email: user.email, name: user.name }, userAgent);
+  }
+
+  /**
+   * Refresh tokens rotate: the presented one is consumed and a new one issued.
+   * A token that is replayed after rotation no longer matches any session.
+   */
+  async refresh(token: string, userAgent?: string): Promise<AuthResult> {
+    const session = await this.prisma.session.findUnique({
+      where: { tokenHash: hashToken(token) },
+      include: { user: true },
+    });
+
+    if (session === null || session.expiresAt.getTime() < Date.now()) {
+      if (session !== null) await this.prisma.session.delete({ where: { id: session.id } });
+      throw new UnauthorizedException('Session expired');
+    }
+
+    await this.prisma.session.delete({ where: { id: session.id } });
+    const { id, email, name } = session.user;
+    return this.issue({ id, email, name }, userAgent);
+  }
+
+  async logout(token: string | undefined): Promise<void> {
+    if (token === undefined) return;
+    await this.prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } });
+  }
+
+  async userById(id: string): Promise<AuthUser | null> {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    return user === null ? null : { id: user.id, email: user.email, name: user.name };
+  }
+
+  private async issue(user: AuthUser, userAgent?: string): Promise<AuthResult> {
+    const refreshToken = randomToken();
+    const refreshExpiresAt = new Date(Date.now() + durationToMs(this.config.refreshTokenTtl));
+
+    await this.prisma.session.create({
+      data: {
+        userId: user.id,
+        tokenHash: hashToken(refreshToken),
+        expiresAt: refreshExpiresAt,
+        ...(userAgent !== undefined && { userAgent: userAgent.slice(0, 300) }),
+      },
+    });
+
+    const accessToken = await this.jwt.signAsync({ sub: user.id, email: user.email });
+    return { user, accessToken, refreshToken, refreshExpiresAt };
+  }
+
+  private async freeSlug(name: string): Promise<string> {
+    const base =
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40) || 'workspace';
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = attempt === 0 ? base : `${base}-${suffix()}`;
+      const taken = await this.prisma.workspace.findUnique({ where: { slug: candidate } });
+      if (taken === null) return candidate;
+    }
+    return `${base}-${suffix()}`;
+  }
+}

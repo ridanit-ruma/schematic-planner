@@ -1,0 +1,146 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+/* The marketing site has no theme switch, so it follows the reader's system. */
+
+/*
+ * A drafting palette. The ground is cool paper rather than warm cream, the ink
+ * is genuinely blue-black rather than tinted grey, and there is exactly one
+ * accent — blueprint blue — reserved for selection and primary action.
+ * Every other colour in the interface is status data, never decoration.
+ */
+:root {
+  --ground: #edf0f4;
+  --surface: #ffffff;
+  --surface-2: #f6f8fa;
+  --ink: #101720;
+  --ink-muted: #55616f;
+  --ink-faint: #8b96a5;
+  --rule: #cdd5e0;
+  --rule-strong: #a8b4c4;
+  --accent: #1b4fd8;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2eafd;
+  --grid-fine: #dfe5ed;
+  --grid-coarse: #ccd5e1;
+
+  --status-idea: #75828f;
+  --status-planned: #2f63c9;
+  --status-progress: #a95f0c;
+  --status-blocked: #b3352b;
+  --status-done: #237046;
+  --status-dropped: #9aa3af;
+
+  --danger: #b3352b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+  --ground: #0c1017;
+  --surface: #131a24;
+  --surface-2: #18212e;
+  --ink: #e4eaf2;
+  --ink-muted: #94a1b2;
+  --ink-faint: #6d7a8c;
+  --rule: #26313f;
+  --rule-strong: #3a4757;
+  --accent: #6e9bff;
+  --accent-ink: #0a0e14;
+  --accent-soft: #17243c;
+  --grid-fine: #161e29;
+  --grid-coarse: #1e2836;
+
+  --status-idea: #8e9bab;
+  --status-planned: #6e9bff;
+  --status-progress: #d99a3d;
+  --status-blocked: #e2685c;
+  --status-done: #4bb37c;
+  --status-dropped: #6b7684;
+
+  --danger: #e2685c;
+}
+}
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+
+  --color-status-idea: var(--status-idea);
+  --color-status-planned: var(--status-planned);
+  --color-status-progress: var(--status-progress);
+  --color-status-blocked: var(--status-blocked);
+  --color-status-done: var(--status-done);
+  --color-status-dropped: var(--status-dropped);
+
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Modular scale, ratio 1.25 */
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.8rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5625rem;
+  --text-2xl: 1.953rem;
+
+  --radius-sheet: 2px;
+}
+
+@layer base {
+  * {
+    border-color: var(--rule);
+  }
+
+  html {
+    color-scheme: light dark;
+  }
+
+
+  body {
+    background-color: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Identifiers are monospace because agents type them and people copy them;
+     `l`, `1`, `O` and `0` have to be distinguishable. Prose never is. */
+  .slug {
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    letter-spacing: 0.01em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+

@@ -1,0 +1,47 @@
+{
+  "name": "@schematic/web",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@hocuspocus/provider": "catalog:",
+    "@schematic/layout": "workspace:*",
+    "@schematic/schema": "workspace:*",
+    "@schematic/ydoc": "workspace:*",
+    "@tanstack/react-query": "catalog:",
+    "@xyflow/react": "catalog:",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
+    "lucide-react": "catalog:",
+    "radix-ui": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-router": "catalog:",
+    "tailwind-merge": "catalog:",
+    "yjs": "catalog:",
+    "zustand": "catalog:"
+  },
+  "devDependencies": {
+    "@schematic/eslint-config": "workspace:*",
+    "@schematic/typescript-config": "workspace:*",
+    "@tailwindcss/vite": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "eslint": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

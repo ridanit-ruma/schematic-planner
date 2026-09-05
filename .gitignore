@@ -1,0 +1,182 @@
+# =============================================================================
+# Schematic Planner
+#
+# Four groups, in order:
+#   1. Toolchain output  — anything an install, build or test run regenerates
+#   2. Local environment — secrets and machine-specific settings
+#   3. Local artifacts   — plan exports and container data produced while testing
+#   4. Agent scratch     — context files and throwaway plans created while
+#                          pair-working with an AI. None of it belongs in history.
+#
+# Escape hatch: a file matched here can still be committed deliberately with
+# `git add -f <path>`. Do that only for something curated and permanent.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# 1. Toolchain output
+# -----------------------------------------------------------------------------
+
+# Dependencies
+node_modules/
+.pnpm-store/
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+
+# Build output.
+# Anchored where a source directory could plausibly share the name: `src/lib` is
+# real source in the web app, and an unanchored `lib/` would silently swallow it.
+dist/
+build/
+/apps/www/out/
+*.tsbuildinfo
+
+# Turborepo
+.turbo/
+
+# Next.js (apps/www)
+.next/
+next-env.d.ts
+.vercel/
+
+# Vite (apps/web)
+.vite/
+vite.config.*.timestamp-*
+
+# Prisma generated client (migrations themselves ARE committed)
+**/prisma/generated/
+apps/api/src/generated/
+*.db
+*.db-journal
+
+# Tests and coverage
+coverage/
+.nyc_output/
+*.lcov
+test-results/
+playwright-report/
+.vitest-cache/
+
+# Caches
+.cache/
+.eslintcache
+.stylelintcache
+.parcel-cache/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+
+# -----------------------------------------------------------------------------
+# 2. Local environment
+# -----------------------------------------------------------------------------
+
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Keys and certificates
+*.pem
+*.key
+*.p12
+!**/__fixtures__/**/*.pem
+
+# Editors and OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+
+# -----------------------------------------------------------------------------
+# 3. Local artifacts
+#
+# Exporting a plan writes a zip and an Obsidian Canvas. Those are output, not
+# source. Test fixtures are the exception and are negated below.
+# -----------------------------------------------------------------------------
+
+/exports/
+*.zip
+*.canvas
+!**/__fixtures__/**/*.zip
+!**/__fixtures__/**/*.canvas
+!**/fixtures/**/*.zip
+!**/fixtures/**/*.canvas
+
+# Local container state
+.docker/data/
+postgres-data/
+pgdata/
+
+
+# -----------------------------------------------------------------------------
+# 4. Agent scratch
+#
+# Working with an AI agent produces a steady stream of context files, running
+# notes and throwaway plans. They are useful for one session and misleading
+# forever after, so none of them are tracked. Anything worth keeping is
+# rewritten into README.md or apps/www/content.
+# -----------------------------------------------------------------------------
+
+# Agent context files, any casing, any depth
+CLAUDE.md
+claude.md
+CLAUDE.local.md
+AGENTS.md
+agents.md
+GEMINI.md
+gemini.md
+COPILOT.md
+copilot.md
+.cursorrules
+.windsurfrules
+.aider*
+
+# Agent tool directories
+.claude/
+.cursor/
+.gemini/
+.codeium/
+.continue/
+.specstory/
+
+# Running notes and drafts
+ai_notes.md
+AI_NOTES.md
+notes.md
+NOTES.md
+scratch.md
+SCRATCH.md
+*.notes.md
+*.draft.md
+*.scratch.md
+
+# Throwaway planning directories.
+# `/docs/` is root-anchored on purpose: published documentation lives in
+# apps/www/content and is unaffected by this rule.
+/docs/
+/temp_plans/
+/temp/
+/tmp/
+/scratch/
+/.scratch/
+/sandbox/
