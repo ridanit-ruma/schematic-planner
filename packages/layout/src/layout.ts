@@ -32,6 +32,13 @@ export interface LayoutResult {
   readonly sizes: ReadonlyMap<string, Size>;
 }
 
+/**
+ * Room along the top edge for a container's own label. Applied to every
+ * container, not just the root: ELK reads padding per node, and a container
+ * without it puts its first child straight over its own title.
+ */
+const CONTAINER_PADDING = '[top=44,left=20,bottom=20,right=20]';
+
 const DEFAULTS = {
   direction: 'RIGHT' as LayoutDirection,
   nodeWidth: 280,
@@ -49,7 +56,7 @@ function elkOptions(options: Required<Pick<LayoutOptions, 'direction' | 'spacing
     'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
     'elk.spacing.nodeNode': String(options.spacing),
     'elk.layered.spacing.nodeNodeBetweenLayers': String(options.spacing * 2),
-    'elk.padding': `[top=48,left=24,bottom=24,right=24]`,
+    'elk.padding': CONTAINER_PADDING,
     // Without a fixed strategy ELK may order equal-rank nodes differently
     // between runs, which would make "arrange" produce a different diagram
     // each time it is pressed.
@@ -77,6 +84,7 @@ export async function layoutPlan(
       const elkNode: ElkNode = { id: slug };
       if (children.length > 0) {
         elkNode.children = buildChildren(children);
+        elkNode.layoutOptions = { 'elk.padding': CONTAINER_PADDING };
       } else {
         elkNode.width = node?.size?.width ?? settings.nodeWidth;
         elkNode.height = node?.size?.height ?? settings.nodeHeight;
