@@ -301,10 +301,27 @@ marketing site at `http://localhost:3000`.
 | `pnpm lint` | ESLint across every workspace |
 | `pnpm test` | Vitest across every workspace |
 | `pnpm check` | typecheck + lint + test — run this before you call something done |
+| `pnpm --filter @schematic/api smoke` | End-to-end check against a running server |
 | `pnpm --filter @schematic/api db:migrate` | Create a migration from a schema change |
 | `pnpm --filter @schematic/api db:deploy` | Apply existing migrations |
 
 There is no CI pipeline. `pnpm check` passing locally is the bar.
+
+### The smoke check
+
+`pnpm check` cannot see the seams — the websocket upgrade path, whether the sync
+server is actually being fed frames, whether the CRDT reaches Postgres. Each of
+those broke at least once during the first build and no unit test noticed, so
+there is a script that exercises them against a running instance:
+
+```bash
+pnpm --filter @schematic/api smoke                      # against localhost:3001
+SMOKE_API_URL=https://your-instance.example pnpm --filter @schematic/api smoke
+```
+
+It registers a throwaway account and leaves it behind, so point it at a
+development instance. Run it after anything that touches collaboration,
+authentication, or the MCP surface.
 
 ## Conventions
 

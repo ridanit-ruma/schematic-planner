@@ -11,6 +11,7 @@
     "typecheck": "pnpm db:generate && tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest run",
+    "smoke": "node scripts/smoke.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
@@ -41,6 +42,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@hocuspocus/provider": "catalog:",
     "@nestjs/cli": "catalog:",
     "@nestjs/testing": "catalog:",
     "@schematic/eslint-config": "workspace:*",
