@@ -43,7 +43,7 @@ export function SharedPlanPage() {
 
   if (doc === null) {
     return (
-      <div className="grid h-full place-items-center">
+      <div className="grid h-dvh place-items-center">
         <Spinner />
       </div>
     );
@@ -70,7 +70,7 @@ function SharedCanvas({ plan, token }: { plan: PlanDoc; token: string }) {
 
   return (
     <ReactFlowProvider>
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-dvh min-h-0 flex-col">
         <header className="flex h-11 shrink-0 items-center gap-4 border-b border-rule bg-surface px-3">
           <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{plan.title}</h1>
           <StatusTally counts={counts} />

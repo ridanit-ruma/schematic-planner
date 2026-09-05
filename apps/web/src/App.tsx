@@ -30,9 +30,7 @@ export function App() {
         path="/plans/:planId"
         element={
           <RequireAuth status={status}>
-            <div className="h-dvh">
-              <PlanPage />
-            </div>
+            <PlanPage />
           </RequireAuth>
         }
       />

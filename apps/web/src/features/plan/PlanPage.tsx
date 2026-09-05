@@ -23,7 +23,7 @@ export function PlanPage() {
 
   if (connection === null) {
     return (
-      <div className="grid h-full place-items-center">
+      <div className="grid h-dvh place-items-center">
         <Spinner />
       </div>
     );
@@ -142,7 +142,7 @@ function PlanWorkspace({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-dvh min-h-0 flex-col">
       <TitleBlock
         title={title === '' ? 'Untitled plan' : title}
         counts={counts}
