@@ -314,11 +314,14 @@ try {
       `outer ${Math.round(shift.x)},${Math.round(shift.y)}`,
     );
     console.log('\ndrawing a connection');
-    await page.click('button[title^="Contains"]');
+    // The control is a toggle group now, so the state is data-state, not
+    // aria-pressed: one of these is chosen rather than each being on or off.
+    await page.click('button[aria-label="Contains"]');
     await wait(300);
     check(
       'the connection control selects Contains',
-      (await page.$eval('button[title^="Contains"]', (b) => b.getAttribute('aria-pressed'))) === 'true',
+      (await page.$eval('button[aria-label="Contains"]', (b) => b.getAttribute('data-state'))) ===
+        'on',
     );
 
     // SVG elements carry an object for `className`, so the class list is read

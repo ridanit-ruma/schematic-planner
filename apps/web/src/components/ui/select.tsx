@@ -1,6 +1,5 @@
 import { Select as Primitive } from 'radix-ui';
 import { Check, ChevronDown } from 'lucide-react';
-import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -87,21 +86,5 @@ export function Select<T extends string>({
         </Primitive.Content>
       </Primitive.Portal>
     </Primitive.Root>
-  );
-}
-
-/** For the handful of places that want the label rendered by the caller. */
-export function SelectField({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <span className="block text-xs font-medium text-ink-muted">{label}</span>
-      {children}
-    </div>
   );
 }

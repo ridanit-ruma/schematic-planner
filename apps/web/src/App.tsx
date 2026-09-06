@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router';
 
 import { AppShell } from '@/components/AppShell';
 import { Spinner } from '@/components/ui/feedback';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAuth } from '@/lib/auth-store';
 import { AccountSettingsPage } from '@/features/account/AccountSettingsPage';
 import { SettingsLayout } from '@/features/account/SettingsLayout';
@@ -43,47 +44,49 @@ export function App() {
   }, [bootstrap]);
 
   return (
-    <Routes>
-      {/* A shared link has no session and must not be sent to sign-in. */}
-      <Route path="/share/:token" element={<SharedPlanPage />} />
-      <Route path="/login" element={<AuthPage mode="sign-in" />} />
-      <Route path="/register" element={<AuthPage mode="sign-up" />} />
+    <TooltipProvider>
+      <Routes>
+        {/* A shared link has no session and must not be sent to sign-in. */}
+        <Route path="/share/:token" element={<SharedPlanPage />} />
+        <Route path="/login" element={<AuthPage mode="sign-in" />} />
+        <Route path="/register" element={<AuthPage mode="sign-up" />} />
 
-      <Route
-        path="/plan/:planId"
-        element={
-          <RequireAuth status={status}>
-            <PlanPage />
-          </RequireAuth>
-        }
-      />
+        <Route
+          path="/plan/:planId"
+          element={
+            <RequireAuth status={status}>
+              <PlanPage />
+            </RequireAuth>
+          }
+        />
 
-      <Route
-        element={
-          <RequireAuth status={status}>
-            <WorkspacesProvider>
-              <AppShell />
-            </WorkspacesProvider>
-          </RequireAuth>
-        }
-      >
-        <Route index element={<HomeRedirect />} />
-        <Route path="/settings" element={<SettingsLayout />}>
-          <Route index element={<AccountSettingsPage />} />
-          <Route path="agents" element={<AgentsPage />} />
+        <Route
+          element={
+            <RequireAuth status={status}>
+              <WorkspacesProvider>
+                <AppShell />
+              </WorkspacesProvider>
+            </RequireAuth>
+          }
+        >
+          <Route index element={<HomeRedirect />} />
+          <Route path="/settings" element={<SettingsLayout />}>
+            <Route index element={<AccountSettingsPage />} />
+            <Route path="agents" element={<AgentsPage />} />
+          </Route>
+          <Route path="/invite/:token" element={<InvitePage />} />
+
+          <Route path="/workspace/:workspaceSlug" element={<WorkspaceLayout />}>
+            <Route index element={<ProjectIndexPage />} />
+            <Route path="project/:projectSlug" element={<PlanIndexPage />} />
+            <Route path="members" element={<MembersPage />} />
+            <Route path="settings" element={<WorkspaceSettingsPage />} />
+          </Route>
+
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
-        <Route path="/invite/:token" element={<InvitePage />} />
-
-        <Route path="/workspace/:workspaceSlug" element={<WorkspaceLayout />}>
-          <Route index element={<ProjectIndexPage />} />
-          <Route path="project/:projectSlug" element={<PlanIndexPage />} />
-          <Route path="members" element={<MembersPage />} />
-          <Route path="settings" element={<WorkspaceSettingsPage />} />
-        </Route>
-
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
+      </Routes>
+    </TooltipProvider>
   );
 }
 

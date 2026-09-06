@@ -2,6 +2,7 @@ import { Check, Copy } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { workspaces, type Member, type Role } from '@/lib/api';
@@ -17,8 +18,12 @@ const ROLE_HELP: Record<Role, string> = {
   OWNER: 'Can also delete the workspace.',
 };
 
-const select =
-  'rounded-[2px] border border-rule bg-surface px-2 py-1 text-xs text-ink focus:border-accent focus:outline-none';
+/** What each role can do, said where the role is chosen rather than beside it. */
+const ROLE_OPTIONS = ROLES.map((role) => ({
+  value: role,
+  label: role.toLowerCase(),
+  hint: ROLE_HELP[role],
+}));
 
 export function MembersPage() {
   const { current } = useWorkspace();
@@ -74,7 +79,10 @@ export function MembersPage() {
           <Spinner />
         </div>
       ) : members.length === 0 ? (
-        <Empty title="Nobody here" body="That should not be possible — a workspace keeps an owner." />
+        <Empty
+          title="Nobody here"
+          body="That should not be possible — a workspace keeps an owner."
+        />
       ) : (
         <table className="mt-8 w-full table-fixed border-collapse text-sm">
           <thead>
@@ -102,26 +110,14 @@ export function MembersPage() {
                   </td>
                   <td className="py-2.5">
                     {canManage && !isMe ? (
-                      <select
-                        className={select}
+                      <Select
                         value={member.role}
-                        aria-label={`Role for ${member.user.name}`}
-                        onChange={(event) =>
-                          void act(
-                            workspaces.updateMember(
-                              current.id,
-                              member.user.id,
-                              event.target.value as Role,
-                            ),
-                          )
+                        options={ROLE_OPTIONS}
+                        className="w-32"
+                        onChange={(role) =>
+                          void act(workspaces.updateMember(current.id, member.user.id, role))
                         }
-                      >
-                        {ROLES.map((role) => (
-                          <option key={role} value={role}>
-                            {role.toLowerCase()}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     ) : (
                       <span className="text-xs text-ink-muted">{member.role.toLowerCase()}</span>
                     )}
@@ -170,18 +166,12 @@ export function MembersPage() {
               <label htmlFor="invite-role" className="block text-xs font-medium text-ink-muted">
                 Role
               </label>
-              <select
+              <Select
                 id="invite-role"
-                className={`${select} w-full py-1.5 text-sm`}
                 value={inviteRole}
-                onChange={(event) => setInviteRole(event.target.value as Role)}
-              >
-                {ROLES.map((role) => (
-                  <option key={role} value={role}>
-                    {role.toLowerCase()}
-                  </option>
-                ))}
-              </select>
+                options={ROLE_OPTIONS}
+                onChange={setInviteRole}
+              />
               <p className="text-xs text-ink-faint">{ROLE_HELP[inviteRole]}</p>
             </div>
             <div className="flex justify-end gap-2">

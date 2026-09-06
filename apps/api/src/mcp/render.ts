@@ -102,6 +102,7 @@ export function renderTrace(result: TraceResult): string {
   for (const path of walked) {
     if (path.direction !== heading) {
       heading = path.direction;
+      if (lines[lines.length - 1] !== '') lines.push('');
       lines.push(
         heading === 'downstream' ? 'What it reaches:' : 'What reaches it:',
         `  ${result.start.title} (${result.start.slug})`,

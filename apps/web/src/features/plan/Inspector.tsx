@@ -11,6 +11,7 @@ import type * as Y from 'yjs';
 
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/field';
+import { Select } from '@/components/ui/select';
 import { STATUS_LABEL } from '@/components/ui/status';
 import { useYText } from './use-y-text';
 
@@ -22,8 +23,11 @@ const KIND_LABEL: Record<string, string> = {
   group: 'Group',
 };
 
-const select =
-  'w-full rounded-[2px] border border-rule bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none';
+const KIND_OPTIONS = planNodeKinds.map((kind) => ({ value: kind, label: KIND_LABEL[kind] ?? kind }));
+const STATUS_OPTIONS = planNodeStatuses.map((status) => ({
+  value: status,
+  label: STATUS_LABEL[status],
+}));
 
 /**
  * Everything typed here is written straight into the shared document, so two
@@ -73,37 +77,25 @@ export function Inspector({
         <div className="grid grid-cols-2 gap-3">
           <Field label="Kind">
             {(id) => (
-              <select
+              <Select
                 id={id}
-                className={select}
                 value={node.kind}
+                options={KIND_OPTIONS}
                 disabled={readOnly}
-                onChange={(event) => patch({ kind: event.target.value as PlanNode['kind'] })}
-              >
-                {planNodeKinds.map((kind) => (
-                  <option key={kind} value={kind}>
-                    {KIND_LABEL[kind] ?? kind}
-                  </option>
-                ))}
-              </select>
+                onChange={(kind) => patch({ kind })}
+              />
             )}
           </Field>
 
           <Field label="Status">
             {(id) => (
-              <select
+              <Select
                 id={id}
-                className={select}
                 value={node.status}
+                options={STATUS_OPTIONS}
                 disabled={readOnly}
-                onChange={(event) => patch({ status: event.target.value as PlanNode['status'] })}
-              >
-                {planNodeStatuses.map((status) => (
-                  <option key={status} value={status}>
-                    {STATUS_LABEL[status]}
-                  </option>
-                ))}
-              </select>
+                onChange={(status) => patch({ status })}
+              />
             )}
           </Field>
         </div>

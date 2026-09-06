@@ -4,6 +4,8 @@ import { Clock, Download, Link2, Plus, Wand2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { StatusTally } from '@/components/ui/status';
+import { ToggleGroup, ToggleItem } from '@/components/ui/toggle-group';
+import { Tooltip } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/ui/theme';
 import { cn } from '@/lib/utils';
 import type { ConnectionStatus } from './use-plan-document';
@@ -50,16 +52,19 @@ export function TitleBlock({
       <StatusTally counts={counts} />
 
       {peers.length > 0 ? (
-        <div className="flex items-center -space-x-1.5" aria-label={`${peers.length} other people here`}>
+        <div
+          className="flex items-center -space-x-1.5"
+          aria-label={`${peers.length} other people here`}
+        >
           {peers.slice(0, 4).map((peer) => (
-            <span
-              key={peer.userId}
-              title={peer.name}
-              className="grid size-5 place-items-center rounded-full border border-surface text-2xs font-medium text-white"
-              style={{ background: peer.color }}
-            >
-              {peer.name.slice(0, 1).toUpperCase()}
-            </span>
+            <Tooltip key={peer.userId} content={peer.name}>
+              <span
+                className="grid size-5 place-items-center rounded-full border border-surface text-2xs font-medium text-white"
+                style={{ background: peer.color }}
+              >
+                {peer.name.slice(0, 1).toUpperCase()}
+              </span>
+            </Tooltip>
           ))}
           {peers.length > 4 ? (
             <span className="pl-2.5 text-xs text-ink-muted">+{peers.length - 4}</span>
@@ -75,26 +80,24 @@ export function TitleBlock({
               Add node
             </Button>
             <ConnectKindControl value={connectKind} onChange={onConnectKindChange} />
-            <Button size="sm" variant="ghost" onClick={onArrange} title="Arrange unpinned nodes">
-              <Wand2 className="size-3.5" />
-              Arrange
-            </Button>
+            <Tooltip content="Lay out everything nobody has placed by hand">
+              <Button size="sm" variant="ghost" onClick={onArrange}>
+                <Wand2 className="size-3.5" />
+                Arrange
+              </Button>
+            </Tooltip>
             <Button size="sm" variant="ghost" onClick={onShare}>
               <Link2 className="size-3.5" />
               Share
             </Button>
           </>
         )}
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onHistory}
-          aria-pressed={historyOpen}
-          title="Who changed what"
-        >
-          <Clock className="size-3.5" />
-          History
-        </Button>
+        <Tooltip content="Who changed what">
+          <Button size="sm" variant="ghost" onClick={onHistory} aria-pressed={historyOpen}>
+            <Clock className="size-3.5" />
+            History
+          </Button>
+        </Tooltip>
         <Button size="sm" variant="quiet" onClick={onExport}>
           <Download className="size-3.5" />
           Export
@@ -132,41 +135,43 @@ function ConnectKindControl({
   onChange: (kind: PlanEdgeKind) => void;
 }) {
   return (
-    <div className="flex items-center rounded-[2px] border border-rule" role="group" aria-label="What a new connection means">
+    <ToggleGroup value={value} onChange={onChange} label="What a new connection means">
       {planEdgeKinds.map((kind) => (
-        <button
+        <Tooltip
           key={kind}
-          type="button"
-          title={`${CONNECT_LABEL[kind]} — ${CONNECT_HINT[kind]}`}
-          aria-pressed={value === kind}
-          onClick={() => onChange(kind)}
-          className={cn(
-            'flex h-7 w-9 items-center justify-center border-r border-rule last:border-r-0',
-            value === kind ? 'bg-accent-soft' : 'hover:bg-surface-2',
-          )}
+          content={
+            <>
+              <span className="font-medium">{CONNECT_LABEL[kind]}</span>
+              <span className="mt-0.5 block text-ink-muted">{CONNECT_HINT[kind]}</span>
+            </>
+          }
         >
-          <svg viewBox="0 0 28 8" className="h-2 w-6" aria-hidden>
-            <path
-              d={kind === 'depends_on' || kind === 'flows_to' ? 'M1 4 H22' : 'M1 4 H26'}
-              stroke={value === kind ? 'var(--accent)' : 'var(--ink-muted)'}
-              strokeWidth="1.4"
-              fill="none"
-              strokeDasharray={
-                kind === 'contains' || kind === 'depends_on'
-                  ? '5 3'
-                  : kind === 'relates_to'
-                    ? '1 3'
-                    : undefined
-              }
-            />
-            {kind === 'depends_on' || kind === 'flows_to' ? (
-              <path d="M22 1.5 L27 4 L22 6.5 z" fill={value === kind ? 'var(--accent)' : 'var(--ink-muted)'} />
-            ) : null}
-          </svg>
-          <span className="sr-only">{CONNECT_LABEL[kind]}</span>
-        </button>
+          <ToggleItem value={kind} label={CONNECT_LABEL[kind]}>
+            <svg viewBox="0 0 28 8" className="h-2 w-6" aria-hidden>
+              <path
+                d={kind === 'depends_on' || kind === 'flows_to' ? 'M1 4 H22' : 'M1 4 H26'}
+                stroke={value === kind ? 'var(--accent)' : 'var(--ink-muted)'}
+                strokeWidth="1.4"
+                fill="none"
+                strokeDasharray={
+                  kind === 'contains' || kind === 'depends_on'
+                    ? '5 3'
+                    : kind === 'relates_to'
+                      ? '1 3'
+                      : undefined
+                }
+              />
+              {kind === 'depends_on' || kind === 'flows_to' ? (
+                <path
+                  d="M22 1.5 L27 4 L22 6.5 z"
+                  fill={value === kind ? 'var(--accent)' : 'var(--ink-muted)'}
+                />
+              ) : null}
+            </svg>
+          </ToggleItem>
+        </Tooltip>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }
 
@@ -182,16 +187,18 @@ function ConnectionLight({ status }: { status: ConnectionStatus }) {
   }[status];
 
   return (
-    <span className="flex items-center" title={label}>
-      <span
-        className={cn(
-          'size-2 rounded-full',
-          status === 'connected' && 'bg-status-done',
-          status === 'connecting' && 'bg-status-progress',
-          status === 'disconnected' && 'bg-status-blocked',
-        )}
-      />
-      <span className="sr-only">{label}</span>
-    </span>
+    <Tooltip content={label}>
+      <span className="flex items-center">
+        <span
+          className={cn(
+            'size-2 rounded-full',
+            status === 'connected' && 'bg-status-done',
+            status === 'connecting' && 'bg-status-progress',
+            status === 'disconnected' && 'bg-status-blocked',
+          )}
+        />
+        <span className="sr-only">{label}</span>
+      </span>
+    </Tooltip>
   );
 }

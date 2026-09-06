@@ -6,6 +6,7 @@ import { Wordmark } from './Wordmark';
 import { Button } from './ui/button';
 import { Field, Input } from './ui/field';
 import { Modal } from './ui/modal';
+import { DropdownAction, DropdownItem, DropdownMenu, DropdownSeparator } from './ui/dropdown-menu';
 import { ThemeToggle } from './ui/theme';
 import { workspaces } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
@@ -63,32 +64,35 @@ function WorkspaceSwitcher() {
 
   return (
     <>
-      <div className="relative flex items-center">
-        <ChevronsUpDown
-          aria-hidden
-          className="pointer-events-none absolute right-1.5 size-3 text-ink-faint"
-        />
-        <select
-          aria-label="Switch workspace"
-          className="appearance-none rounded-[2px] border border-rule bg-surface py-1 pr-6 pl-2 text-xs text-ink focus:border-accent focus:outline-none"
-          value={current?.slug ?? ''}
-          onChange={(event) => {
-            if (event.target.value === '__new') {
-              setCreating(true);
-              return;
-            }
-            void navigate(`/workspace/${event.target.value}`);
-          }}
-        >
-          {current === undefined ? <option value="">Choose a workspace</option> : null}
-          {all.map((workspace) => (
-            <option key={workspace.id} value={workspace.slug}>
-              {workspace.name}
-            </option>
-          ))}
-          <option value="__new">+ New workspace…</option>
-        </select>
-      </div>
+      {/* A menu rather than a field: switching workspace and making one are two
+          different acts, and a select made "New workspace…" read as a place you
+          could already be. */}
+      <DropdownMenu
+        trigger={
+          <button
+            type="button"
+            className="flex items-center gap-1.5 rounded-[2px] border border-rule bg-surface py-1 pr-1.5 pl-2 text-xs text-ink hover:bg-surface-2 focus:border-accent focus:outline-none"
+          >
+            {current?.name ?? 'Choose a workspace'}
+            <ChevronsUpDown aria-hidden className="size-3 text-ink-faint" />
+          </button>
+        }
+      >
+        {all.map((workspace) => (
+          <DropdownItem
+            key={workspace.id}
+            selected={workspace.slug === current?.slug}
+            onSelect={() => void navigate(`/workspace/${workspace.slug}`)}
+          >
+            {workspace.name}
+          </DropdownItem>
+        ))}
+        <DropdownSeparator />
+        <DropdownAction onSelect={() => setCreating(true)}>
+          <Plus className="size-3.5 text-ink-faint" />
+          New workspace
+        </DropdownAction>
+      </DropdownMenu>
 
       <Modal open={creating} onOpenChange={setCreating} title="New workspace">
         <form

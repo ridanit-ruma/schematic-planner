@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { Spinner } from '@/components/ui/feedback';
+import { Tooltip } from '@/components/ui/tooltip';
 import { plans, type PlanNavigation } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -60,25 +61,27 @@ export function PlanSidebar({ planId }: { planId: string }) {
   if (collapsed) {
     return (
       <aside className="flex w-9 shrink-0 flex-col items-center gap-1 border-r border-rule bg-surface py-2">
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          title="Show plans"
-          className="grid size-7 place-items-center rounded-[2px] text-ink-muted hover:bg-surface-2 hover:text-ink"
-        >
-          <PanelLeftOpen className="size-4" />
-          <span className="sr-only">Show plans</span>
-        </button>
-        {/* The way out stays reachable with the rail folded away. */}
-        {nav === null ? null : (
-          <Link
-            to={`/workspace/${nav.workspace.slug}`}
-            title={`Leave for ${nav.workspace.name}`}
+        <Tooltip content="Show plans" side="right">
+          <button
+            type="button"
+            onClick={toggleCollapsed}
             className="grid size-7 place-items-center rounded-[2px] text-ink-muted hover:bg-surface-2 hover:text-ink"
           >
-            <ArrowLeft className="size-4" />
-            <span className="sr-only">{`Leave for ${nav.workspace.name}`}</span>
-          </Link>
+            <PanelLeftOpen className="size-4" />
+            <span className="sr-only">Show plans</span>
+          </button>
+        </Tooltip>
+        {/* The way out stays reachable with the rail folded away. */}
+        {nav === null ? null : (
+          <Tooltip content={`Leave for ${nav.workspace.name}`} side="right">
+            <Link
+              to={`/workspace/${nav.workspace.slug}`}
+              className="grid size-7 place-items-center rounded-[2px] text-ink-muted hover:bg-surface-2 hover:text-ink"
+            >
+              <ArrowLeft className="size-4" />
+              <span className="sr-only">{`Leave for ${nav.workspace.name}`}</span>
+            </Link>
+          </Tooltip>
         )}
       </aside>
     );
@@ -101,15 +104,16 @@ export function PlanSidebar({ planId }: { planId: string }) {
             <span className="truncate">{nav.workspace.name}</span>
           </Link>
         )}
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          title="Hide plans"
-          className="grid size-6 shrink-0 place-items-center rounded-[2px] text-ink-muted hover:bg-surface-2 hover:text-ink"
-        >
-          <PanelLeftClose className="size-4" />
-          <span className="sr-only">Hide plans</span>
-        </button>
+        <Tooltip content="Hide plans">
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="grid size-6 shrink-0 place-items-center rounded-[2px] text-ink-muted hover:bg-surface-2 hover:text-ink"
+          >
+            <PanelLeftClose className="size-4" />
+            <span className="sr-only">Hide plans</span>
+          </button>
+        </Tooltip>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto py-1">
@@ -167,7 +171,10 @@ export function PlanSidebar({ planId }: { planId: string }) {
                         >
                           <span
                             aria-hidden
-                            className={cn('h-3 w-0.5 shrink-0', current ? 'bg-accent' : 'bg-transparent')}
+                            className={cn(
+                              'h-3 w-0.5 shrink-0',
+                              current ? 'bg-accent' : 'bg-transparent',
+                            )}
                           />
                           <span className="min-w-0 flex-1 truncate">
                             {plan.title === '' ? 'Untitled plan' : plan.title}

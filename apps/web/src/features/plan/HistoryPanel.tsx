@@ -1,6 +1,8 @@
 import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { Avatar } from '@/components/ui/avatar';
+import { Tooltip } from '@/components/ui/tooltip';
 import { Problem, Spinner } from '@/components/ui/feedback';
 import { plans, type PlanChangeRecord } from '@/lib/api';
 
@@ -32,7 +34,9 @@ function sentence(change: PlanChangeRecord): string {
     case 'node.body':
       return `wrote in ${name}`;
     case 'node.tags':
-      return change.detail === '' ? `cleared the tags on ${name}` : `tagged ${name} ${change.detail}`;
+      return change.detail === ''
+        ? `cleared the tags on ${name}`
+        : `tagged ${name} ${change.detail}`;
     case 'edge.added':
       return `connected ${name}`;
     case 'edge.removed':
@@ -110,7 +114,11 @@ export function HistoryPanel({ planId, onClose }: { planId: string; onClose: () 
                 key={change.id}
                 className="flex gap-2 border-b border-rule/60 px-3 py-2 last:border-b-0"
               >
-                <Avatar by={change.by} />
+                <Avatar
+                  src={change.by?.avatarUrl}
+                  name={change.by?.name ?? '?'}
+                  className="mt-0.5"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs leading-snug text-ink">
                     <span className="font-medium">{change.by?.name ?? 'Someone'}</span>
@@ -121,9 +129,9 @@ export function HistoryPanel({ planId, onClose }: { planId: string; onClose: () 
                     ) : null}{' '}
                     {sentence(change)}
                   </p>
-                  <p className="mt-0.5 text-2xs text-ink-faint" title={new Date(change.at).toLocaleString()}>
-                    {when(change.at)}
-                  </p>
+                  <Tooltip content={new Date(change.at).toLocaleString()}>
+                    <p className="mt-0.5 inline-block text-2xs text-ink-faint">{when(change.at)}</p>
+                  </Tooltip>
                 </div>
               </li>
             ))}
@@ -131,19 +139,5 @@ export function HistoryPanel({ planId, onClose }: { planId: string; onClose: () 
         )}
       </div>
     </aside>
-  );
-}
-
-function Avatar({ by }: { by: PlanChangeRecord['by'] }) {
-  if (by?.avatarUrl != null && by.avatarUrl !== '') {
-    return <img src={by.avatarUrl} alt="" className="mt-0.5 size-5 shrink-0 rounded-full object-cover" />;
-  }
-  return (
-    <span
-      aria-hidden
-      className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-surface-2 text-2xs font-medium text-ink-muted"
-    >
-      {(by?.name ?? '?').slice(0, 1).toUpperCase()}
-    </span>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 
+import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Problem, Spinner } from '@/components/ui/feedback';
@@ -77,20 +78,11 @@ export function AccountSettingsPage() {
           Shown wherever you appear — a member list, the history of a plan, your cursor on a canvas.
         </p>
         <div className="mt-4 flex items-center gap-4">
-          {user?.avatarUrl != null && user.avatarUrl !== '' ? (
-            <img
-              src={user.avatarUrl}
-              alt=""
-              className="size-16 shrink-0 rounded-full border border-rule object-cover"
-            />
-          ) : (
-            <span
-              aria-hidden
-              className="grid size-16 shrink-0 place-items-center rounded-full border border-rule bg-surface-2 text-lg font-medium text-ink-muted"
-            >
-              {(user?.name ?? '?').slice(0, 1).toUpperCase()}
-            </span>
-          )}
+          <Avatar
+            src={user?.avatarUrl}
+            name={user?.name ?? '?'}
+            className="size-16 border border-rule text-lg"
+          />
           <div className="flex gap-2">
             <input
               ref={pick}
