@@ -413,7 +413,8 @@ MCP surface behind a real key, share links, the permission boundary, workspace
 and account management, throttling, and two live clients converging on one
 document with their edits merging.
 
-Every screen has been rendered and reviewed.
+A browser check (`pnpm --filter @schematic/web canvas-check`) drives the canvas
+itself, and every screen has been rendered and reviewed.
 
 Running it for the first time is what found the real defects — the collaboration
 socket was never fed frames so every client sat connected and silent; the canvas
@@ -428,9 +429,10 @@ Still missing:
   written. Email and password work.
 - **No email is ever sent.** An invitation produces a link you send yourself, and
   an email address cannot be changed because there is nothing to verify it with.
-- **The containers have never been built.** The machine this was developed on has
-  no working container runtime. The Caddy routing is verified against a real
-  Caddy; the images are not.
+- **The containers have never been built.** Neither machine available here has a
+  working container runtime. The Caddy arrangement itself is verified against a
+  real Caddy — every route, and a sign-in whose cookie survives the proxy — but
+  the images are not.
 - **Rate limiting is per instance.** The counters live in memory, so several API
   instances each get their own allowance. A shared store is the fix when there is
   more than one.
