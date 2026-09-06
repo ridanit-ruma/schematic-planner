@@ -16,8 +16,18 @@ export function plural(count: number, singular: string, pluralForm = `${singular
  */
 export function formatWhen(value: string | Date): string {
   const date = typeof value === 'string' ? new Date(value) : value;
-  const days = (Date.now() - date.getTime()) / 86_400_000;
-  if (days < 1) return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  if (days < 365) return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const now = new Date();
+
+  // By calendar day, not by elapsed hours: eleven last night is under
+  // twenty-four hours old and showing it as "11:00 PM" reads as today.
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  if (sameDay) return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
+  if (date.getFullYear() === now.getFullYear()) {
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }

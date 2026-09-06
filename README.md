@@ -27,6 +27,7 @@ canvas — then take it with you as a plain Markdown tree and an Obsidian Canvas
 - [Repository layout](#repository-layout)
 - [Where new code goes](#where-new-code-goes)
 - [Performance notes](#performance-notes)
+- [How it is drawn](#how-it-is-drawn)
 - [Getting started](#getting-started)
 - [Conventions](#conventions)
 - [Project status](#project-status)
@@ -315,6 +316,43 @@ It is the kind of property that silently regresses, so it is pinned down.
 not from build-time Vite variables. One built bundle therefore runs anywhere: a
 deployment replaces that one small file instead of rebuilding the application. The
 dev server falls back to `VITE_API_URL` when the file leaves the values blank.
+
+## How it is drawn
+
+One design system across the application and the marketing site, defined once in
+`apps/web/src/styles/index.css` and mirrored in `apps/www/src/app/globals.css`. Read
+those two files before changing anything visual; nothing below is decoration.
+
+**Dark only.** The surface stepping, the translucent borders and the focus glow are
+tuned against an obsidian ground. A light counterpart that merely inverted them would
+be a different design wearing the same names, so there is no theme switch.
+
+**Depth is stepping, not shadow.** Five surfaces — `ground` for the canvas, `surface`
+for rails and panels, `surface-2` for cards and rows, `surface-3` for hover and
+popovers, `surface-4` for what is selected — separated by 1px translucent borders
+(`rule` at 6% white, `rule-strong` at 14%). Only level 3 and above carry the
+`elevated` utility, which is a rim highlight and a wide soft spread rather than a drop
+shadow.
+
+**Colour is data.** Electric indigo (`accent`) means "this is where you are" and
+nothing else. Everything else coloured is telemetry: slate for a draft, indigo for
+planned, amber for in progress, crimson for blocked, emerald for done. Violet
+(`collab`) is reserved for agents and live collaborators.
+
+**Corners are tight and technical.** `rounded-sm` (4px) for tags and indicators,
+`rounded-md` (6px) for inputs, buttons and rows, `rounded-lg` (8px) for cards and
+popovers, `rounded-xl` (12px) for modals, which is the widest the system allows.
+
+**Two faces.** Geist for interface text, JetBrains Mono for anything a person copies
+or an agent types — slugs, keys, shortcuts, counts in a column. The `.slug` and
+`.rail-heading` classes carry those uses.
+
+**Avatars are squares** with a 4px curve, not circles: the interface is modules on a
+grid, and one disc in a row of them reads as borrowed from elsewhere.
+
+Screens are built from `Page`, `Panel` and `Table` in `apps/web/src/components/ui`, so
+a list is a list wherever it appears. Anything reaching for a raw `<select>`, a native
+`title` tooltip or a hand-rolled avatar has skipped a component that already exists.
 
 ## Getting started
 
