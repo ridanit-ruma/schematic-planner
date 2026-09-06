@@ -135,15 +135,25 @@ try {
       return { zoom, count: labels.length, sizes: labels.join(',') };
     });
 
-  const near = await measure();
+  // Moving in rather than out: a plan fitted near the minimum zoom has nowhere
+  // further to pull back to, and the check would be measuring the floor.
+  const far = await measure();
   for (let i = 0; i < 4; i += 1) {
-    await page.click('.react-flow__controls-zoomout');
+    await page.click('.react-flow__controls-zoomin');
     await wait(180);
   }
-  const far = await measure();
-  check('zooming out actually pulled back', far.zoom < near.zoom / 2, `${near.zoom.toFixed(2)} -> ${far.zoom.toFixed(2)}`);
-  check('the same labels are drawn at both distances', far.count === near.count && far.count > 0, `${near.count} -> ${far.count}`);
-  check('and drawn at the same size', far.sizes === near.sizes, far.sizes.slice(0, 40));
+  const near = await measure();
+  check(
+    'moving in actually moved in',
+    near.zoom > far.zoom * 1.8,
+    `${far.zoom.toFixed(2)} -> ${near.zoom.toFixed(2)}`,
+  );
+  check(
+    'the same labels are drawn at both distances',
+    far.count === near.count && far.count > 0,
+    `${far.count} -> ${near.count}`,
+  );
+  check('and drawn at the same size', far.sizes === near.sizes, near.sizes.slice(0, 40));
   await page.click('.react-flow__controls-fitview');
   await wait(500);
 
