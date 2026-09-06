@@ -3,8 +3,7 @@ import Link from 'next/link';
 import { HeroSchematic } from '@/components/HeroSchematic';
 import { SiteChrome } from '@/components/SiteChrome';
 import { appUrl } from '@/lib/app-url';
-
-const repoUrl = 'https://github.com/ridanit-ruma/schematic-planner';
+import { REPO_URL } from '@/lib/links';
 
 const AGENT_CALL = `create_plan({
   title: "Billing rework",
@@ -32,10 +31,10 @@ const EXPORT_TREE = `plan-export.zip
 export default function Home() {
   return (
     <SiteChrome>
-      <section className="mx-auto max-w-5xl px-6 pt-20 pb-24">
+      <section className="mx-auto max-w-5xl px-5 pt-14 pb-16 sm:px-6 sm:pt-20 sm:pb-24">
         <div className="grid gap-12 md:grid-cols-[1fr_1.1fr] md:items-center">
           <div>
-            <h1 className="max-w-[18ch] text-3xl leading-[1.1] font-semibold tracking-[-0.035em] text-ink">
+            <h1 className="max-w-[18ch] text-2xl leading-[1.12] font-semibold tracking-[-0.035em] text-ink sm:text-3xl">
               Give the plan a shape before you write the code.
             </h1>
             <p className="mt-5 max-w-[52ch] text-base leading-relaxed text-ink-muted">
@@ -108,9 +107,9 @@ export default function Home() {
           <div>
             <h2 className="text-xl font-medium tracking-[-0.02em] text-ink">What an agent sees</h2>
             <p className="mt-3 max-w-[52ch] text-base leading-[1.65] text-ink-muted">
-              Six tools behind a URL and a key. Nothing to install, nothing to keep in step with the
-              server. A whole plan arrives in one call, and every change after that goes through one
-              batched, atomic door — so forty nodes appear on your canvas at once rather than
+              Eleven tools behind a URL and a key. Nothing to install, nothing to keep in step with
+              the server. A whole plan arrives in one call, and every change after that goes through
+              one batched, atomic door — so forty nodes appear on your canvas at once rather than
               crawling in one at a time.
             </p>
             <p className="mt-3 max-w-[52ch] text-base leading-[1.65] text-ink-muted">
@@ -153,7 +152,7 @@ export default function Home() {
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <a
-            href={repoUrl}
+            href={REPO_URL}
             className="rounded-md border border-rule bg-surface-2 px-4 py-2 text-sm text-ink transition-colors hover:border-rule-strong hover:bg-surface-3"
           >
             Read the source
@@ -180,7 +179,7 @@ export default function Home() {
 function Band({ children }: { children: React.ReactNode }) {
   return (
     <section className="border-t border-rule">
-      <div className="mx-auto max-w-5xl px-6 py-16">{children}</div>
+      <div className="mx-auto max-w-5xl px-5 py-12 sm:px-6 sm:py-16">{children}</div>
     </section>
   );
 }
