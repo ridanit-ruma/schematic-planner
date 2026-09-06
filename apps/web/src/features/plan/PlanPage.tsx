@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/modal';
 import { Problem, Spinner } from '@/components/ui/feedback';
 import { downloadExport, plans } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
+import { EdgeInspector } from './EdgeInspector';
 import { Inspector } from './Inspector';
 import { PlanCanvas } from './PlanCanvas';
 import { TitleBlock } from './TitleBlock';
@@ -51,6 +52,11 @@ function PlanWorkspace({
   const peers = useStore(store, (state) => state.peers);
   const selected = useStore(store, (state) => state.selected);
   const select = useStore(store, (state) => state.select);
+  const selectedEdge = useStore(store, (state) => state.selectedEdge);
+  const selectEdge = useStore(store, (state) => state.selectEdge);
+  const edges = useStore(store, (state) => state.edges);
+  const connectKind = useStore(store, (state) => state.connectKind);
+  const setConnectKind = useStore(store, (state) => state.setConnectKind);
 
   const { screenToFlowPosition } = useReactFlow();
   const [adding, setAdding] = useState(false);
@@ -70,6 +76,11 @@ function PlanWorkspace({
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selected)?.data.node ?? null,
     [nodes, selected],
+  );
+
+  const selectedEdgeData = useMemo(
+    () => edges.find((edge) => edge.id === selectedEdge)?.data?.edge ?? null,
+    [edges, selectedEdge],
   );
 
   const apply = useCallback(
@@ -149,6 +160,8 @@ function PlanWorkspace({
         peers={peers}
         status={status}
         readOnly={false}
+        connectKind={connectKind}
+        onConnectKindChange={setConnectKind}
         onAddNode={() => setAdding(true)}
         onArrange={() => void arrange()}
         onExport={() => void exportZip()}
@@ -172,6 +185,13 @@ function PlanWorkspace({
             readOnly={false}
             onApplyOps={apply}
             onClose={() => select(null)}
+          />
+        ) : selectedEdgeData !== null ? (
+          <EdgeInspector
+            edge={selectedEdgeData}
+            readOnly={false}
+            onApplyOps={apply}
+            onClose={() => selectEdge(null)}
           />
         ) : null}
       </div>

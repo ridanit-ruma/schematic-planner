@@ -2,10 +2,15 @@ import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/commo
 
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import type { AuthUser } from '../auth/auth.types.js';
+import { StrictRateLimit } from '../common/throttle.js';
 import { ZodPipe } from '../common/zod.pipe.js';
 import { WorkspacesService } from './workspaces.service.js';
 import {
   createApiKeySchema,
+  deleteWorkspaceSchema,
+  updateWorkspaceSchema,
+  type DeleteWorkspaceInput,
+  type UpdateWorkspaceInput,
   createInviteSchema,
   createWorkspaceSchema,
   updateMemberSchema,
@@ -30,6 +35,24 @@ export class WorkspacesController {
     @Body(new ZodPipe(createWorkspaceSchema)) body: CreateWorkspaceInput,
   ) {
     return this.workspaces.create(user.id, body);
+  }
+
+  @Patch('workspaces/:id')
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodPipe(updateWorkspaceSchema)) body: UpdateWorkspaceInput,
+  ) {
+    return this.workspaces.update(user.id, id, body);
+  }
+
+  @Delete('workspaces/:id')
+  remove(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodPipe(deleteWorkspaceSchema)) body: DeleteWorkspaceInput,
+  ) {
+    return this.workspaces.remove(user.id, id, body.confirm);
   }
 
   @Get('workspaces/:id/members')
@@ -65,6 +88,7 @@ export class WorkspacesController {
     return this.workspaces.createInvite(user.id, id, body);
   }
 
+  @StrictRateLimit()
   @Post('invites/:token/accept')
   accept(@CurrentUser() user: AuthUser, @Param('token') token: string) {
     return this.workspaces.acceptInvite(user.id, token);

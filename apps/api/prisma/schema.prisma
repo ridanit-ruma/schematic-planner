@@ -67,10 +67,29 @@ model Workspace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members Membership[]
-  plans   Plan[]
-  invites Invite[]
-  apiKeys ApiKey[]
+  members  Membership[]
+  projects Project[]
+  invites  Invite[]
+  apiKeys  ApiKey[]
+}
+
+/// A workspace holds projects; a project holds plans. The middle level exists
+/// because one team plans several things at once, and a flat list of every plan
+/// they have ever drawn stops being navigable quickly.
+model Project {
+  id          String   @id @default(cuid())
+  workspaceId String
+  slug        String
+  name        String
+  description String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plans     Plan[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId])
 }
 
 model Membership {
@@ -106,7 +125,7 @@ model Invite {
 
 model Plan {
   id          String   @id @default(cuid())
-  workspaceId String
+  projectId   String
   title       String
   description String   @default("")
   /// Yjs document state: the write model. Every human drag and every MCP call
@@ -118,10 +137,10 @@ model Plan {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  share     PlanShare?
+  project Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  share   PlanShare?
 
-  @@index([workspaceId])
+  @@index([projectId])
 }
 
 model PlanShare {

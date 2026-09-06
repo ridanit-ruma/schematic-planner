@@ -60,12 +60,26 @@ async function main() {
   check('GET /auth/me', me.body.user?.email === email);
   check('unauthenticated request refused', (await call('/auth/me')).status === 401);
 
-  section('workspace and plan');
+  section('workspace, project and plan');
   const workspaces = await call('/workspaces', { token });
   const workspaceId = workspaces.body[0]?.id;
   check('a workspace exists at sign-up', typeof workspaceId === 'string');
 
-  const created = await call(`/workspaces/${workspaceId}/plans`, {
+  const projects = await call(`/workspaces/${workspaceId}/projects`, { token });
+  const projectId = projects.body[0]?.id;
+  check('a project exists at sign-up', typeof projectId === 'string', projects.body[0]?.slug ?? '');
+
+  const namedProject = await call(`/workspaces/${workspaceId}/projects`, {
+    method: 'POST',
+    token,
+    body: { name: 'Billing rework' },
+  });
+  check('create project', namedProject.body.slug === 'billing-rework', namedProject.body.slug ?? '');
+
+  const bySlug = await call(`/workspaces/${workspaceId}/projects?slug=billing-rework`, { token });
+  check('a project resolves from its slug', bySlug.body.id === namedProject.body.id);
+
+  const created = await call(`/projects/${projectId}/plans`, {
     method: 'POST',
     token,
     body: { title: 'Smoke plan' },
@@ -149,7 +163,7 @@ async function main() {
 
   const tools = await mcp({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
   const names = (tools.result?.tools ?? []).map((tool) => tool.name).sort();
-  check('tools/list', names.length === 6, names.join(', '));
+  check('tools/list', names.length === 7, names.join(', '));
   check(
     'no tool accepts a position',
     JSON.stringify(tools.result?.tools ?? []).includes('position') === false,
@@ -165,14 +179,26 @@ async function main() {
     ).status === 401,
   );
 
-  const drawn = await mcp({
+  const listedProjects = await mcp({
     jsonrpc: '2.0',
     id: 2,
+    method: 'tools/call',
+    params: { name: 'list_projects', arguments: {} },
+  });
+  check(
+    'list_projects',
+    (listedProjects.result?.content?.[0]?.text ?? '').includes('billing-rework'),
+  );
+
+  const drawn = await mcp({
+    jsonrpc: '2.0',
+    id: 3,
     method: 'tools/call',
     params: {
       name: 'create_plan',
       arguments: {
         title: 'Drawn by an agent',
+        projectSlug: 'billing-rework',
         nodes: [
           { slug: 'ingest', title: 'Ingest' },
           { slug: 'serve', title: 'Serve' },

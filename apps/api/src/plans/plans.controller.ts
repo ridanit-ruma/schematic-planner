@@ -5,6 +5,7 @@ import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth.types.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { Public } from '../auth/public.decorator.js';
+import { StrictRateLimit } from '../common/throttle.js';
 import { ZodPipe } from '../common/zod.pipe.js';
 import { PlansService } from './plans.service.js';
 import {
@@ -24,18 +25,18 @@ import {
 export class PlansController {
   constructor(private readonly plans: PlansService) {}
 
-  @Get('workspaces/:workspaceId/plans')
-  list(@CurrentUser() user: AuthUser, @Param('workspaceId') workspaceId: string) {
-    return this.plans.list(user.id, workspaceId);
+  @Get('projects/:projectId/plans')
+  list(@CurrentUser() user: AuthUser, @Param('projectId') projectId: string) {
+    return this.plans.list(user.id, projectId);
   }
 
-  @Post('workspaces/:workspaceId/plans')
+  @Post('projects/:projectId/plans')
   create(
     @CurrentUser() user: AuthUser,
-    @Param('workspaceId') workspaceId: string,
+    @Param('projectId') projectId: string,
     @Body(new ZodPipe(createPlanSchema)) body: CreatePlanInput,
   ) {
-    return this.plans.create(user.id, workspaceId, body);
+    return this.plans.create(user.id, projectId, body);
   }
 
   @Get('plans/:id')
@@ -103,12 +104,14 @@ export class PlansController {
   }
 
   @Public()
+  @StrictRateLimit()
   @Get('share/:token')
   readShared(@Param('token') token: string) {
     return this.plans.readShared(token);
   }
 
   @Public()
+  @StrictRateLimit()
   @Get('share/:token/export')
   async exportShared(@Param('token') token: string, @Res() response: Response): Promise<void> {
     const doc = await this.plans.readShared(token);

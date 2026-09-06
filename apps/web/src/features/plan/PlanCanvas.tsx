@@ -41,6 +41,8 @@ export function PlanCanvas({
   const onNodesChange = useStore(store, (state) => state.onNodesChange);
   const onEdgesChange = useStore(store, (state) => state.onEdgesChange);
   const select = useStore(store, (state) => state.select);
+  const selectEdge = useStore(store, (state) => state.selectEdge);
+  const connectKind = useStore(store, (state) => state.connectKind);
 
   /** Someone else's in-flight drag overrides the stored position for that node. */
   const rendered = useMemo(
@@ -74,14 +76,21 @@ export function PlanCanvas({
   const handleConnect = useCallback(
     (params: Connection) => {
       if (params.source === null || params.target === null) return;
-      // Dragging left to right draws "this needs that", so the edge is stored
-      // pointing the other way — the direction the export orders files in.
-      const edge = normalizeEdge(
-        planEdgeInputSchema.parse({ kind: 'depends_on', from: params.target, to: params.source }),
-      );
-      onApplyOps([{ op: 'upsert_edge', edge }]);
+
+      // Direction depends on what the line means. Dragging left to right draws
+      // "this needs that", which is stored pointing the other way — the
+      // direction the export orders files in. Containment and association read
+      // in the direction they were drawn.
+      const [from, to] =
+        connectKind === 'depends_on'
+          ? [params.target, params.source]
+          : [params.source, params.target];
+
+      onApplyOps([
+        { op: 'upsert_edge', edge: normalizeEdge(planEdgeInputSchema.parse({ kind: connectKind, from, to })) },
+      ]);
     },
-    [onApplyOps],
+    [connectKind, onApplyOps],
   );
 
   return (
@@ -98,6 +107,7 @@ export function PlanCanvas({
         onNodeDragStop={readOnly ? undefined : handleDragStop}
         onConnect={readOnly ? undefined : handleConnect}
         onNodeClick={(_, node) => select(node.id)}
+        onEdgeClick={(_, edge) => selectEdge(edge.id)}
         onPaneClick={() => select(null)}
         nodesDraggable={!readOnly}
         nodesConnectable={!readOnly}

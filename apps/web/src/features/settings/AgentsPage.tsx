@@ -1,6 +1,5 @@
 import { Check, Copy } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
@@ -8,6 +7,7 @@ import { Empty, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { config } from '@/lib/config';
 import { workspaces, type ApiKeySummary } from '@/lib/api';
+import { useWorkspace } from '@/features/workspaces/workspace-context';
 import { formatWhen } from '@/lib/utils';
 
 const MCP_URL = `${config.apiUrl}/mcp`;
@@ -17,7 +17,8 @@ const MCP_URL = `${config.apiUrl}/mcp`;
  * into another program is monospace and one click from the clipboard.
  */
 export function AgentsPage() {
-  const { workspaceId = '' } = useParams();
+  const { current } = useWorkspace();
+  const workspaceId = current.id;
   const [keys, setKeys] = useState<ApiKeySummary[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [naming, setNaming] = useState(false);

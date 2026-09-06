@@ -42,10 +42,10 @@ export class PlansService {
     private readonly documents: PlanDocumentsService,
   ) {}
 
-  async list(userId: string, workspaceId: string): Promise<PlanSummary[]> {
-    await this.access.requireWorkspace(userId, workspaceId, 'VIEWER');
+  async list(userId: string, projectId: string): Promise<PlanSummary[]> {
+    await this.access.requireProject(userId, projectId, 'VIEWER');
     const plans = await this.prisma.plan.findMany({
-      where: { workspaceId },
+      where: { projectId },
       orderBy: { updatedAt: 'desc' },
     });
 
@@ -58,12 +58,12 @@ export class PlansService {
     }));
   }
 
-  async create(userId: string, workspaceId: string, input: CreatePlanInput): Promise<PlanDoc> {
-    await this.access.requireWorkspace(userId, workspaceId, 'EDITOR');
+  async create(userId: string, projectId: string, input: CreatePlanInput): Promise<PlanDoc> {
+    await this.access.requireProject(userId, projectId, 'EDITOR');
 
     const created = await this.prisma.plan.create({
       data: {
-        workspaceId,
+        projectId,
         title: input.title,
         description: input.description,
         snapshot: emptyPlanDoc('pending', input.title),

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -13,7 +14,12 @@ import { hashToken, randomToken } from '../common/crypto.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import type { AuthUser } from './auth.types.js';
-import type { LoginInput, RegisterInput } from './auth.dto.js';
+import type {
+  ChangePasswordInput,
+  LoginInput,
+  RegisterInput,
+  UpdateProfileInput,
+} from './auth.dto.js';
 import { durationToMs } from './duration.js';
 
 const suffix = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 6);
@@ -54,7 +60,14 @@ export class AuthService {
           create: {
             role: 'OWNER',
             workspace: {
-              create: { name: `${input.name}'s workspace`, slug: await this.freeSlug(input.name) },
+              create: {
+                name: `${input.name}'s workspace`,
+                slug: await this.freeSlug(input.name),
+                // A plan needs a project to live in, so one exists from the
+                // start. Nobody should have to create a container before they
+                // can write down an idea.
+                projects: { create: { slug: 'general', name: 'General' } },
+              },
             },
           },
         },
@@ -102,6 +115,90 @@ export class AuthService {
   async logout(token: string | undefined): Promise<void> {
     if (token === undefined) return;
     await this.prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } });
+  }
+
+  async updateProfile(userId: string, input: UpdateProfileInput): Promise<AuthUser> {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { name: input.name },
+    });
+    return { id: user.id, email: user.email, name: user.name };
+  }
+
+  /**
+   * Changing a password ends every other session. Someone who changes it because
+   * they think it leaked expects exactly that, and leaving old sessions alive
+   * would quietly defeat the point.
+   */
+  async changePassword(userId: string, input: ChangePasswordInput, keepToken?: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (user === null || user.passwordHash === null) {
+      throw new BadRequestException('This account has no password set');
+    }
+
+    const valid = await argon2.verify(user.passwordHash, input.currentPassword).catch(() => false);
+    if (!valid) throw new UnauthorizedException('That is not your current password');
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: await argon2.hash(input.newPassword) },
+    });
+    await this.prisma.session.deleteMany({
+      where: {
+        userId,
+        ...(keepToken !== undefined && { NOT: { tokenHash: hashToken(keepToken) } }),
+      },
+    });
+
+    return { ok: true as const };
+  }
+
+  async sessions(userId: string, currentToken?: string) {
+    const sessions = await this.prisma.session.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+    const currentHash = currentToken === undefined ? null : hashToken(currentToken);
+
+    return sessions.map((session) => ({
+      id: session.id,
+      userAgent: session.userAgent,
+      createdAt: session.createdAt,
+      expiresAt: session.expiresAt,
+      current: session.tokenHash === currentHash,
+    }));
+  }
+
+  async revokeSession(userId: string, sessionId: string) {
+    await this.prisma.session.deleteMany({ where: { id: sessionId, userId } });
+    return { ok: true as const };
+  }
+
+  async revokeOtherSessions(userId: string, keepToken?: string) {
+    await this.prisma.session.deleteMany({
+      where: {
+        userId,
+        ...(keepToken !== undefined && { NOT: { tokenHash: hashToken(keepToken) } }),
+      },
+    });
+    return { ok: true as const };
+  }
+
+  /**
+   * Everything the account owns goes with it — workspaces where it is the only
+   * owner, and every project and plan inside them. Cascades in the schema do the
+   * work; this only checks that the person meant it.
+   */
+  async deleteAccount(userId: string, password: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (user === null) throw new UnauthorizedException();
+    if (user.passwordHash === null) throw new BadRequestException('This account has no password');
+
+    const valid = await argon2.verify(user.passwordHash, password).catch(() => false);
+    if (!valid) throw new UnauthorizedException('That is not your password');
+
+    await this.prisma.user.delete({ where: { id: userId } });
+    return { ok: true as const };
   }
 
   async userById(id: string): Promise<AuthUser | null> {

@@ -3,18 +3,27 @@ import { Navigate, useParams } from 'react-router';
 
 import { Problem, Spinner } from '@/components/ui/feedback';
 import { workspaces } from '@/lib/api';
+import { useWorkspaces } from './workspace-context';
 
 export function InvitePage() {
   const { token = '' } = useParams();
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const { reload } = useWorkspaces();
+  const [workspaceSlug, setWorkspaceSlug] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
     workspaces
       .acceptInvite(token)
-      .then((result) => setWorkspaceId(result.workspace.id))
+      .then(async (result) => {
+        reload();
+        // The invitation returns the workspace it joined; the list has to be
+        // refetched before its slug can be resolved for the redirect.
+        const list = await workspaces.list();
+        const joined = list.find((workspace) => workspace.id === result.workspace.id);
+        setWorkspaceSlug(joined?.slug ?? null);
+      })
       .catch(setError);
-  }, [token]);
+  }, [token, reload]);
 
   if (error !== null) {
     return (
@@ -23,7 +32,7 @@ export function InvitePage() {
       </div>
     );
   }
-  if (workspaceId !== null) return <Navigate to={`/w/${workspaceId}`} replace />;
+  if (workspaceSlug !== null) return <Navigate to={`/workspace/${workspaceSlug}`} replace />;
 
   return (
     <div className="grid py-24 place-items-center">

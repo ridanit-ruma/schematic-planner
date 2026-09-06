@@ -34,6 +34,12 @@ export const planViewSchema = z
 
 export const createPlanShape = {
   title: z.string().min(1).max(200),
+  projectSlug: z
+    .string()
+    .min(1)
+    .max(64)
+    .optional()
+    .describe('Which project to draw in. Omitted, the workspace default is used'),
   description: z.string().max(2000).default(''),
   nodes: z.array(agentNodeSchema).max(2000).default([]),
   edges: z.array(agentEdgeSchema).max(5000).default([]),

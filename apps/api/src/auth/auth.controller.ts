@@ -1,12 +1,36 @@
-import { Body, Controller, Get, Headers, Inject, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 
+import { StrictRateLimit } from '../common/throttle.js';
 import { ZodPipe } from '../common/zod.pipe.js';
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { AuthService, type AuthResult } from './auth.service.js';
 import { CurrentUser } from './current-user.decorator.js';
 import { Public } from './public.decorator.js';
-import { loginSchema, registerSchema, type LoginInput, type RegisterInput } from './auth.dto.js';
+import {
+  changePasswordSchema,
+  deleteAccountSchema,
+  loginSchema,
+  registerSchema,
+  updateProfileSchema,
+  type ChangePasswordInput,
+  type DeleteAccountInput,
+  type LoginInput,
+  type RegisterInput,
+  type UpdateProfileInput,
+} from './auth.dto.js';
 import type { AuthUser } from './auth.types.js';
 
 export const REFRESH_COOKIE = 'sp_refresh';
@@ -19,6 +43,7 @@ export class AuthController {
   ) {}
 
   @Public()
+  @StrictRateLimit()
   @Post('register')
   async register(
     @Body(new ZodPipe(registerSchema)) body: RegisterInput,
@@ -29,6 +54,7 @@ export class AuthController {
   }
 
   @Public()
+  @StrictRateLimit()
   @Post('login')
   async login(
     @Body(new ZodPipe(loginSchema)) body: LoginInput,
@@ -39,6 +65,7 @@ export class AuthController {
   }
 
   @Public()
+  @StrictRateLimit()
   @Post('refresh')
   async refresh(
     @Req() request: Request,
@@ -64,6 +91,52 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: AuthUser): { user: AuthUser } {
     return { user };
+  }
+
+  @Patch('me')
+  updateProfile(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodPipe(updateProfileSchema)) body: UpdateProfileInput,
+  ) {
+    return this.auth.updateProfile(user.id, body);
+  }
+
+  @StrictRateLimit()
+  @Post('password')
+  changePassword(
+    @CurrentUser() user: AuthUser,
+    @Req() request: Request,
+    @Body(new ZodPipe(changePasswordSchema)) body: ChangePasswordInput,
+  ) {
+    // The session making the change is kept; every other one is ended.
+    return this.auth.changePassword(user.id, body, this.readCookie(request));
+  }
+
+  @Get('sessions')
+  sessions(@CurrentUser() user: AuthUser, @Req() request: Request) {
+    return this.auth.sessions(user.id, this.readCookie(request));
+  }
+
+  @Delete('sessions/:id')
+  revokeSession(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.auth.revokeSession(user.id, id);
+  }
+
+  @Delete('sessions')
+  revokeOthers(@CurrentUser() user: AuthUser, @Req() request: Request) {
+    return this.auth.revokeOtherSessions(user.id, this.readCookie(request));
+  }
+
+  @StrictRateLimit()
+  @Delete('me')
+  async deleteAccount(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodPipe(deleteAccountSchema)) body: DeleteAccountInput,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.auth.deleteAccount(user.id, body.password);
+    response.clearCookie(REFRESH_COOKIE, this.cookieOptions(new Date(0)));
+    return result;
   }
 
   /** Which sign-in methods this instance actually has configured. */

@@ -1,6 +1,6 @@
 import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } from '@xyflow/react';
 import { buildPlanGraph } from '@schematic/schema';
-import type { PlanDoc, PlanEdge, PlanNode, Position } from '@schematic/schema';
+import type { PlanDoc, PlanEdge, PlanEdgeKind, PlanNode, Position } from '@schematic/schema';
 import { edgesMap, nodesMap, readPlanDoc, type Presence } from '@schematic/ydoc';
 import { createStore } from 'zustand/vanilla';
 import type * as Y from 'yjs';
@@ -12,7 +12,12 @@ export interface PlanState {
   edges: PlanFlowEdge[];
   title: string;
   description: string;
+  /** Slug of the selected node, or null. */
   selected: string | null;
+  /** Id of the selected edge, or null. A node and an edge are never both selected. */
+  selectedEdge: string | null;
+  /** What the next connection drawn on the canvas will mean. */
+  connectKind: PlanEdgeKind;
   peers: Presence[];
   /** Positions other people are dragging right now. Ephemeral, never stored. */
   remoteDrag: Record<string, Position>;
@@ -20,6 +25,8 @@ export interface PlanState {
   onNodesChange: (changes: NodeChange<PlanFlowNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<PlanFlowEdge>[]) => void;
   select: (slug: string | null) => void;
+  selectEdge: (id: string | null) => void;
+  setConnectKind: (kind: PlanEdgeKind) => void;
 }
 
 export type PlanStore = ReturnType<typeof createPlanStore>;
@@ -62,12 +69,16 @@ export function createPlanStore(doc: Y.Doc) {
     title: '',
     description: '',
     selected: null,
+    selectedEdge: null,
+    connectKind: 'depends_on',
     peers: [],
     remoteDrag: {},
 
     onNodesChange: (changes) => set({ nodes: applyNodeChanges(changes, get().nodes) }),
     onEdgesChange: (changes) => set({ edges: applyEdgeChanges(changes, get().edges) }),
-    select: (selected) => set({ selected }),
+    select: (selected) => set({ selected, selectedEdge: null }),
+    selectEdge: (selectedEdge) => set({ selectedEdge, selected: null }),
+    setConnectKind: (connectKind) => set({ connectKind }),
   }));
 
   const project = (): PlanDoc => readPlanDoc(doc).doc;

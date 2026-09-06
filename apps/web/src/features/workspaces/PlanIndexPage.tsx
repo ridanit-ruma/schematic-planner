@@ -5,17 +5,20 @@ import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
-import { plans, type PlanSummary } from '@/lib/api';
+import { plans, projects, type PlanSummary } from '@/lib/api';
 import { formatWhen, plural } from '@/lib/utils';
+import { useWorkspace } from './workspace-context';
 
 /**
  * A drawing index rather than a wall of cards: one row per sheet, ruled, with
  * the numbers where a reader can compare them down the column.
  */
 export function PlanIndexPage() {
-  const { workspaceId = '' } = useParams();
+  const { current } = useWorkspace();
+  const { projectSlug = '' } = useParams();
   const navigate = useNavigate();
 
+  const [project, setProject] = useState<{ id: string; name: string } | null>(null);
   const [list, setList] = useState<PlanSummary[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [creating, setCreating] = useState(false);
@@ -23,15 +26,22 @@ export function PlanIndexPage() {
 
   useEffect(() => {
     setList(null);
-    plans.list(workspaceId).then(setList).catch(setError);
-  }, [workspaceId]);
+    setProject(null);
+    projects
+      .bySlug(current.id, projectSlug)
+      .then(async (found) => {
+        setProject(found);
+        setList(await plans.list(found.id));
+      })
+      .catch(setError);
+  }, [current.id, projectSlug]);
 
   const create = async (): Promise<void> => {
     const trimmed = title.trim();
-    if (trimmed === '') return;
+    if (trimmed === '' || project === null) return;
     try {
-      const plan = await plans.create(workspaceId, trimmed);
-      void navigate(`/plans/${plan.id}`);
+      const plan = await plans.create(project.id, trimmed);
+      void navigate(`/plan/${plan.id}`);
     } catch (cause) {
       setError(cause);
     }
@@ -44,8 +54,7 @@ export function PlanIndexPage() {
       </div>
     );
   }
-
-  if (list === null) {
+  if (list === null || project === null) {
     return (
       <div className="grid py-24 place-items-center">
         <Spinner />
@@ -55,12 +64,18 @@ export function PlanIndexPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
-      <div className="flex items-end justify-between gap-4">
+      <Link
+        to={`/workspace/${current.slug}`}
+        className="text-xs text-ink-muted hover:text-ink"
+      >
+        ← {current.name}
+      </Link>
+
+      <div className="mt-2 flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-medium text-ink">Plans</h1>
+          <h1 className="text-xl font-medium text-ink">{project.name}</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            {list.length === 0 ? 'Nothing drawn yet.' : plural(list.length, 'plan')} in this
-            workspace.
+            {list.length === 0 ? 'Nothing drawn yet.' : plural(list.length, 'plan')} in this project.
           </p>
         </div>
         <Button variant="primary" onClick={() => setCreating(true)}>
@@ -91,7 +106,7 @@ export function PlanIndexPage() {
             {list.map((plan) => (
               <tr key={plan.id} className="border-b border-rule hover:bg-surface-2">
                 <td className="py-2.5 pr-4">
-                  <Link to={`/plans/${plan.id}`} className="block min-w-0">
+                  <Link to={`/plan/${plan.id}`} className="block min-w-0">
                     <span className="block truncate font-medium text-ink">{plan.title}</span>
                     {plan.description !== '' ? (
                       <span className="block truncate text-xs text-ink-muted">
@@ -123,7 +138,7 @@ export function PlanIndexPage() {
                 autoFocus
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder="Billing rework"
+                placeholder="Ledger migration"
               />
             )}
           </Field>

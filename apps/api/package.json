@@ -24,6 +24,7 @@
     "@nestjs/core": "catalog:",
     "@nestjs/jwt": "catalog:",
     "@nestjs/platform-express": "catalog:",
+    "@nestjs/throttler": "catalog:",
     "@prisma/adapter-pg": "catalog:",
     "@prisma/client": "catalog:",
     "@schematic/exporter": "workspace:*",

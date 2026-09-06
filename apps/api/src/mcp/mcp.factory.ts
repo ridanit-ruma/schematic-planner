@@ -5,6 +5,7 @@ import { normalizeEdge, planEdgeInputSchema, planOpsSchema } from '@schematic/sc
 
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { PlansService } from '../plans/plans.service.js';
+import { ProjectsService } from '../projects/projects.service.js';
 import type { McpIdentity } from './api-key.service.js';
 import { renderPlan } from './render.js';
 import {
@@ -26,6 +27,7 @@ function reason(error: unknown): string {
 export class McpFactory {
   constructor(
     private readonly plans: PlansService,
+    private readonly projects: ProjectsService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -48,11 +50,37 @@ export class McpFactory {
       'list_plans',
       { title: 'List plans', description: 'Plans in the workspace this API key belongs to.' },
       async () => {
-        const plans = await this.plans.list(identity.userId, identity.workspaceId);
-        if (plans.length === 0) return text('No plans yet. Use create_plan to make one.');
+        const projects = await this.projects.list(identity.userId, identity.workspaceId);
+        const lines: string[] = [];
+
+        for (const project of projects) {
+          const plans = await this.plans.list(identity.userId, project.id);
+          if (plans.length === 0) continue;
+          lines.push(`${project.name} (${project.slug})`);
+          for (const plan of plans) {
+            lines.push(`  ${plan.id}  ${plan.title} (${plan.nodeCount} nodes)`);
+          }
+        }
+
+        if (lines.length === 0) return text('No plans yet. Use create_plan to make one.');
+        return text(lines.join('\n'));
+      },
+    );
+
+    server.registerTool(
+      'list_projects',
+      {
+        title: 'List projects',
+        description:
+          'Projects in the workspace this API key belongs to. A workspace holds projects, ' +
+          'and a project holds plans.',
+      },
+      async () => {
+        const projects = await this.projects.list(identity.userId, identity.workspaceId);
+        if (projects.length === 0) return text('No projects yet.');
         return text(
-          plans
-            .map((plan) => `${plan.id}  ${plan.title} (${plan.nodeCount} nodes)`)
+          projects
+            .map((project) => `${project.slug}  ${project.name} (${project.planCount} plans)`)
             .join('\n'),
         );
       },
@@ -83,9 +111,14 @@ export class McpFactory {
           'a plan you have already written into a diagram.',
         inputSchema: createPlanShape,
       },
-      async ({ title, description, nodes, edges }) => {
+      async ({ title, description, projectSlug, nodes, edges }) => {
         try {
-          const doc = await this.plans.create(identity.userId, identity.workspaceId, {
+          const projectId =
+            projectSlug === undefined
+              ? await this.projects.defaultFor(identity.workspaceId)
+              : (await this.projects.bySlug(identity.userId, identity.workspaceId, projectSlug)).id;
+
+          const doc = await this.plans.create(identity.userId, projectId, {
             title,
             description,
             spec: {

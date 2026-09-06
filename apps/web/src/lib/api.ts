@@ -8,13 +8,37 @@ export interface AuthUser {
   name: string;
 }
 
+export type Role = 'OWNER' | 'ADMIN' | 'EDITOR' | 'VIEWER';
+
 export interface WorkspaceSummary {
   id: string;
   slug: string;
   name: string;
-  role: 'OWNER' | 'ADMIN' | 'EDITOR' | 'VIEWER';
-  planCount: number;
+  role: Role;
+  projectCount: number;
   memberCount: number;
+}
+
+export interface ProjectSummary {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  planCount: number;
+  updatedAt: string;
+}
+
+export interface Member {
+  role: Role;
+  user: { id: string; name: string; email: string; avatarUrl: string | null };
+}
+
+export interface SessionSummary {
+  id: string;
+  userAgent: string | null;
+  createdAt: string;
+  expiresAt: string;
+  current: boolean;
 }
 
 export interface PlanSummary {
@@ -150,11 +174,16 @@ export const auth = {
 export const workspaces = {
   list: () => api<WorkspaceSummary[]>('/workspaces'),
   create: (name: string) => api<WorkspaceSummary>('/workspaces', { method: 'POST', ...json({ name }) }),
-  members: (id: string) =>
-    api<{ role: string; user: AuthUser & { avatarUrl: string | null } }[]>(
-      `/workspaces/${id}/members`,
-    ),
-  invite: (id: string, role: string) =>
+  update: (id: string, name: string) =>
+    api<WorkspaceSummary>(`/workspaces/${id}`, { method: 'PATCH', ...json({ name }) }),
+  remove: (id: string, confirm: string) =>
+    api<{ ok: true }>(`/workspaces/${id}`, { method: 'DELETE', ...json({ confirm }) }),
+  members: (id: string) => api<Member[]>(`/workspaces/${id}/members`),
+  updateMember: (id: string, userId: string, role: Role) =>
+    api<{ ok: true }>(`/workspaces/${id}/members/${userId}`, { method: 'PATCH', ...json({ role }) }),
+  removeMember: (id: string, userId: string) =>
+    api<{ ok: true }>(`/workspaces/${id}/members/${userId}`, { method: 'DELETE' }),
+  invite: (id: string, role: Role) =>
     api<{ url: string }>(`/workspaces/${id}/invites`, { method: 'POST', ...json({ role }) }),
   acceptInvite: (token: string) =>
     api<{ workspace: { id: string; name: string } }>(`/invites/${token}/accept`, { method: 'POST' }),
@@ -168,10 +197,47 @@ export const workspaces = {
     api<{ ok: true }>(`/workspaces/${id}/api-keys/${keyId}`, { method: 'DELETE' }),
 };
 
+export const projects = {
+  list: (workspaceId: string) => api<ProjectSummary[]>(`/workspaces/${workspaceId}/projects`),
+  bySlug: (workspaceId: string, slug: string) =>
+    api<{ id: string; slug: string; name: string }>(
+      `/workspaces/${workspaceId}/projects?slug=${encodeURIComponent(slug)}`,
+    ),
+  create: (workspaceId: string, name: string) =>
+    api<{ id: string; slug: string; name: string }>(`/workspaces/${workspaceId}/projects`, {
+      method: 'POST',
+      ...json({ name }),
+    }),
+  update: (id: string, body: { name?: string; description?: string }) =>
+    api<{ id: string; slug: string; name: string }>(`/projects/${id}`, {
+      method: 'PATCH',
+      ...json(body),
+    }),
+  remove: (id: string) => api<{ ok: true }>(`/projects/${id}`, { method: 'DELETE' }),
+};
+
+export const account = {
+  updateName: (name: string) =>
+    api<AuthUser>('/auth/me', { method: 'PATCH', ...json({ name }) }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api<{ ok: true }>('/auth/password', {
+      method: 'POST',
+      ...json({ currentPassword, newPassword }),
+    }),
+  sessions: () => api<SessionSummary[]>('/auth/sessions'),
+  revokeSession: (id: string) => api<{ ok: true }>(`/auth/sessions/${id}`, { method: 'DELETE' }),
+  revokeOthers: () => api<{ ok: true }>('/auth/sessions', { method: 'DELETE' }),
+  remove: (password: string) =>
+    api<{ ok: true }>('/auth/me', {
+      method: 'DELETE',
+      ...json({ password, confirm: 'delete my account' }),
+    }),
+};
+
 export const plans = {
-  list: (workspaceId: string) => api<PlanSummary[]>(`/workspaces/${workspaceId}/plans`),
-  create: (workspaceId: string, title: string) =>
-    api<PlanDoc>(`/workspaces/${workspaceId}/plans`, { method: 'POST', ...json({ title }) }),
+  list: (projectId: string) => api<PlanSummary[]>(`/projects/${projectId}/plans`),
+  create: (projectId: string, title: string) =>
+    api<PlanDoc>(`/projects/${projectId}/plans`, { method: 'POST', ...json({ title }) }),
   read: (planId: string) => api<PlanDoc>(`/plans/${planId}`),
   remove: (planId: string) => api<{ ok: true }>(`/plans/${planId}`, { method: 'DELETE' }),
   applyOps: (planId: string, ops: PlanOp[]) =>

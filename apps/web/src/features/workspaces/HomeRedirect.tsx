@@ -1,53 +1,66 @@
-import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router';
+import { Navigate, useNavigate } from 'react-router';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { Empty, Problem, Spinner } from '@/components/ui/feedback';
-import { workspaces, type WorkspaceSummary } from '@/lib/api';
+import { Empty } from '@/components/ui/feedback';
+import { Field, Input } from '@/components/ui/field';
+import { Modal } from '@/components/ui/modal';
+import { workspaces } from '@/lib/api';
+import { useWorkspaces } from './workspace-context';
 
 /** Everyone gets a workspace at sign-up, so this normally redirects at once. */
 export function HomeRedirect() {
-  const [list, setList] = useState<WorkspaceSummary[] | null>(null);
-  const [error, setError] = useState<unknown>(null);
+  const { all, reload } = useWorkspaces();
+  const navigate = useNavigate();
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState('');
 
-  useEffect(() => {
-    workspaces.list().then(setList).catch(setError);
-  }, []);
-
-  if (error !== null) {
-    return (
-      <div className="mx-auto max-w-md px-6 py-16">
-        <Problem error={error} />
-      </div>
-    );
-  }
-  if (list === null) {
-    return (
-      <div className="grid py-24 place-items-center">
-        <Spinner />
-      </div>
-    );
-  }
-
-  const first = list[0];
-  if (first !== undefined) return <Navigate to={`/w/${first.id}`} replace />;
+  const first = all[0];
+  if (first !== undefined) return <Navigate to={`/workspace/${first.slug}`} replace />;
 
   return (
-    <Empty
-      title="No workspace yet"
-      body="A workspace holds your plans and the keys your agents connect with."
-      action={
-        <Button
-          variant="primary"
-          onClick={() => {
-            void workspaces.create('My workspace').then((created) => {
-              window.location.href = `/w/${created.id}`;
+    <>
+      <Empty
+        title="No workspace yet"
+        body="A workspace holds your projects, and the keys your agents connect with."
+        action={
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            Create a workspace
+          </Button>
+        }
+      />
+      <Modal open={creating} onOpenChange={setCreating} title="New workspace">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void workspaces.create(name.trim()).then((created) => {
+              reload();
+              void navigate(`/workspace/${created.slug}`);
             });
           }}
         >
-          Create a workspace
-        </Button>
-      }
-    />
+          <Field label="Name">
+            {(id) => (
+              <Input
+                id={id}
+                autoFocus
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Acme"
+              />
+            )}
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              Create workspace
+            </Button>
+          </div>
+        </form>
+      </Modal>
+    </>
   );
 }

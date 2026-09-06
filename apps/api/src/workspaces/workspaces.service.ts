@@ -1,11 +1,22 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { customAlphabet } from 'nanoid';
 
 import { hashToken, randomToken } from '../common/crypto.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { AccessService } from './access.service.js';
-import type { CreateApiKeyInput, CreateInviteInput, CreateWorkspaceInput } from './workspaces.dto.js';
+import type {
+  CreateApiKeyInput,
+  CreateInviteInput,
+  CreateWorkspaceInput,
+  UpdateWorkspaceInput,
+} from './workspaces.dto.js';
 import type { Role } from './roles.js';
 
 const suffix = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 6);
@@ -25,7 +36,7 @@ export class WorkspacesService {
   async listForUser(userId: string) {
     const memberships = await this.prisma.membership.findMany({
       where: { userId },
-      include: { workspace: { include: { _count: { select: { plans: true, members: true } } } } },
+      include: { workspace: { include: { _count: { select: { projects: true, members: true } } } } },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -34,7 +45,7 @@ export class WorkspacesService {
       slug: membership.workspace.slug,
       name: membership.workspace.name,
       role: membership.role,
-      planCount: membership.workspace._count.plans,
+      projectCount: membership.workspace._count.projects,
       memberCount: membership.workspace._count.members,
     }));
   }
@@ -45,9 +56,34 @@ export class WorkspacesService {
         name: input.name,
         slug: await this.freeSlug(input.name),
         members: { create: { userId, role: 'OWNER' } },
+        projects: { create: { slug: 'general', name: 'General' } },
       },
     });
     return { id: workspace.id, slug: workspace.slug, name: workspace.name, role: 'OWNER' as Role };
+  }
+
+  async update(userId: string, workspaceId: string, input: UpdateWorkspaceInput) {
+    await this.access.requireWorkspace(userId, workspaceId, 'ADMIN');
+    const workspace = await this.prisma.workspace.update({
+      where: { id: workspaceId },
+      data: { name: input.name },
+    });
+    // The slug stays put on rename. It is in the address bar, and a link
+    // somebody saved should survive a change of mind about the name.
+    return { id: workspace.id, slug: workspace.slug, name: workspace.name };
+  }
+
+  /** Takes every project and plan in it. Only an owner can, and only by name. */
+  async remove(userId: string, workspaceId: string, confirm: string) {
+    await this.access.requireWorkspace(userId, workspaceId, 'OWNER');
+    const workspace = await this.prisma.workspace.findUnique({ where: { id: workspaceId } });
+    if (workspace === null) throw new NotFoundException('Workspace not found');
+    if (confirm !== workspace.name) {
+      throw new BadRequestException('Type the workspace name exactly to confirm');
+    }
+
+    await this.prisma.workspace.delete({ where: { id: workspaceId } });
+    return { ok: true as const };
   }
 
   async members(userId: string, workspaceId: string) {

@@ -58,6 +58,10 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: text(''),
   GOOGLE_CLIENT_SECRET: text(''),
 
+  RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().min(1).default(60),
+  RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(300),
+  RATE_LIMIT_AUTH_MAX: z.coerce.number().int().min(1).default(10),
+
   COLLAB_PERSIST_DEBOUNCE_MS: z.coerce.number().int().min(0).default(2000),
   COLLAB_PERSIST_MAX_WAIT_MS: z.coerce.number().int().min(0).default(10_000),
 });
@@ -84,6 +88,13 @@ export interface AppConfig {
   readonly oauth: {
     readonly github: { id: string; secret: string } | null;
     readonly google: { id: string; secret: string } | null;
+  };
+  readonly rateLimit: {
+    readonly windowSeconds: number;
+    /** Requests per window per client for ordinary traffic. */
+    readonly max: number;
+    /** The tighter allowance for anything that checks a credential. */
+    readonly authMax: number;
   };
   readonly collab: { readonly debounceMs: number; readonly maxWaitMs: number };
 }
@@ -147,6 +158,11 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     oauth: {
       github: oauthPair(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET),
       google: oauthPair(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET),
+    },
+    rateLimit: {
+      windowSeconds: env.RATE_LIMIT_WINDOW_SECONDS,
+      max: env.RATE_LIMIT_MAX,
+      authMax: env.RATE_LIMIT_AUTH_MAX,
     },
     collab: {
       debounceMs: env.COLLAB_PERSIST_DEBOUNCE_MS,
