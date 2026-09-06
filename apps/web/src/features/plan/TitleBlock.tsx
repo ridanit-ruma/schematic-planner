@@ -146,7 +146,7 @@ function ConnectKindControl({
             </>
           }
         >
-          <ToggleItem value={kind} label={CONNECT_LABEL[kind]}>
+          <ToggleItem value={kind} label={CONNECT_LABEL[kind]} selected={value === kind}>
             <svg viewBox="0 0 28 8" className="h-2 w-6" aria-hidden>
               <path
                 d={kind === 'depends_on' || kind === 'flows_to' ? 'M1 4 H22' : 'M1 4 H26'}

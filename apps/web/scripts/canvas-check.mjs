@@ -314,14 +314,15 @@ try {
       `outer ${Math.round(shift.x)},${Math.round(shift.y)}`,
     );
     console.log('\ndrawing a connection');
-    // The control is a toggle group now, so the state is data-state, not
-    // aria-pressed: one of these is chosen rather than each being on or off.
+    // The control is a toggle group now. It marks the chosen one itself rather
+    // than through Radix's data-state, which a tooltip wrapping it overwrites.
     await page.click('button[aria-label="Contains"]');
     await wait(300);
     check(
       'the connection control selects Contains',
-      (await page.$eval('button[aria-label="Contains"]', (b) => b.getAttribute('data-state'))) ===
-        'on',
+      (await page.$eval('button[aria-label="Contains"]', (b) =>
+        b.getAttribute('data-selected'),
+      )) === 'true',
     );
 
     // SVG elements carry an object for `className`, so the class list is read
