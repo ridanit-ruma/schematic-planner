@@ -43,8 +43,8 @@ function Line({
       id={id}
       path={path}
       style={{
-        stroke: selected === true ? 'var(--accent)' : 'var(--rule-strong)',
-        strokeWidth: selected === true ? 1.6 : 1.2,
+        stroke: selected === true ? 'var(--accent)' : 'var(--edge)',
+        strokeWidth: selected === true ? 2 : 1.5,
         ...(style.dash !== undefined && { strokeDasharray: style.dash }),
       }}
       markerEnd={style.marker ? 'url(#schematic-arrow)' : undefined}
@@ -68,7 +68,7 @@ export function EdgeMarkers() {
           markerHeight="5"
           orient="auto-start-reverse"
         >
-          <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--rule-strong)" />
+          <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--edge)" />
         </marker>
       </defs>
     </svg>

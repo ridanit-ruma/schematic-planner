@@ -118,3 +118,17 @@ export const layoutShape = {
 export const exportPlanShape = {
   planId: z.string().min(1),
 };
+
+export const createProjectShape = {
+  name: z.string().min(1).max(80).describe('Human name; the address is derived from it'),
+  description: z.string().max(2000).default(''),
+  workspace: workspaceArg,
+};
+
+export const deletePlanShape = {
+  planId: z.string().min(1),
+  confirmTitle: z
+    .string()
+    .min(1)
+    .describe('The plan\'s exact title. Required so a wrong id cannot delete the wrong plan'),
+};

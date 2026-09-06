@@ -17,6 +17,10 @@
   --ink-faint: #8b96a5;
   --rule: #cdd5e0;
   --rule-strong: #a8b4c4;
+  /* Connections are read at a glance and often at low zoom, so they get their
+     own value rather than borrowing the border colour, which is tuned to sit
+     quietly next to a surface and disappears against the ground. */
+  --edge: #8593a6;
   --accent: #1b4fd8;
   --accent-ink: #ffffff;
   --accent-soft: #e2eafd;
@@ -42,6 +46,7 @@
   --ink-faint: #6d7a8c;
   --rule: #26313f;
   --rule-strong: #3a4757;
+  --edge: #64768d;
   --accent: #6e9bff;
   --accent-ink: #0a0e14;
   --accent-soft: #17243c;
@@ -67,6 +72,7 @@
   --color-ink-faint: var(--ink-faint);
   --color-rule: var(--rule);
   --color-rule-strong: var(--rule-strong);
+  --color-edge: var(--edge);
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
@@ -146,7 +152,7 @@
 /* React Flow reads its own custom properties; point them at the palette. */
 .react-flow {
   --xy-background-color: var(--ground);
-  --xy-edge-stroke-default: var(--rule-strong);
+  --xy-edge-stroke-default: var(--edge);
   --xy-edge-stroke-selected-default: var(--accent);
   --xy-handle-background-color-default: var(--surface);
   --xy-handle-border-color-default: var(--rule-strong);

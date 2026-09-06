@@ -37,13 +37,26 @@ export interface LayoutResult {
  * container, not just the root: ELK reads padding per node, and a container
  * without it puts its first child straight over its own title.
  */
-const CONTAINER_PADDING = '[top=44,left=20,bottom=20,right=20]';
+const CONTAINER_PADDING = '[top=40,left=16,bottom=16,right=16]';
+
+/**
+ * What a node actually measures on the canvas.
+ *
+ * These have to match the card the editor draws. When they did not — 280 by 140
+ * against a card 260 wide and 72 tall — layout reserved space nothing filled,
+ * containers grew a large empty floor, and the graph became tall enough that
+ * reading it meant zooming out until the text was gone.
+ */
+const CARD_WIDTH = 260;
+const CARD_HEIGHT = 76;
+/** A card carrying body text is two lines taller. */
+const CARD_HEIGHT_WITH_BODY = 104;
 
 const DEFAULTS = {
   direction: 'RIGHT' as LayoutDirection,
-  nodeWidth: 280,
-  nodeHeight: 140,
-  spacing: 48,
+  nodeWidth: CARD_WIDTH,
+  nodeHeight: CARD_HEIGHT,
+  spacing: 36,
   scope: 'unpinned' as const,
 };
 
@@ -55,7 +68,7 @@ function elkOptions(options: Required<Pick<LayoutOptions, 'direction' | 'spacing
     'elk.direction': options.direction,
     'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
     'elk.spacing.nodeNode': String(options.spacing),
-    'elk.layered.spacing.nodeNodeBetweenLayers': String(options.spacing * 2),
+    'elk.layered.spacing.nodeNodeBetweenLayers': String(Math.round(options.spacing * 1.6)),
     'elk.padding': CONTAINER_PADDING,
     // Without a fixed strategy ELK may order equal-rank nodes differently
     // between runs, which would make "arrange" produce a different diagram
@@ -87,7 +100,11 @@ export async function layoutPlan(
         elkNode.layoutOptions = { 'elk.padding': CONTAINER_PADDING };
       } else {
         elkNode.width = node?.size?.width ?? settings.nodeWidth;
-        elkNode.height = node?.size?.height ?? settings.nodeHeight;
+        elkNode.height =
+          node?.size?.height ??
+          (node !== undefined && node.body.trim() !== ''
+            ? CARD_HEIGHT_WITH_BODY
+            : settings.nodeHeight);
       }
       return elkNode;
     });

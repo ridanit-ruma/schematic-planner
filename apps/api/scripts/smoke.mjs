@@ -172,7 +172,7 @@ async function main() {
 
   const tools = await mcp({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
   const names = (tools.result?.tools ?? []).map((tool) => tool.name).sort();
-  check('tools/list', names.length === 8, names.join(', '));
+  check('tools/list', names.length === 10, names.join(', '));
 
   const second = await call('/workspaces', { method: 'POST', token, body: { name: 'Second' } });
   check('a second workspace exists', typeof second.body.slug === 'string', second.body.slug ?? '');
@@ -238,7 +238,38 @@ async function main() {
       },
     },
   });
-  check('create_plan', (drawn.result?.content?.[0]?.text ?? '').includes('with 2 nodes'));
+  const drawnText = drawn.result?.content?.[0]?.text ?? '';
+  check('create_plan', drawnText.includes('with 2 nodes'));
+  // An agent has to be able to say where the thing it drew can be looked at.
+  check('and it says where to look', drawnText.includes('/plan/'), drawnText.split('\n')[1] ?? '');
+
+  const drawnId = /Created plan (\S+) with/.exec(drawnText)?.[1] ?? '';
+  const wrongTitle = await mcp({
+    jsonrpc: '2.0', id: 6, method: 'tools/call',
+    params: { name: 'delete_plan', arguments: { planId: drawnId, confirmTitle: 'Not its name' } },
+  });
+  check(
+    'delete_plan refuses a title that does not match',
+    (wrongTitle.result?.content?.[0]?.text ?? '').includes('Nothing was deleted'),
+  );
+
+  const deleted = await mcp({
+    jsonrpc: '2.0', id: 7, method: 'tools/call',
+    params: { name: 'delete_plan', arguments: { planId: drawnId, confirmTitle: 'Drawn by an agent' } },
+  });
+  check('delete_plan removes it once the title matches',
+    (deleted.result?.content?.[0]?.text ?? '').includes('Deleted'));
+
+  const newProject = await mcp({
+    jsonrpc: '2.0', id: 8, method: 'tools/call',
+    params: {
+      name: 'create_project',
+      arguments: { name: 'Drawn by an agent', workspace: workspaces.body[0]?.slug },
+    },
+  });
+  check('create_project',
+    (newProject.result?.content?.[0]?.text ?? '').includes('drawn-by-an-agent'),
+    newProject.result?.content?.[0]?.text ?? '');
 
   section('sharing');
   const share = await call(`/plans/${planId}/share`, { method: 'POST', token, body: {} });

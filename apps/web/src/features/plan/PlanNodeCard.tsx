@@ -18,12 +18,22 @@ const KIND_BORDER: Record<string, string> = {
   group: 'border-[1.5px] border-rule-strong bg-surface-2/70',
 };
 
-/** Below this zoom the interior is unreadable, so it is not drawn at all. */
-const DETAIL_ZOOM = 0.55;
+/*
+ * Two thresholds, because a card has two things to say.
+ *
+ * Below DETAIL_ZOOM the body is smaller than about seven pixels and is a smear
+ * rather than words, so it goes. Below MINIMAL_ZOOM the title is too, and
+ * pretending otherwise leaves a grid of unreadable marks — at that distance the
+ * useful thing is the shape of the graph and the colour of its states, so the
+ * card becomes exactly that.
+ */
+const DETAIL_ZOOM = 0.62;
+const MINIMAL_ZOOM = 0.38;
 
 function Card({ data, selected }: NodeProps<PlanFlowNode>) {
   const zoom = useStore((state) => state.transform[2]);
   const detailed = zoom >= DETAIL_ZOOM;
+  const legible = zoom >= MINIMAL_ZOOM;
   const { node, childCount } = data;
 
   // A node that holds others is drawn as the boundary around them, labelled at
@@ -46,9 +56,15 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
             className="h-3.5 w-1 shrink-0"
             style={{ background: STATUS_COLOR[node.status] }}
           />
-          <span className="truncate text-xs font-medium text-ink">{node.title}</span>
-          {detailed ? <span className="slug truncate text-ink-faint">{node.slug}</span> : null}
-          <span className="ml-auto shrink-0 text-2xs text-ink-faint">{childCount}</span>
+          {legible ? (
+            <>
+              <span className="truncate text-xs font-medium text-ink">{node.title}</span>
+              {detailed ? (
+                <span className="slug truncate text-ink-faint">{node.slug}</span>
+              ) : null}
+              <span className="ml-auto shrink-0 text-2xs text-ink-faint">{childCount}</span>
+            </>
+          ) : null}
         </div>
         <Handle
           type="target"
@@ -76,11 +92,11 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
     >
       <span
         aria-hidden
-        className="w-1 shrink-0"
+        className={cn('shrink-0', legible ? 'w-1' : 'w-full')}
         style={{ background: STATUS_COLOR[node.status] }}
       />
 
-      <div className="min-w-0 flex-1 px-3 py-2">
+      <div className={cn('min-w-0 flex-1 px-3 py-2', !legible && 'hidden')}>
         <p className="truncate text-sm leading-snug font-medium text-ink">{node.title}</p>
 
         {detailed ? (

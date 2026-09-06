@@ -110,9 +110,20 @@ export function createPlanStore(doc: Y.Doc) {
       return { ...toFlowNode(node, childCount), selected: existing?.selected ?? false };
     });
 
+    // A node holding others is drawn as the boundary around them, which already
+    // says what a containment line would. Drawing it as well produced long
+    // dashed paths wandering across the canvas and reading as phantom boxes.
+    const drawnAsBoundary = new Set(
+      plan.nodes
+        .filter((node) => (graph.childrenOf.get(node.slug)?.length ?? 0) > 0 && node.size !== null)
+        .map((node) => node.slug),
+    );
+
     store.setState({
       nodes: nextNodes,
-      edges: plan.edges.map(toFlowEdge),
+      edges: plan.edges
+        .filter((edge) => !(edge.kind === 'contains' && drawnAsBoundary.has(edge.from)))
+        .map(toFlowEdge),
       title: plan.title,
       description: plan.description,
     });

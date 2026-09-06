@@ -12,6 +12,8 @@ import { renderPlan } from './render.js';
 import {
   applyOpsShape,
   createPlanShape,
+  createProjectShape,
+  deletePlanShape,
   exportPlanShape,
   getPlanShape,
   layoutShape,
@@ -40,6 +42,16 @@ export class McpFactory {
    * A fresh server per request. The transport runs stateless, so there is no
    * session to keep and nothing shared between two agents holding two keys.
    */
+  /**
+   * Where a person can look at this plan.
+   *
+   * An agent that has just drawn something needs to be able to say where it is,
+   * and it has no way to know how addresses on this instance are shaped.
+   */
+  private planUrl(planId: string): string {
+    return `${this.config.appPublicUrl}/plan/${planId}`;
+  }
+
   build(identity: McpIdentity): McpServer {
     const server = new McpServer(
       { name: 'schematic-planner', version: '0.1.0' },
@@ -87,7 +99,10 @@ export class McpFactory {
             if (plans.length === 0) continue;
             lines.push(`${target.slug} / ${project.slug}`);
             for (const plan of plans) {
-              lines.push(`  ${plan.id}  ${plan.title} (${plan.nodeCount} nodes)`);
+              lines.push(
+                `  ${plan.title} — ${plan.nodeCount} nodes — ${this.planUrl(plan.id)}`,
+              );
+              lines.push(`    id ${plan.id}`);
             }
           }
         }
@@ -175,8 +190,58 @@ export class McpFactory {
             },
           });
           return text(
-            `Created plan ${doc.id} with ${doc.nodes.length} nodes.\n\n${renderPlan(doc, 'outline')}`,
+            `Created plan ${doc.id} with ${doc.nodes.length} nodes.\n` +
+              `Open it at ${this.planUrl(doc.id)}\n\n${renderPlan(doc, 'outline')}`,
           );
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'create_project',
+      {
+        title: 'Create a project',
+        description:
+          'A project groups the plans for one thing being built. Without this everything an ' +
+          'agent draws piles into the workspace default.',
+        inputSchema: createProjectShape,
+      },
+      async ({ name, description, workspace }) => {
+        try {
+          const target = await resolveWorkspace(this.workspaces, identity, workspace);
+          const project = await this.projects.create(identity.userId, target.id, {
+            name,
+            description,
+          });
+          return text(`Created project ${project.slug} in ${target.slug}.`);
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'delete_plan',
+      {
+        title: 'Delete a plan',
+        description:
+          'Permanently removes a plan. The exact title must be given as well, so a wrong id ' +
+          'cannot take somebody else\'s work with it.',
+        inputSchema: deletePlanShape,
+        annotations: { destructiveHint: true },
+      },
+      async ({ planId, confirmTitle }) => {
+        try {
+          const doc = await this.plans.read(identity.userId, planId);
+          if (doc.title !== confirmTitle) {
+            return failure(
+              `That plan is called "${doc.title}", not "${confirmTitle}". Nothing was deleted.`,
+            );
+          }
+          await this.plans.remove(identity.userId, planId);
+          return text(`Deleted "${doc.title}".`);
         } catch (error) {
           return failure(reason(error));
         }
