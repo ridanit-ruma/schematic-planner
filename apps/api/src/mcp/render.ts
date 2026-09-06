@@ -76,17 +76,18 @@ function outline(doc: PlanDoc): string {
 }
 
 /**
- * A trace, written as the threads it found rather than as a graph to be
- * reassembled. Each line is one hop, so the reader follows it the way the
- * system runs instead of joining nodes to edges itself.
+ * A trace, drawn as the tree the walk actually found.
+ *
+ * Printing each path in full repeats the hops they share — four routes out of
+ * one screen restate the first two steps four times — and the point of this
+ * tool is to spend less of the reader's attention than the document would. So
+ * a path prints only where it leaves the one before it.
  */
 export function renderTrace(result: TraceResult): string {
-  const lines: string[] = [
-    `Flow through ${result.start.title} (${result.start.slug})`,
-    '',
-  ];
+  const lines: string[] = [`Flow through ${result.start.title} (${result.start.slug})`, ''];
 
-  if (result.paths.every((path) => path.steps.length <= 1)) {
+  const walked = result.paths.filter((path) => path.steps.length > 1);
+  if (walked.length === 0) {
     lines.push(
       'Nothing flows to or from it. Either this node is not wired up yet, or the plan',
       'records only structure — draw flows_to edges to say what calls, sends or',
@@ -95,31 +96,46 @@ export function renderTrace(result: TraceResult): string {
     return lines.join('\n');
   }
 
-  let index = 0;
-  for (const path of result.paths) {
-    if (path.steps.length <= 1) continue;
-    index += 1;
-    lines.push(`${index}. ${path.direction}`);
+  let heading: string | null = null;
+  let previous: readonly { node: { slug: string }; along: { id: string } | null }[] = [];
 
-    for (const step of path.steps) {
-      if (step.along === null) {
-        lines.push(`   ${step.node.title} (${step.node.slug})`);
-        continue;
-      }
+  for (const path of walked) {
+    if (path.direction !== heading) {
+      heading = path.direction;
+      lines.push(
+        heading === 'downstream' ? 'What it reaches:' : 'What reaches it:',
+        `  ${result.start.title} (${result.start.slug})`,
+      );
+      previous = [];
+    }
+
+    // How much of this path the reader has already been shown.
+    let shared = 0;
+    while (
+      shared < previous.length &&
+      shared < path.steps.length &&
+      previous[shared]?.node.slug === path.steps[shared]?.node.slug &&
+      (previous[shared]?.along?.id ?? null) === (path.steps[shared]?.along?.id ?? null)
+    ) {
+      shared += 1;
+    }
+
+    for (const step of path.steps.slice(Math.max(shared, 1))) {
+      if (step.along === null) continue;
       const note = [step.along.via, step.along.carries].filter((part) => part !== null).join(': ');
       const arrow = path.direction === 'downstream' ? '-->' : '<--';
       lines.push(
-        `   ${'  '.repeat(step.depth - 1)}${arrow}${note === '' ? '' : ` (${note})`} ` +
+        `  ${'    '.repeat(step.depth)}${arrow}${note === '' ? '' : ` (${note})`} ` +
           `${step.node.title} (${step.node.slug})` +
-          (step.revisits ? '  [already above; branch ends here]' : ''),
+          (step.revisits ? '  [already above]' : ''),
       );
     }
-    lines.push('');
+    previous = path.steps;
   }
 
   const detail = result.reached.filter((node) => node.body.trim() !== '');
   if (detail.length > 0) {
-    lines.push('---', '');
+    lines.push('', '---', '');
     for (const node of detail) {
       lines.push(`## ${node.title} (${node.slug})`, `status: ${node.status}`, '', node.body.trim(), '');
     }
