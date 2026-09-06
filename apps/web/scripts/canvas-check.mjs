@@ -81,7 +81,9 @@ try {
   let planHref = null;
   for (const projectHref of projects) {
     await page.goto(`${BASE}${projectHref}`, { waitUntil: 'domcontentloaded' });
-    await wait(2200);
+    // The app mints an access token before it can list anything, so waiting a
+    // fixed moment here reports an empty project whenever the machine is busy.
+    await page.waitForSelector('a[href^="/plan/"]', { timeout: 8000 }).catch(() => null);
     planHref = await page.$eval('a[href^="/plan/"]', (a) => a.getAttribute('href')).catch(() => null);
     if (planHref !== null) break;
   }
