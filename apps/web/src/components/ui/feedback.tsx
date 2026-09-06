@@ -26,9 +26,9 @@ export function Empty({
   action?: ReactNode;
 }) {
   return (
-    <div className="mx-auto max-w-md px-6 py-16 text-center">
-      <h2 className="text-lg font-medium text-ink">{title}</h2>
-      <p className="mt-1.5 text-sm text-ink-muted">{body}</p>
+    <div className="rounded-lg border border-dashed border-rule-strong bg-surface-2/40 px-6 py-14 text-center">
+      <h2 className="text-base font-medium text-ink">{title}</h2>
+      <p className="mx-auto mt-1.5 max-w-md text-sm text-ink-muted">{body}</p>
       {action !== undefined ? <div className="mt-5 flex justify-center">{action}</div> : null}
     </div>
   );
@@ -39,7 +39,7 @@ export function Problem({ error }: { error: unknown }) {
   return (
     <div
       role="alert"
-      className="rounded-md border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger"
+      className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
     >
       {message}
     </div>

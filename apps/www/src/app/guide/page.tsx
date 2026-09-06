@@ -88,23 +88,29 @@ export default function Guide() {
           drawn as a boundary around whatever it holds.
         </p>
         <p>
-          Three buttons in the title block say what the next line you draw will mean, and each one
+          Four buttons in the title block say what the next line you draw will mean, and each one
           shows the line itself rather than an icon standing in for it:
         </p>
         <ul>
           <li>
-            <strong>Depends on</strong> — drag from the thing that comes first to the thing that
-            needs it. Arrows read in build order, the same order the export numbers files in.
+            <strong>Flows to</strong> — drag the way the system actually moves: this screen calls
+            that endpoint, that endpoint reads that table. Say what sets the hand-off off and what
+            it carries, and both are written on the line. A reply is a second flow pointing back.
+            This is the one that draws a system rather than a list.
           </li>
           <li>
             <strong>Contains</strong> — drag from the container to what goes inside it. This is
-            what becomes a directory on export.
+            what becomes a directory on export, and dragging a group moves everything in it.
+          </li>
+          <li>
+            <strong>Depends on</strong> — what has to exist first, which is not the same as what
+            calls what. It becomes the order the export numbers files in.
           </li>
           <li>
             <strong>Relates to</strong> — a plain association, carrying no structure.
           </li>
         </ul>
-        <p>Click a line to change what it means, label it, or remove it.</p>
+        <p>Click a line to change what it means, say what it carries, or remove it.</p>
         <p>
           <strong>Arrange</strong> lays the graph out for you. It will not move anything you have
           dragged by hand — a node you place is pinned from then on, and only you can unpin it by

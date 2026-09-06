@@ -21,6 +21,7 @@ export const metadata: Metadata = {
     description: 'Plan in the browser. Own the output.',
   },
   robots: { index: true, follow: true },
+  icons: { icon: '/icon.svg' },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
