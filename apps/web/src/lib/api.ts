@@ -114,17 +114,30 @@ async function refreshAccessToken(): Promise<boolean> {
   // several refreshes, because rotation would invalidate its own new token.
   refreshing ??= (async () => {
     try {
-      const response = await fetch(`${config.apiUrl}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        accessToken = null;
-        return false;
+      for (let attempt = 0; ; attempt += 1) {
+        const response = await fetch(`${config.apiUrl}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const body = (await response.json()) as { accessToken: string };
+          accessToken = body.accessToken;
+          return true;
+        }
+
+        // Being turned away for asking too often is not the same as not being
+        // signed in. Treating the two alike put people on the sign-in screen
+        // holding a session that was still perfectly good.
+        const busy = response.status === 429 || response.status >= 500;
+        if (!busy || attempt >= 1) {
+          if (!busy) accessToken = null;
+          return false;
+        }
+        const after = Number(response.headers.get('retry-after'));
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.min(Number.isFinite(after) ? after * 1000 : 1000, 5000)),
+        );
       }
-      const body = (await response.json()) as { accessToken: string };
-      accessToken = body.accessToken;
-      return true;
     } finally {
       refreshing = null;
     }

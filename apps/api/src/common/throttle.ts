@@ -27,6 +27,17 @@ export class ApiThrottlerGuard extends ThrottlerGuard {
       return `key:${digest.slice(0, 32)}`;
     }
 
+    // Refreshing a session carries no Authorization header, only the cookie.
+    // Counting those by address meant every signed-in person behind the same
+    // proxy shared one allowance, and a burst from any of them signed the rest
+    // out — the client is turned away, finds it cannot refresh, and gives up
+    // the session it had.
+    const cookies = req['cookies'] as Record<string, string | undefined> | undefined;
+    const session = cookies?.['sp_refresh'];
+    if (typeof session === 'string' && session !== '') {
+      return `session:${createHash('sha256').update(session).digest('hex').slice(0, 32)}`;
+    }
+
     // Express resolves this from X-Forwarded-For only when TRUST_PROXY is set,
     // so an untrusted deployment cannot be spoofed into limiting the wrong client.
     return `ip:${String(req['ip'] ?? 'unknown')}`;
