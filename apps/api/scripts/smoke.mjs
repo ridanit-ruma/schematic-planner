@@ -162,6 +162,25 @@ async function main() {
   const after = await call(`/plans/${planId}`, { token });
   check('and nothing from it was kept', !after.body.nodes.some((node) => node.slug === 'orphan'));
 
+  section('history');
+  // Written from the difference between two versions of the document, so it has
+  // to catch a batch of ops as surely as it catches a keystroke.
+  const history = await call(`/plans/${planId}/changes`, { token });
+  const kinds = (history.body ?? []).map((entry) => entry.kind);
+  check('the plan remembers what was done to it', kinds.length > 0, kinds.slice(0, 6).join(', '));
+  check('including the nodes that were added', kinds.includes('node.added'));
+  check('and the connections drawn between them', kinds.includes('edge.added'));
+  check(
+    'and says who did it',
+    (history.body ?? []).every((entry) => entry.by?.name === 'Smoke'),
+    history.body?.[0]?.by?.name ?? 'nobody',
+  );
+  check(
+    'moving is one entry, not one per node',
+    kinds.filter((kind) => kind === 'plan.arranged').length <= 1,
+    `${kinds.filter((kind) => kind === 'plan.arranged').length} arrange entries`,
+  );
+
   section('export');
   const zip = await call(`/plans/${planId}/export`, { token, raw: true });
   const bytes = new Uint8Array(await zip.arrayBuffer());
