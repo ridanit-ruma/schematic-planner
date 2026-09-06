@@ -1,8 +1,9 @@
 import { planEdgeKinds, type PlanEdgeKind, type PlanNodeStatus } from '@schematic/schema';
 import type { Presence } from '@schematic/ydoc';
-import { Clock, Download, Link2, Plus, Wand2 } from 'lucide-react';
+import { Clock, Download, Link2, MoreHorizontal, Plus, Wand2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { DropdownAction, DropdownMenu } from '@/components/ui/dropdown-menu';
 import { StatusTally } from '@/components/ui/status';
 import { ToggleGroup, ToggleItem } from '@/components/ui/toggle-group';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -43,16 +44,20 @@ export function TitleBlock({
   onHistory: () => void;
 }) {
   return (
-    <header className="flex h-11 shrink-0 items-center gap-4 border-b border-rule bg-surface px-3">
+    <header className="flex h-11 shrink-0 items-center gap-2 border-b border-rule bg-surface px-2 sm:gap-4 sm:px-3">
       <ConnectionLight status={status} />
 
       <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{title}</h1>
 
-      <StatusTally counts={counts} />
+      {/* The tally is a second reading of the canvas, not a control: on a narrow
+          screen the canvas itself is the thing worth the room. */}
+      <div className="hidden md:flex">
+        <StatusTally counts={counts} />
+      </div>
 
       {peers.length > 0 ? (
         <div
-          className="flex items-center -space-x-1"
+          className="hidden items-center -space-x-1 sm:flex"
           aria-label={`${peers.length} other people here`}
         >
           {peers.slice(0, 4).map((peer) => (
@@ -71,36 +76,86 @@ export function TitleBlock({
         </div>
       ) : null}
 
-      <div className="flex items-center gap-1">
+      {/* Wide enough for the whole row, the whole row is shown. Between the two
+          the words drop and the icons stay. Narrower than that, everything but
+          the title moves into one menu — five half-labelled buttons in 360px is
+          a row nobody can hit. */}
+      <div className="hidden items-center gap-1 md:flex">
         {!readOnly && (
           <>
-            <Button size="sm" variant="ghost" onClick={onAddNode}>
-              <Plus className="size-3.5" />
-              Add node
-            </Button>
+            <Tooltip content="Add node">
+              <Button size="sm" variant="ghost" onClick={onAddNode}>
+                <Plus className="size-3.5" />
+                <span className="hidden lg:inline">Add node</span>
+              </Button>
+            </Tooltip>
             <ConnectKindControl value={connectKind} onChange={onConnectKindChange} />
             <Tooltip content="Lay out everything nobody has placed by hand">
               <Button size="sm" variant="ghost" onClick={onArrange}>
                 <Wand2 className="size-3.5" />
-                Arrange
+                <span className="hidden lg:inline">Arrange</span>
               </Button>
             </Tooltip>
-            <Button size="sm" variant="ghost" onClick={onShare}>
-              <Link2 className="size-3.5" />
-              Share
-            </Button>
+            <Tooltip content="Share a read-only link">
+              <Button size="sm" variant="ghost" onClick={onShare}>
+                <Link2 className="size-3.5" />
+                <span className="hidden lg:inline">Share</span>
+              </Button>
+            </Tooltip>
           </>
         )}
         <Tooltip content="Who changed what">
           <Button size="sm" variant="ghost" onClick={onHistory} aria-pressed={historyOpen}>
             <Clock className="size-3.5" />
-            History
+            <span className="hidden lg:inline">History</span>
           </Button>
         </Tooltip>
-        <Button size="sm" variant="quiet" onClick={onExport}>
-          <Download className="size-3.5" />
-          Export
-        </Button>
+        <Tooltip content="Download the Markdown bundle">
+          <Button size="sm" variant="quiet" onClick={onExport}>
+            <Download className="size-3.5" />
+            <span className="hidden lg:inline">Export</span>
+          </Button>
+        </Tooltip>
+      </div>
+
+      <div className="md:hidden">
+        <DropdownMenu
+          align="end"
+          trigger={
+            <button
+              type="button"
+              aria-label="Plan actions"
+              className="grid size-7 place-items-center rounded-md text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink focus:outline-none"
+            >
+              <MoreHorizontal className="size-4" />
+            </button>
+          }
+        >
+          {readOnly ? null : (
+            <>
+              <DropdownAction onSelect={onAddNode}>
+                <Plus className="size-3.5 text-ink-faint" />
+                Add node
+              </DropdownAction>
+              <DropdownAction onSelect={onArrange}>
+                <Wand2 className="size-3.5 text-ink-faint" />
+                Arrange
+              </DropdownAction>
+              <DropdownAction onSelect={onShare}>
+                <Link2 className="size-3.5 text-ink-faint" />
+                Share
+              </DropdownAction>
+            </>
+          )}
+          <DropdownAction onSelect={onHistory}>
+            <Clock className="size-3.5 text-ink-faint" />
+            History
+          </DropdownAction>
+          <DropdownAction onSelect={onExport}>
+            <Download className="size-3.5 text-ink-faint" />
+            Export
+          </DropdownAction>
+        </DropdownMenu>
       </div>
     </header>
   );

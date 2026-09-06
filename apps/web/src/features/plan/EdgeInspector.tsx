@@ -4,6 +4,7 @@ import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
+import { SIDE_PANEL } from './side-panel';
 
 export const EDGE_LABEL: Record<PlanEdgeKind, string> = {
   flows_to: 'Flows to',
@@ -59,7 +60,7 @@ export function EdgeInspector({
   const isFlow = edge.kind === 'flows_to';
 
   return (
-    <aside className="flex w-80 shrink-0 flex-col border-l border-rule bg-surface">
+    <aside className={SIDE_PANEL}>
       <div className="flex items-center justify-between gap-2 border-b border-rule px-3 py-2">
         <span className="text-xs font-medium text-ink">Connection</span>
         <Button variant="ghost" size="sm" onClick={onClose}>
@@ -100,7 +101,10 @@ export function EdgeInspector({
               )}
             </Field>
 
-            <Field label="Carries" hint="What travels along it: a payload, a record, a return value.">
+            <Field
+              label="Carries"
+              hint="What travels along it: a payload, a record, a return value."
+            >
               {(id) => (
                 <Input
                   id={id}

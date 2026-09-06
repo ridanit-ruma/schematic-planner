@@ -5,6 +5,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Tooltip } from '@/components/ui/tooltip';
 import { Problem, Spinner } from '@/components/ui/feedback';
 import { plans, type PlanChangeRecord } from '@/lib/api';
+import { SIDE_PANEL } from './side-panel';
 
 /**
  * What each kind of change reads as, with the subject filled in by the caller.
@@ -81,7 +82,7 @@ export function HistoryPanel({ planId, onClose }: { planId: string; onClose: () 
   }, [planId]);
 
   return (
-    <aside className="flex w-80 shrink-0 flex-col border-l border-rule bg-surface">
+    <aside className={SIDE_PANEL}>
       <div className="flex items-center justify-between gap-2 border-b border-rule px-3 py-2">
         <h2 className="text-sm font-medium text-ink">History</h2>
         <button

@@ -28,7 +28,7 @@ export function PlanPage() {
   // connection down, and a rail inside would unmount and refetch itself every
   // time somebody used it.
   return (
-    <div className="flex h-dvh min-h-0">
+    <div className="relative flex h-dvh min-h-0">
       <PlanSidebar planId={planId} />
       <div className="flex min-w-0 flex-1 flex-col">
         {connection === null ? (
@@ -190,7 +190,7 @@ function PlanWorkspace({
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         <div className="min-w-0 flex-1">
           <PlanCanvas connection={connection} readOnly={false} onApplyOps={apply} />
         </div>

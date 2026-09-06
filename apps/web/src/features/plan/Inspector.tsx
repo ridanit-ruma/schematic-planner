@@ -1,9 +1,4 @@
-import {
-  planNodeKinds,
-  planNodeStatuses,
-  type PlanNode,
-  type PlanOp,
-} from '@schematic/schema';
+import { planNodeKinds, planNodeStatuses, type PlanNode, type PlanOp } from '@schematic/schema';
 import { nodeBodyText } from '@schematic/ydoc';
 import { Trash2 } from 'lucide-react';
 import { useMemo } from 'react';
@@ -13,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
 import { STATUS_LABEL } from '@/components/ui/status';
+import { SIDE_PANEL } from './side-panel';
 import { useYText } from './use-y-text';
 
 const KIND_LABEL: Record<string, string> = {
@@ -23,7 +19,10 @@ const KIND_LABEL: Record<string, string> = {
   group: 'Group',
 };
 
-const KIND_OPTIONS = planNodeKinds.map((kind) => ({ value: kind, label: KIND_LABEL[kind] ?? kind }));
+const KIND_OPTIONS = planNodeKinds.map((kind) => ({
+  value: kind,
+  label: KIND_LABEL[kind] ?? kind,
+}));
 const STATUS_OPTIONS = planNodeStatuses.map((status) => ({
   value: status,
   label: STATUS_LABEL[status],
@@ -54,7 +53,7 @@ export function Inspector({
   };
 
   return (
-    <aside className="flex w-80 shrink-0 flex-col border-l border-rule bg-surface">
+    <aside className={SIDE_PANEL}>
       <div className="flex items-center justify-between gap-2 border-b border-rule px-3 py-2">
         <span className="slug truncate text-ink-faint">{node.slug}</span>
         <Button variant="ghost" size="sm" onClick={onClose}>

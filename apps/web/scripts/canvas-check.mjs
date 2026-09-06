@@ -23,7 +23,9 @@ let puppeteer;
 try {
   puppeteer = (await import('puppeteer-core')).default;
 } catch {
-  console.error('puppeteer-core is not installed. pnpm --filter @schematic/web add -D puppeteer-core');
+  console.error(
+    'puppeteer-core is not installed. pnpm --filter @schematic/web add -D puppeteer-core',
+  );
   process.exit(1);
 }
 
@@ -72,14 +74,19 @@ try {
   // Wrapping a link in a tooltip hands it the tooltip's props, and a className
   // written as a function is merged into nonsense — the whole rail lost its
   // styling that way once, silently.
+  await page
+    .waitForSelector('aside nav a[href^="/workspace/"]', { timeout: 8000 })
+    .catch(() => null);
   const railRows = await page.evaluate(() => {
     const rows = [
-      ...document.querySelectorAll('aside a[href^="/workspace/"], aside a[href^="/settings"]'),
+      ...document.querySelectorAll('aside nav a[href="/"], aside nav a[href^="/workspace/"]'),
     ];
     return {
       rows: rows.length,
       tallEnough: rows.filter((row) => row.getBoundingClientRect().height >= 28).length,
       active: rows.filter((row) => row.classList.contains('active')).length,
+      switcher: document.querySelector('aside nav button[aria-label$="switch workspace"]') !== null,
+      account: document.querySelector('aside button[aria-label="Account"]') !== null,
     };
   });
   check(
@@ -88,6 +95,15 @@ try {
     `${railRows.tallEnough}/${railRows.rows} at full height`,
   );
   check('and marks exactly one of them', railRows.active === 1, `${railRows.active} active`);
+  // The workspace is switched from its own name; the logo above it is the
+  // product, and the account keeps its own menu at the foot of the rail.
+  check('the workspace name is the switcher', railRows.switcher);
+  check('and the account has its own menu', railRows.account);
+
+  check(
+    'the application opens on what you were working on',
+    (await page.$eval('h1', (h) => h.textContent)) === 'Recent',
+  );
 
   console.log('\nthe canvas');
   // Workspace, then project, then plan — the hierarchy the addresses describe.
@@ -104,13 +120,16 @@ try {
     // The app mints an access token before it can list anything, so waiting a
     // fixed moment here reports an empty project whenever the machine is busy.
     await page.waitForSelector('a[href^="/plan/"]', { timeout: 8000 }).catch(() => null);
-    planHref = await page.$eval('a[href^="/plan/"]', (a) => a.getAttribute('href')).catch(() => null);
+    planHref = await page
+      .$eval('a[href^="/plan/"]', (a) => a.getAttribute('href'))
+      .catch(() => null);
     if (planHref !== null) break;
   }
   check(
     'a plan is listed in a project',
     planHref !== null,
-    planHref ?? (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 200),
+    planHref ??
+      (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 200),
   );
   if (planHref === null) throw new Error('no plan to open — seed one first');
 
@@ -136,7 +155,11 @@ try {
       .filter((node) => node.getBoundingClientRect().width / zoom > 320)
       .map((node) => node.getAttribute('data-id'));
   });
-  check('at least one container is drawn at its own bounds', containers.length > 0, containers.join(', '));
+  check(
+    'at least one container is drawn at its own bounds',
+    containers.length > 0,
+    containers.join(', '),
+  );
 
   console.log('\nreading it from a distance');
   // Two earlier attempts had the card change with the zoom — text dropped at a
@@ -152,9 +175,7 @@ try {
         )?.[1] ?? '1',
       );
       const node =
-        id === null
-          ? null
-          : document.querySelector(`.react-flow__node[data-id="${id}"]`);
+        id === null ? null : document.querySelector(`.react-flow__node[data-id="${id}"]`);
       const labels = [...(node?.querySelectorAll('p, span') ?? [])]
         .filter((el) => el.children.length === 0 && (el.textContent ?? '').trim() !== '')
         .map((el) => getComputedStyle(el).fontSize);
@@ -204,7 +225,11 @@ try {
       plans: aside.querySelectorAll('button[title]').length,
     };
   });
-  check('the rail names the workspace it belongs to', (rail?.workspace ?? '') !== '', rail?.workspace ?? 'no rail');
+  check(
+    'the rail names the workspace it belongs to',
+    (rail?.workspace ?? '') !== '',
+    rail?.workspace ?? 'no rail',
+  );
   check('and marks the plan you are on', (rail?.current ?? '') !== '', rail?.current ?? '');
   check('and lists the plans you can move to', (rail?.plans ?? 0) > 0, `${rail?.plans ?? 0} plans`);
 
@@ -257,7 +282,13 @@ try {
           { kind: 'contains', from: 'beta', to: 'b-one' },
           { kind: 'flows_to', from: 'loose', to: 'b-one', via: 'click Save', carries: '{ id }' },
           { kind: 'flows_to', from: 'loose', to: 'a-one', via: 'click Delete', carries: '{ id }' },
-          { kind: 'flows_to', from: 'loose', to: 'a-two', via: 'on load', carries: 'the current filter' },
+          {
+            kind: 'flows_to',
+            from: 'loose',
+            to: 'a-two',
+            via: 'on load',
+            carries: 'the current filter',
+          },
         ],
       },
     },
@@ -300,7 +331,10 @@ try {
 
   try {
     await reopen();
-    check('the fixture draws its groups as boundaries', inside(await rectOf('a-one'), await rectOf('alpha')));
+    check(
+      'the fixture draws its groups as boundaries',
+      inside(await rectOf('a-one'), await rectOf('alpha')),
+    );
     check('alpha holds two', (await countIn('alpha')) === 2, String(await countIn('alpha')));
 
     // A group is picked up anywhere on it; its contents are drawn above it.
@@ -312,7 +346,11 @@ try {
     );
     const alphaIs = await rectOf('alpha');
     const oneIs = await rectOf('a-one');
-    check('dragging a group moves it', Math.abs(alphaIs.x - alphaWas.x) > 60, `${Math.round(alphaIs.x - alphaWas.x)}px`);
+    check(
+      'dragging a group moves it',
+      Math.abs(alphaIs.x - alphaWas.x) > 60,
+      `${Math.round(alphaIs.x - alphaWas.x)}px`,
+    );
     check(
       'and carries what it holds',
       // It has to have moved at all: with a shift of nothing every difference
@@ -324,7 +362,10 @@ try {
     );
 
     await reopen();
-    check('and the move is what everyone else sees', inside(await rectOf('a-one'), await rectOf('alpha')));
+    check(
+      'and the move is what everyone else sees',
+      inside(await rectOf('a-one'), await rectOf('alpha')),
+    );
 
     // Out of the group, then back into it.
     const box = await rectOf('alpha');
@@ -334,7 +375,11 @@ try {
       { x: box.x + box.width + 300, y: box.y + 30 },
     );
     await reopen();
-    check('dragging a node out of a group leaves it', (await countIn('alpha')) === 1, String(await countIn('alpha')));
+    check(
+      'dragging a node out of a group leaves it',
+      (await countIn('alpha')) === 1,
+      String(await countIn('alpha')),
+    );
     check('and it is drawn outside the box', !inside(await rectOf('a-one'), await rectOf('alpha')));
 
     const back = await rectOf('alpha');
@@ -344,8 +389,15 @@ try {
       { x: back.x + back.width / 2, y: back.y + back.height - 30 },
     );
     await reopen();
-    check('dropping it back in joins it again', (await countIn('alpha')) === 2, String(await countIn('alpha')));
-    check('and nothing is left straddling the edge', inside(await rectOf('a-one'), await rectOf('alpha')));
+    check(
+      'dropping it back in joins it again',
+      (await countIn('alpha')) === 2,
+      String(await countIn('alpha')),
+    );
+    check(
+      'and nothing is left straddling the edge',
+      inside(await rectOf('a-one'), await rectOf('alpha')),
+    );
 
     console.log('\na group inside a group');
     const alphaBox = await rectOf('alpha');
@@ -355,9 +407,19 @@ try {
       { x: alphaBox.x + alphaBox.width / 2, y: alphaBox.y + alphaBox.height - 30 },
     );
     await reopen();
-    check('a group can be dropped into a group', inside(await rectOf('beta'), await rectOf('alpha')));
-    check('the inner group still holds its own', inside(await rectOf('b-one'), await rectOf('beta')));
-    check('and the outer one counts it', (await countIn('alpha')) === 3, String(await countIn('alpha')));
+    check(
+      'a group can be dropped into a group',
+      inside(await rectOf('beta'), await rectOf('alpha')),
+    );
+    check(
+      'the inner group still holds its own',
+      inside(await rectOf('b-one'), await rectOf('beta')),
+    );
+    check(
+      'and the outer one counts it',
+      (await countIn('alpha')) === 3,
+      String(await countIn('alpha')),
+    );
 
     const outerWas = await rectOf('alpha');
     const innerWas = await rectOf('beta');
@@ -368,7 +430,10 @@ try {
       { x: outerWas.x + 30, y: outerWas.y + 10 },
       { x: outerWas.x + 30 - 130, y: outerWas.y + 10 + 90 },
     );
-    const shift = { x: (await rectOf('alpha')).x - outerWas.x, y: (await rectOf('alpha')).y - outerWas.y };
+    const shift = {
+      x: (await rectOf('alpha')).x - outerWas.x,
+      y: (await rectOf('alpha')).y - outerWas.y,
+    };
     const innerIs = await rectOf('beta');
     const deepIs = await rectOf('b-one');
     check(
@@ -439,7 +504,11 @@ try {
     const hint = await page.evaluate(
       () => document.querySelector('[role="tooltip"]')?.textContent ?? '',
     );
-    check('a hint appears on the connection control', hint.includes('Depends on'), hint.slice(0, 60));
+    check(
+      'a hint appears on the connection control',
+      hint.includes('Depends on'),
+      hint.slice(0, 60),
+    );
 
     const terminal = await page
       .$eval('.react-flow__node[data-id="alpha"] .react-flow__handle.source', (el) => {
@@ -459,9 +528,57 @@ try {
       topmost.includes('handle'),
       topmost.slice(0, 60),
     );
+    console.log('\na phone');
+    // Nothing on this page may push the page sideways: a canvas you have to
+    // scroll the chrome of is a canvas you cannot pan.
+    await page.setViewport({ width: 390, height: 844 });
+    await reopen();
 
+    const narrow = await page.evaluate(() => ({
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      header: (() => {
+        const bar = document.querySelector('header');
+        return bar === null ? 0 : bar.scrollWidth - bar.clientWidth;
+      })(),
+      railWidth: document.querySelector('aside')?.getBoundingClientRect().width ?? 0,
+      actions: document.querySelector('button[aria-label="Plan actions"]') !== null,
+      canvasWidth: document.querySelector('.react-flow')?.getBoundingClientRect().width ?? 0,
+    }));
+    check('the page does not scroll sideways', narrow.overflow <= 0, `${narrow.overflow}px over`);
+    check('nor does the plan header', narrow.header <= 0, `${narrow.header}px over`);
+    check('the plan rail starts folded', narrow.railWidth <= 40, `${narrow.railWidth}px`);
+    check('and the actions are behind one button', narrow.actions);
+    check(
+      'which leaves the canvas nearly the whole width',
+      narrow.canvasWidth >= 330,
+      `${narrow.canvasWidth}px of 390`,
+    );
+
+    // Opening a node has to leave something to read: at this width a 320px
+    // column beside the canvas would be the whole screen and half a canvas.
+    await page.evaluate(() => {
+      document
+        .querySelector('.react-flow__node')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await wait(600);
+    const panel = await page.evaluate(() => {
+      const aside = [...document.querySelectorAll('aside')].pop();
+      const rect = aside?.getBoundingClientRect();
+      return rect === undefined ? null : { width: rect.width, right: rect.right };
+    });
+    check(
+      'an open panel covers the canvas rather than squeezing it',
+      panel !== null && panel.width >= 330,
+      panel === null ? 'no panel' : `${Math.round(panel.width)}px`,
+    );
+
+    await page.setViewport({ width: 1600, height: 1000 });
   } finally {
+    // Deleting only moves it to the trash now, so the fixture would pile up
+    // there run after run. Take it the rest of the way.
     await call(`/plans/${fixture.id}`, { method: 'DELETE' });
+    await call(`/trash/plans/${fixture.id}`, { method: 'DELETE' });
   }
 
   void planHref;
