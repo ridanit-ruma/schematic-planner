@@ -162,8 +162,9 @@ export default function Home() {
         <h2 className="text-lg font-medium text-ink">Where it actually is</h2>
         <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-ink-muted">
           Pre-alpha, and worth saying plainly. Planning, drawing, live collaboration, the agent
-          surface, sharing and export all work. Account settings, workspace management and social
-          sign-in are not built. Export your plans; that is what the export is for.
+          surface, sharing, export, and managing a workspace and your account all work. No email is
+          ever sent, so an invitation is a link you pass along; social sign-in is not built. Export
+          your plans — that is what the export is for.
         </p>
       </Band>
     </SiteChrome>

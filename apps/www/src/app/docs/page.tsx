@@ -18,9 +18,13 @@ const MCP_CONFIG = `{
 }`;
 
 const TOOLS = [
-  ['list_plans', 'Plans in the workspace the key belongs to.'],
+  ['list_projects', 'Projects in the workspace the key belongs to.'],
+  ['list_plans', 'Plans in that workspace, grouped by project.'],
   ['get_plan', 'Read one. Outline, graph JSON, or the full Markdown. Never coordinates.'],
-  ['create_plan', 'A whole structure in one call — the path for drawing a plan you already wrote.'],
+  [
+    'create_plan',
+    'A whole structure in one call — the path for drawing a plan you already wrote. Takes an optional project slug.',
+  ],
   ['apply_ops', 'The only write door. Batched, atomic, and keyed by slug so retries are safe.'],
   ['layout', 'Re-arrange. Nodes a person dragged are left where they are.'],
   ['export_plan', 'The Markdown bundle, plus a link to the zip.'],

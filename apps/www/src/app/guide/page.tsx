@@ -64,10 +64,14 @@ export default function Guide() {
           through the whole loop; the reference for each MCP tool is in the docs."
       >
         <h2>1. Make a plan</h2>
+        <p>Three levels, and you already have the first two after signing up:</p>
+        <pre>{`Workspace      people, roles, and the keys agents connect with
+  └─ Project   one thing you are building
+       └─ Plan one graph`}</pre>
         <p>
-          Sign in and press <strong>New plan</strong>. A workspace was created for you at sign-up,
-          and every plan lives in one. A plan is a graph, not a document: you will be adding things
-          and saying how they relate, rather than writing top to bottom.
+          Open your workspace, pick a project — a <strong>General</strong> one is there from the
+          start — and press <strong>New plan</strong>. A plan is a graph, not a document: you will
+          be adding things and saying how they relate, rather than writing top to bottom.
         </p>
 
         <h2>2. Draw it</h2>
@@ -84,10 +88,23 @@ export default function Guide() {
           drawn as a boundary around whatever it holds.
         </p>
         <p>
-          To say that one thing needs another, drag from the right edge of the thing that comes
-          first to the left edge of the thing that needs it. Arrows read in build order, which is
-          the same order the export numbers files in.
+          Three buttons in the title block say what the next line you draw will mean, and each one
+          shows the line itself rather than an icon standing in for it:
         </p>
+        <ul>
+          <li>
+            <strong>Depends on</strong> — drag from the thing that comes first to the thing that
+            needs it. Arrows read in build order, the same order the export numbers files in.
+          </li>
+          <li>
+            <strong>Contains</strong> — drag from the container to what goes inside it. This is
+            what becomes a directory on export.
+          </li>
+          <li>
+            <strong>Relates to</strong> — a plain association, carrying no structure.
+          </li>
+        </ul>
+        <p>Click a line to change what it means, label it, or remove it.</p>
         <p>
           <strong>Arrange</strong> lays the graph out for you. It will not move anything you have
           dragged by hand — a node you place is pinned from then on, and only you can unpin it by
@@ -157,9 +174,9 @@ export default function Guide() {
           without an account. Stop sharing and the link stops working.
         </p>
         <p>
-          Workspace membership and roles exist in the API — owner, admin, editor and viewer, with
-          invitations — but the screens for managing them are not built yet. Until they are, adding
-          somebody to a workspace means calling the API directly.
+          <strong>Members</strong> in your workspace lists who is there, changes roles — owner,
+          admin, editor, viewer — and produces an invitation link. There is no email yet, so send
+          the link yourself.
         </p>
 
         <h2>7. Run your own</h2>
@@ -177,10 +194,10 @@ export default function Guide() {
 
         <h2>What is not built yet</h2>
         <p>
-          Being straight about it, since you will run into these: there is no account settings
-          screen, no workspace or member management screen, no way to rename or delete a plan from
-          the list, and no way to create a containment edge from the canvas — nesting currently
-          comes from an agent or the API. Sign-in is email and password only.
+          Being straight about it, since you will run into these: no email is ever sent, so an
+          invitation is a link you pass along and an email address cannot be changed. Sign-in is
+          email and password only. There is no undo on the canvas, no search across a large plan,
+          and no version history.
         </p>
         <p>
           If one of those is in your way, say so on <Link href={ISSUES}>GitHub Issues</Link>; it
