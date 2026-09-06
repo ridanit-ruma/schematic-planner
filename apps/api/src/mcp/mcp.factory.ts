@@ -261,7 +261,10 @@ export class McpFactory {
         try {
           // Validated narrow, then widened into the internal union. The agent
           // never sees the placement fields the internal one carries.
-          const doc = await this.plans.applyOps(identity.userId, planId, planOpsSchema.parse(ops));
+          const doc = await this.plans.applyOps(identity.userId, planId, planOpsSchema.parse(ops), {
+            userId: identity.userId,
+            apiKeyId: identity.keyId,
+          });
           return text(`Applied ${ops.length} operation(s).\n\n${renderPlan(doc, 'outline')}`);
         } catch (error) {
           return failure(reason(error));
@@ -278,7 +281,10 @@ export class McpFactory {
       },
       async ({ planId, scope, direction }) => {
         try {
-          const doc = await this.plans.layout(identity.userId, planId, { scope, direction });
+          const doc = await this.plans.layout(identity.userId, planId, { scope, direction }, {
+            userId: identity.userId,
+            apiKeyId: identity.keyId,
+          });
           return text(`Arranged ${doc.nodes.length} nodes.`);
         } catch (error) {
           return failure(reason(error));

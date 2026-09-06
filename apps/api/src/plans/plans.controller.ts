@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Patch, Query, Res } from '@nestjs/common';
 import { exportFileName } from '@schematic/exporter';
 import type { Response } from 'express';
 
@@ -48,6 +48,17 @@ export class PlansController {
   @Get('plans/:id/navigation')
   navigation(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.plans.navigation(user.id, id);
+  }
+
+  /** Who changed what, newest first. */
+  @Get('plans/:id/changes')
+  changes(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+  ) {
+    const take = Number.parseInt(limit ?? '', 10);
+    return this.plans.changes(user.id, id, Number.isFinite(take) ? Math.min(Math.max(take, 1), 200) : 100);
   }
 
   @Patch('plans/:id')

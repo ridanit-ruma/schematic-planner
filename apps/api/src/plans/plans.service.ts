@@ -22,7 +22,7 @@ import { randomToken } from '../common/crypto.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { CollabService } from '../collab/collab.service.js';
 import { AccessService } from '../workspaces/access.service.js';
-import { PlanDocumentsService } from './plan-documents.service.js';
+import { PlanDocumentsService, type ChangeActor } from './plan-documents.service.js';
 import type { CreatePlanInput, LayoutInput, ShareInput, UpdatePlanInput } from './plans.dto.js';
 
 export interface PlanSummary {
@@ -38,6 +38,17 @@ export interface PlanSummary {
  * its own, without a workspace in the path, so from the plan id alone the page
  * cannot say where it sits or what else is nearby.
  */
+export interface PlanChangeRecord {
+  id: string;
+  kind: string;
+  subject: string;
+  label: string;
+  detail: string | null;
+  at: Date;
+  /** Null when the account that made the change has since been deleted. */
+  by: { id: string; name: string; avatarUrl: string | null; agent: boolean } | null;
+}
+
 export interface PlanNavigation {
   workspace: { id: string; slug: string; name: string };
   projectId: string;
@@ -132,7 +143,12 @@ export class PlansService {
     return this.current(planId);
   }
 
-  async update(userId: string, planId: string, input: UpdatePlanInput): Promise<PlanDoc> {
+  async update(
+    userId: string,
+    planId: string,
+    input: UpdatePlanInput,
+    actor: ChangeActor = { userId },
+  ): Promise<PlanDoc> {
     await this.access.requirePlan(userId, planId, 'EDITOR');
 
     const ops: PlanOp[] = [
@@ -142,7 +158,37 @@ export class PlansService {
         ...(input.description !== undefined && { description: input.description }),
       },
     ];
-    return this.applyOps(userId, planId, ops);
+    return this.applyOps(userId, planId, ops, actor);
+  }
+
+  /** The plan's history, newest first. */
+  async changes(userId: string, planId: string, limit: number): Promise<PlanChangeRecord[]> {
+    await this.access.requirePlan(userId, planId, 'VIEWER');
+    const rows = await this.prisma.planChange.findMany({
+      where: { planId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        kind: true,
+        subject: true,
+        label: true,
+        detail: true,
+        apiKeyId: true,
+        createdAt: true,
+        user: { select: { id: true, name: true, avatarUrl: true } },
+      },
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      subject: row.subject,
+      label: row.label,
+      detail: row.detail,
+      at: row.createdAt,
+      by: row.user === null ? null : { ...row.user, agent: row.apiKeyId !== null },
+    }));
   }
 
   async remove(userId: string, planId: string): Promise<{ ok: true }> {
@@ -151,13 +197,22 @@ export class PlansService {
     return { ok: true };
   }
 
-  async applyOps(userId: string, planId: string, ops: readonly PlanOp[]): Promise<PlanDoc> {
+  async applyOps(
+    userId: string,
+    planId: string,
+    ops: readonly PlanOp[],
+    actor: ChangeActor = { userId },
+  ): Promise<PlanDoc> {
     await this.access.requirePlan(userId, planId, 'EDITOR');
 
-    const applied = await this.collab.withDocument(planId, (document) => {
-      applyOpsToDoc(document, ops, ORIGIN_AGENT);
-      return this.documents.project(planId, document).doc;
-    });
+    const applied = await this.collab.withDocument(
+      planId,
+      (document) => {
+        applyOpsToDoc(document, ops, ORIGIN_AGENT);
+        return this.documents.project(planId, document).doc;
+      },
+      actor,
+    );
 
     // Agents declare structure and never coordinates, so everything they add
     // arrives unplaced. Placing it here is what keeps that promise: without it a
@@ -165,13 +220,22 @@ export class PlansService {
     if (!applied.nodes.some((node) => node.position === null)) return applied;
 
     const { positions, sizes } = await layoutPlan(applied, { scope: 'unpinned' });
-    return this.collab.withDocument(planId, (document) => {
-      commitLayout(document, positions, ORIGIN_LAYOUT, sizes);
-      return this.documents.project(planId, document).doc;
-    });
+    return this.collab.withDocument(
+      planId,
+      (document) => {
+        commitLayout(document, positions, ORIGIN_LAYOUT, sizes);
+        return this.documents.project(planId, document).doc;
+      },
+      actor,
+    );
   }
 
-  async layout(userId: string, planId: string, input: LayoutInput): Promise<PlanDoc> {
+  async layout(
+    userId: string,
+    planId: string,
+    input: LayoutInput,
+    actor: ChangeActor = { userId },
+  ): Promise<PlanDoc> {
     await this.access.requirePlan(userId, planId, 'EDITOR');
 
     const doc = await this.current(planId);
@@ -180,10 +244,14 @@ export class PlansService {
       scope: input.scope,
     });
 
-    return this.collab.withDocument(planId, (document) => {
-      commitLayout(document, positions, ORIGIN_AGENT, sizes);
-      return this.documents.project(planId, document).doc;
-    });
+    return this.collab.withDocument(
+      planId,
+      (document) => {
+        commitLayout(document, positions, ORIGIN_AGENT, sizes);
+        return this.documents.project(planId, document).doc;
+      },
+      actor,
+    );
   }
 
   async exportBundle(userId: string, planId: string): Promise<ExportBundle> {

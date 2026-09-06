@@ -12,6 +12,7 @@ import { Problem, Spinner } from '@/components/ui/feedback';
 import { downloadExport, plans } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { EdgeInspector } from './EdgeInspector';
+import { HistoryPanel } from './HistoryPanel';
 import { Inspector } from './Inspector';
 import { PlanCanvas } from './PlanCanvas';
 import { PlanSidebar } from './PlanSidebar';
@@ -69,6 +70,9 @@ function PlanWorkspace({
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  // One panel at a time on the right: opening the history puts down whatever
+  // was selected, and selecting something puts the history away.
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
   const counts = useMemo(() => {
@@ -173,6 +177,11 @@ function PlanWorkspace({
         onArrange={() => void arrange()}
         onExport={() => void exportZip()}
         onShare={() => void share()}
+        historyOpen={historyOpen}
+        onHistory={() => {
+          setHistoryOpen((open) => !open);
+          select(null);
+        }}
       />
 
       {error !== null ? (
@@ -200,6 +209,8 @@ function PlanWorkspace({
             onApplyOps={apply}
             onClose={() => selectEdge(null)}
           />
+        ) : historyOpen ? (
+          <HistoryPanel planId={planId} onClose={() => setHistoryOpen(false)} />
         ) : null}
       </div>
 

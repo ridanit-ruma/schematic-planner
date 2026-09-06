@@ -4,7 +4,7 @@ import { Hocuspocus, type Document } from '@hocuspocus/server';
 
 import type { AccessTokenPayload } from '../auth/auth.types.js';
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
-import { PlanDocumentsService } from '../plans/plan-documents.service.js';
+import { PlanDocumentsService, type ChangeActor } from '../plans/plan-documents.service.js';
 import { AccessService } from '../workspaces/access.service.js';
 
 export interface CollabContext {
@@ -57,8 +57,18 @@ export class CollabService implements OnModuleDestroy {
         return document;
       },
 
+      // Before the update is applied, not after: the history has to know whose
+      // edit this is while the document is still in the state that preceded it.
+      beforeHandleMessage: async ({ documentName, document, context }) => {
+        await this.documents.noteActor(documentName, { userId: context.userId }, document);
+      },
+
       onStoreDocument: async ({ documentName, document }) => {
         await this.documents.persist(documentName, document);
+      },
+
+      afterUnloadDocument: async ({ documentName }) => {
+        this.documents.forget(documentName);
       },
     });
   }
@@ -73,12 +83,19 @@ export class CollabService implements OnModuleDestroy {
    * means an agent's change reaches every open canvas at once, instead of being
    * silently overwritten the next time a browser saves.
    */
-  async withDocument<T>(planId: string, mutate: (document: Document) => T): Promise<T> {
+  async withDocument<T>(
+    planId: string,
+    mutate: (document: Document) => T,
+    actor?: ChangeActor,
+  ): Promise<T> {
     const connection = await this.hocuspocus.openDirectConnection(planId);
     let result: T | undefined;
     let failure: unknown;
 
     try {
+      if (actor !== undefined && connection.document !== null) {
+        await this.documents.noteActor(planId, actor, connection.document);
+      }
       await connection.transact((document) => {
         try {
           result = mutate(document);

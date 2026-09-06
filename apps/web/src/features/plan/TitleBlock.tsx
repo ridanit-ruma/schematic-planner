@@ -1,6 +1,6 @@
 import { planEdgeKinds, type PlanEdgeKind, type PlanNodeStatus } from '@schematic/schema';
 import type { Presence } from '@schematic/ydoc';
-import { Download, Link2, Plus, Wand2 } from 'lucide-react';
+import { Clock, Download, Link2, Plus, Wand2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { StatusTally } from '@/components/ui/status';
@@ -24,6 +24,8 @@ export function TitleBlock({
   onArrange,
   onExport,
   onShare,
+  historyOpen,
+  onHistory,
 }: {
   title: string;
   counts: Partial<Record<PlanNodeStatus, number>>;
@@ -36,6 +38,8 @@ export function TitleBlock({
   onArrange: () => void;
   onExport: () => void;
   onShare: () => void;
+  historyOpen: boolean;
+  onHistory: () => void;
 }) {
   return (
     <header className="flex h-11 shrink-0 items-center gap-4 border-b border-rule bg-surface px-3">
@@ -81,6 +85,16 @@ export function TitleBlock({
             </Button>
           </>
         )}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onHistory}
+          aria-pressed={historyOpen}
+          title="Who changed what"
+        >
+          <Clock className="size-3.5" />
+          History
+        </Button>
         <Button size="sm" variant="quiet" onClick={onExport}>
           <Download className="size-3.5" />
           Export

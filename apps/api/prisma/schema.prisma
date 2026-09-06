@@ -22,6 +22,7 @@ model User {
   memberships Membership[]
   sessions    Session[]
   apiKeys     ApiKey[]
+  planChanges PlanChange[]
   invitesSent Invite[]        @relation("InviteCreator")
 }
 
@@ -139,8 +140,31 @@ model Plan {
 
   project Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   share   PlanShare?
+  changes PlanChange[]
 
   @@index([projectId])
+}
+
+/// One entry in a plan's history. Written from the difference between two
+/// versions of the document, so it covers the editor, the REST API and MCP
+/// alike rather than only the paths that go through an operation.
+model PlanChange {
+  id     String @id @default(cuid())
+  planId String
+  userId String?
+  /// Set when the change arrived over MCP, so the log can say an agent made it.
+  apiKeyId String?
+  kind     String
+  subject  String
+  label    String
+  detail   String?
+
+  createdAt DateTime @default(now())
+
+  plan Plan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([planId, createdAt])
 }
 
 model PlanShare {

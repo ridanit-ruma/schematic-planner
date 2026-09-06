@@ -61,6 +61,16 @@ export interface PlanNavigation {
   }[];
 }
 
+export interface PlanChangeRecord {
+  id: string;
+  kind: string;
+  subject: string;
+  label: string;
+  detail: string | null;
+  at: string;
+  by: { id: string; name: string; avatarUrl: string | null; agent: boolean } | null;
+}
+
 export interface ApiKeySummary {
   id: string;
   name: string;
@@ -255,6 +265,7 @@ export const plans = {
     api<PlanDoc>(`/projects/${projectId}/plans`, { method: 'POST', ...json({ title }) }),
   read: (planId: string) => api<PlanDoc>(`/plans/${planId}`),
   navigation: (planId: string) => api<PlanNavigation>(`/plans/${planId}/navigation`),
+  changes: (planId: string) => api<PlanChangeRecord[]>(`/plans/${planId}/changes`),
   remove: (planId: string) => api<{ ok: true }>(`/plans/${planId}`, { method: 'DELETE' }),
   applyOps: (planId: string, ops: PlanOp[]) =>
     api<PlanDoc>(`/plans/${planId}/ops`, { method: 'POST', ...json({ ops }) }),
