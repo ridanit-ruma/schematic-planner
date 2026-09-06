@@ -208,6 +208,7 @@ try {
           { kind: 'contains', from: 'alpha', to: 'a-one' },
           { kind: 'contains', from: 'alpha', to: 'a-two' },
           { kind: 'contains', from: 'beta', to: 'b-one' },
+          { kind: 'flows_to', from: 'loose', to: 'b-one', via: 'click Save', carries: '{ id }' },
         ],
       },
     },
@@ -322,6 +323,17 @@ try {
         Math.abs(deepIs.y - deepWas.y - shift.y) < 2,
       `outer ${Math.round(shift.x)},${Math.round(shift.y)}`,
     );
+    // What a flow carries has to be on the line. It is the whole of what the
+    // connection says, and it was stored, exported and traced but never drawn.
+    const written = await page.$$eval('.react-flow__edgelabel-renderer div', (list) =>
+      list.map((el) => el.textContent?.trim() ?? '').filter((text) => text !== ''),
+    );
+    check(
+      'what a flow carries is drawn on it',
+      written.some((text) => text.includes('click Save')),
+      written.slice(0, 3).join(' | '),
+    );
+
     console.log('\ndrawing a connection');
     // The control is a toggle group now. It marks the chosen one itself rather
     // than through Radix's data-state, which a tooltip wrapping it overwrites.
