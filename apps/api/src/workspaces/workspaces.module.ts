@@ -8,6 +8,6 @@ import { WorkspacesService } from './workspaces.service.js';
 @Module({
   controllers: [WorkspacesController],
   providers: [AccessService, WorkspacesService],
-  exports: [AccessService],
+  exports: [AccessService, WorkspacesService],
 })
 export class WorkspacesModule {}
