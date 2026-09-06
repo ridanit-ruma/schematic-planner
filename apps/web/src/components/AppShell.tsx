@@ -56,43 +56,48 @@ function Rail({ current }: { current: Workspace | undefined }) {
   const user = useAuth((state) => state.user);
   const signOut = useAuth((state) => state.signOut);
 
+  // Below a wide desktop the rail keeps its rows but drops its words: the names
+  // move to tooltips and the pane gets back 200px, which is the difference
+  // between a usable table and a scrolling one.
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-rule bg-surface">
+    <aside className="flex w-14 shrink-0 flex-col border-r border-rule bg-surface lg:w-64">
       <WorkspaceSwitcher current={current} />
 
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
         {current === undefined ? null : (
           <Section title="Workspace">
-            <RailLink to={`/workspace/${current.slug}`} icon={FolderKanban} end>
+            <RailLink to={`/workspace/${current.slug}`} icon={FolderKanban} label="Projects" end>
               Projects
             </RailLink>
-            <RailLink to={`/workspace/${current.slug}/members`} icon={Users}>
+            <RailLink to={`/workspace/${current.slug}/members`} icon={Users} label="Members">
               Members
               <span className="slug ml-auto text-ink-faint">{current.memberCount}</span>
             </RailLink>
-            <RailLink to={`/workspace/${current.slug}/settings`} icon={Settings}>
+            <RailLink to={`/workspace/${current.slug}/settings`} icon={Settings} label="Settings">
               Settings
             </RailLink>
           </Section>
         )}
 
         <Section title="Account">
-          <RailLink to="/settings" icon={UserRound} end>
+          <RailLink to="/settings" icon={UserRound} label="Profile" end>
             Profile
           </RailLink>
-          <RailLink to="/settings/agents" icon={KeyRound}>
+          <RailLink to="/settings/agents" icon={KeyRound} label="Agent keys">
             Agent keys
           </RailLink>
         </Section>
       </nav>
 
-      <div className="flex items-center gap-1 border-t border-rule p-2">
+      <div className="flex flex-col items-center gap-1 border-t border-rule p-2 lg:flex-row">
         <Link
           to="/settings"
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-surface-2"
+          className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md py-1 hover:bg-surface-2 lg:justify-start lg:px-1.5"
         >
           <Avatar src={user?.avatarUrl} name={user?.name ?? '?'} className="size-6 rounded-sm" />
-          <span className="min-w-0 flex-1 truncate text-xs text-ink">{user?.name ?? 'You'}</span>
+          <span className="hidden min-w-0 flex-1 truncate text-xs text-ink lg:block">
+            {user?.name ?? 'You'}
+          </span>
         </Link>
         <Tooltip content="Sign out">
           <Button variant="ghost" size="icon" onClick={() => void signOut()} aria-label="Sign out">
@@ -107,7 +112,7 @@ function Rail({ current }: { current: Workspace | undefined }) {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="mb-3">
-      <p className="rail-heading px-2 py-1.5">{title}</p>
+      <p className="rail-heading hidden px-2 py-1.5 lg:block">{title}</p>
       {children}
     </div>
   );
@@ -116,30 +121,36 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function RailLink({
   to,
   icon: Icon,
+  label,
   end,
   children,
 }: {
   to: string;
   icon: ComponentType<{ className?: string }>;
+  /** Shown as a tooltip when the rail is narrow enough to have dropped its words. */
+  label: string;
   end?: boolean;
   children: ReactNode;
 }) {
   return (
-    <NavLink
-      to={to}
-      // `end` on an index route so that only the longest match lights up; a
-      // prefix comparison leaves two rows active at once.
-      end={end ?? false}
-      className={({ isActive }) =>
-        cn(
-          'flex h-8 items-center gap-2 rounded-md px-2 text-sm transition-colors',
-          isActive ? 'bg-surface-4 text-ink' : 'text-ink-muted hover:bg-surface-2 hover:text-ink',
-        )
-      }
-    >
-      <Icon className="size-4 shrink-0" />
-      {children}
-    </NavLink>
+    <Tooltip content={label} side="right">
+      <NavLink
+        to={to}
+        // `end` on an index route so that only the longest match lights up; a
+        // prefix comparison leaves two rows active at once.
+        end={end ?? false}
+        className={({ isActive }) =>
+          cn(
+            'flex h-8 items-center gap-2 rounded-md text-sm transition-colors',
+            'justify-center lg:justify-start lg:px-2',
+            isActive ? 'bg-surface-4 text-ink' : 'text-ink-muted hover:bg-surface-2 hover:text-ink',
+          )
+        }
+      >
+        <Icon className="size-4 shrink-0" />
+        <span className="hidden min-w-0 flex-1 items-center lg:flex">{children}</span>
+      </NavLink>
+    </Tooltip>
   );
 }
 
@@ -213,13 +224,13 @@ function WorkspaceSwitcher({ current }: { current: Workspace | undefined }) {
           trigger={
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left hover:bg-surface-2 focus:outline-none"
+              className="flex w-full items-center justify-center gap-2 rounded-md py-1.5 text-left hover:bg-surface-2 focus:outline-none lg:justify-start lg:px-1.5"
             >
               <Mark className="size-6 shrink-0" />
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
+              <span className="hidden min-w-0 flex-1 truncate text-sm font-medium text-ink lg:block">
                 {current?.name ?? 'Schematic Planner'}
               </span>
-              <ChevronsUpDown aria-hidden className="size-3.5 shrink-0 text-ink-faint" />
+              <ChevronsUpDown aria-hidden className="hidden size-3.5 shrink-0 text-ink-faint lg:block" />
             </button>
           }
         >
