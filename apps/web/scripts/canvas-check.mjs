@@ -87,7 +87,11 @@ try {
     planHref = await page.$eval('a[href^="/plan/"]', (a) => a.getAttribute('href')).catch(() => null);
     if (planHref !== null) break;
   }
-  check('a plan is listed in a project', planHref !== null, planHref ?? '');
+  check(
+    'a plan is listed in a project',
+    planHref !== null,
+    planHref ?? (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 200),
+  );
   if (planHref === null) throw new Error('no plan to open — seed one first');
 
   const planId = planHref.split('/').pop();
