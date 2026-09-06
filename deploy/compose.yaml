@@ -21,8 +21,10 @@ x-api-env: &api-env
   CORS_ORIGINS: ${SITE_URL:-http://localhost:8080}
   TRUST_PROXY: "true"
   COOKIE_SECURE: ${COOKIE_SECURE:-false}
-  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?generate one with: openssl rand -base64 48}
-  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?generate one with: openssl rand -base64 48}
+  # Quoted: the colon in the message would otherwise read as a second mapping
+  # value and the whole file would fail to parse.
+  JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:?generate one with openssl rand -base64 48}"
+  JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:?generate one with openssl rand -base64 48}"
   ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
   RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
   RATE_LIMIT_AUTH_MAX: ${RATE_LIMIT_AUTH_MAX:-10}
