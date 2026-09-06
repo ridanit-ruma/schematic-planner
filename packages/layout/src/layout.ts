@@ -56,19 +56,25 @@ const DEFAULTS = {
   direction: 'RIGHT' as LayoutDirection,
   nodeWidth: CARD_WIDTH,
   nodeHeight: CARD_HEIGHT,
-  spacing: 36,
+  spacing: 40,
   scope: 'unpinned' as const,
 };
 
 const elk = new ELK();
 
+/**
+ * ELK reads options per node, not down a tree: a nested container laid out with
+ * only the root's settings falls back to defaults for everything else. Applying
+ * the same set to every container is what stops the cards inside one from
+ * touching, with no room for the arrow between them.
+ */
 function elkOptions(options: Required<Pick<LayoutOptions, 'direction' | 'spacing'>>) {
   return {
     'elk.algorithm': 'layered',
     'elk.direction': options.direction,
     'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
     'elk.spacing.nodeNode': String(options.spacing),
-    'elk.layered.spacing.nodeNodeBetweenLayers': String(Math.round(options.spacing * 1.6)),
+    'elk.layered.spacing.nodeNodeBetweenLayers': String(Math.round(options.spacing * 1.8)),
     'elk.padding': CONTAINER_PADDING,
     // Without a fixed strategy ELK may order equal-rank nodes differently
     // between runs, which would make "arrange" produce a different diagram
@@ -90,6 +96,8 @@ export async function layoutPlan(
   const settings = { ...DEFAULTS, ...options };
   const graph = buildPlanGraph(doc);
 
+  const options = elkOptions(settings);
+
   const buildChildren = (slugs: readonly string[]): ElkNode[] =>
     slugs.map((slug) => {
       const node = graph.nodes.get(slug);
@@ -97,7 +105,7 @@ export async function layoutPlan(
       const elkNode: ElkNode = { id: slug };
       if (children.length > 0) {
         elkNode.children = buildChildren(children);
-        elkNode.layoutOptions = { 'elk.padding': CONTAINER_PADDING };
+        elkNode.layoutOptions = elkOptions(settings);
       } else {
         elkNode.width = node?.size?.width ?? settings.nodeWidth;
         elkNode.height =
@@ -117,7 +125,7 @@ export async function layoutPlan(
 
   const laid = await elk.layout({
     id: 'root',
-    layoutOptions: elkOptions(settings),
+    layoutOptions: options,
     children: buildChildren(graph.roots),
     edges,
   });
