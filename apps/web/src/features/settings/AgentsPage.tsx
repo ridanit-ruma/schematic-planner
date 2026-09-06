@@ -43,15 +43,14 @@ export function AgentsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-7">
-      <h1 className="text-lg font-semibold tracking-tight text-ink">Agents</h1>
-      <p className="mt-1 max-w-prose text-sm text-ink-muted">
+    <>
+      <p className="max-w-prose text-sm text-ink-muted">
         Connect Cursor, Claude, or any other MCP client. A key belongs to you rather than to one
         workspace, so a single key reaches every workspace you are a member of — the agent can read
         your plans and draw new ones on the same canvas you are looking at.
       </p>
 
-      <section className="mt-8 rounded-lg border border-rule bg-surface-2 p-4">
+      <section className="rounded-lg border border-rule bg-surface-2 p-4">
         <h2 className="text-sm font-medium text-ink">Server URL</h2>
         <p className="mt-1 text-xs text-ink-muted">
           The same for everyone on this instance. Pair it with a key below.
@@ -59,7 +58,7 @@ export function AgentsPage() {
         <CopyRow value={MCP_URL} className="mt-3" />
       </section>
 
-      <section className="mt-6">
+      <section>
         <div className="flex items-end justify-between gap-4">
           <div>
             <h2 className="text-sm font-medium text-ink">Keys</h2>
@@ -193,7 +192,7 @@ export function AgentsPage() {
           )}
         </pre>
       </Modal>
-    </div>
+    </>
   );
 }
 

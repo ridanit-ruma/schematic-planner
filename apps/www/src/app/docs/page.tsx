@@ -39,7 +39,7 @@ const TOOLS = [
   ['export_plan', 'The Markdown bundle, plus a link to the zip.'],
   [
     'delete_plan',
-    'Removes one. Requires its title typed back, so a wrong id cannot take somebody else’s work.',
+    'Moves one to the workspace trash, where a person can restore it. Requires its title typed back, so a wrong id cannot take somebody else’s work.',
   ],
 ] as const;
 
@@ -75,7 +75,9 @@ export default function Docs() {
             ))}
           </dl>
 
-          <h2 className="mt-12 text-lg font-medium tracking-[-0.02em] text-ink">Why agents do not set positions</h2>
+          <h2 className="mt-12 text-lg font-medium tracking-[-0.02em] text-ink">
+            Why agents do not set positions
+          </h2>
           <p className="mt-3 text-base leading-[1.65] text-ink-muted">
             A language model asked for coordinates produces a diagram nobody wants to read, and
             spends your context doing it. So the tools have no position field. An agent says what
@@ -83,7 +85,9 @@ export default function Docs() {
             Anything a person has dragged is pinned, and automatic layout never touches it again.
           </p>
 
-          <h2 className="mt-12 text-lg font-medium tracking-[-0.02em] text-ink">What the export contains</h2>
+          <h2 className="mt-12 text-lg font-medium tracking-[-0.02em] text-ink">
+            What the export contains
+          </h2>
           <p className="mt-3 text-base leading-[1.65] text-ink-muted">
             Flows are written into each node's front matter, with what sets them off and what they
             carry. Containment edges become directory nesting. Dependency edges become a topological

@@ -21,8 +21,8 @@ export class ProjectsService {
   async list(userId: string, workspaceId: string) {
     await this.access.requireWorkspace(userId, workspaceId, 'VIEWER');
     const projects = await this.prisma.project.findMany({
-      where: { workspaceId },
-      include: { _count: { select: { plans: true } } },
+      where: { workspaceId, deletedAt: null },
+      include: { _count: { select: { plans: { where: { deletedAt: null } } } } },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -81,9 +81,17 @@ export class ProjectsService {
     return { id: project.id, slug: project.slug, name: project.name };
   }
 
+  /**
+   * To the trash, with the plans it holds. Nothing is destroyed here: the plans
+   * keep their own `deletedAt` clear, so restoring the project brings back
+   * exactly what was under it and nothing that was already thrown away.
+   */
   async remove(userId: string, projectId: string) {
     await this.access.requireProject(userId, projectId, 'ADMIN');
-    await this.prisma.project.delete({ where: { id: projectId } });
+    await this.prisma.project.update({
+      where: { id: projectId },
+      data: { deletedAt: new Date(), deletedById: userId },
+    });
     return { ok: true };
   }
 
@@ -93,7 +101,9 @@ export class ProjectsService {
     const project = await this.prisma.project.findUnique({
       where: { workspaceId_slug: { workspaceId, slug } },
     });
-    if (project === null) throw new NotFoundException('Project not found');
+    if (project === null || project.deletedAt !== null) {
+      throw new NotFoundException('Project not found');
+    }
     return { id: project.id, slug: project.slug, name: project.name };
   }
 
@@ -105,16 +115,22 @@ export class ProjectsService {
     const existing = await this.prisma.project.findUnique({
       where: { workspaceId_slug: { workspaceId, slug: DEFAULT_SLUG } },
     });
-    if (existing !== null) return existing.id;
+    if (existing !== null && existing.deletedAt === null) return existing.id;
 
     const first = await this.prisma.project.findFirst({
-      where: { workspaceId },
+      where: { workspaceId, deletedAt: null },
       orderBy: { createdAt: 'asc' },
     });
     if (first !== null) return first.id;
 
+    // A trashed project keeps its slug, so the default cannot assume `general`
+    // is free.
     const created = await this.prisma.project.create({
-      data: { workspaceId, slug: DEFAULT_SLUG, name: DEFAULT_NAME },
+      data: {
+        workspaceId,
+        slug: await this.freeSlug(workspaceId, DEFAULT_NAME),
+        name: DEFAULT_NAME,
+      },
     });
     return created.id;
   }

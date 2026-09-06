@@ -18,8 +18,7 @@ import { applyOps, readPlanDoc } from '@schematic/ydoc';
 import * as Y from 'yjs';
 
 const API = (process.env.SMOKE_API_URL ?? 'http://127.0.0.1:3001').replace(/\/+$/, '');
-const COLLAB =
-  process.env.SMOKE_COLLAB_URL ?? `${API.replace(/^http/, 'ws')}/collab`;
+const COLLAB = process.env.SMOKE_COLLAB_URL ?? `${API.replace(/^http/, 'ws')}/collab`;
 
 let failures = 0;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -66,7 +65,11 @@ async function main() {
       body: { email, name: 'Smoke', password: 'correct-horse-battery' },
     });
   }
-  check('register', registered.status === 201 || registered.status === 200, `status ${registered.status}`);
+  check(
+    'register',
+    registered.status === 201 || registered.status === 200,
+    `status ${registered.status}`,
+  );
   const token = registered.body.accessToken;
   check('access token issued', typeof token === 'string' && token.length > 20);
 
@@ -88,7 +91,11 @@ async function main() {
     token,
     body: { name: 'Billing rework' },
   });
-  check('create project', namedProject.body.slug === 'billing-rework', namedProject.body.slug ?? '');
+  check(
+    'create project',
+    namedProject.body.slug === 'billing-rework',
+    namedProject.body.slug ?? '',
+  );
 
   const bySlug = await call(`/workspaces/${workspaceId}/projects?slug=billing-rework`, { token });
   check('a project resolves from its slug', bySlug.body.id === namedProject.body.id);
@@ -104,7 +111,11 @@ async function main() {
   // The canvas is addressed by plan id alone, so this is the only thing that
   // tells it which workspace it is in and what else it can move to.
   const nav = await call(`/plans/${planId}/navigation`, { token });
-  check('a plan knows its workspace', nav.body.workspace?.id === workspaceId, nav.body.workspace?.slug ?? '');
+  check(
+    'a plan knows its workspace',
+    nav.body.workspace?.id === workspaceId,
+    nav.body.workspace?.slug ?? '',
+  );
   check('and which project holds it', nav.body.projectId === projectId);
   check(
     'and lists the sibling plans it can move to',
@@ -144,7 +155,9 @@ async function main() {
   const repeated = await call(`/plans/${planId}/ops`, {
     method: 'POST',
     token,
-    body: { ops: [{ op: 'upsert_edge', edge: { kind: 'depends_on', from: 'auth', to: 'database' } }] },
+    body: {
+      ops: [{ op: 'upsert_edge', edge: { kind: 'depends_on', from: 'auth', to: 'database' } }],
+    },
   });
   check('repeating an edge does not duplicate it', repeated.body.edges?.length === 3);
 
@@ -158,7 +171,11 @@ async function main() {
       ],
     },
   });
-  check('an invalid batch is refused with 400', rejected.status === 400, rejected.body.message ?? '');
+  check(
+    'an invalid batch is refused with 400',
+    rejected.status === 400,
+    rejected.body.message ?? '',
+  );
   const after = await call(`/plans/${planId}`, { token });
   check('and nothing from it was kept', !after.body.nodes.some((node) => node.slug === 'orphan'));
 
@@ -244,7 +261,9 @@ async function main() {
   );
 
   const listedWorkspaces = await mcp({
-    jsonrpc: '2.0', id: 2, method: 'tools/call',
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
     params: { name: 'list_workspaces', arguments: {} },
   });
   const seen = listedWorkspaces.result?.content?.[0]?.text ?? '';
@@ -255,7 +274,9 @@ async function main() {
   );
 
   const listedProjects = await mcp({
-    jsonrpc: '2.0', id: 3, method: 'tools/call',
+    jsonrpc: '2.0',
+    id: 3,
+    method: 'tools/call',
     params: { name: 'list_projects', arguments: {} },
   });
   check(
@@ -264,7 +285,9 @@ async function main() {
   );
 
   const ambiguous = await mcp({
-    jsonrpc: '2.0', id: 4, method: 'tools/call',
+    jsonrpc: '2.0',
+    id: 4,
+    method: 'tools/call',
     params: { name: 'create_plan', arguments: { title: 'Which one?', nodes: [], edges: [] } },
   });
   check(
@@ -297,7 +320,9 @@ async function main() {
 
   const drawnId = /Created plan (\S+) with/.exec(drawnText)?.[1] ?? '';
   const wrongTitle = await mcp({
-    jsonrpc: '2.0', id: 6, method: 'tools/call',
+    jsonrpc: '2.0',
+    id: 6,
+    method: 'tools/call',
     params: { name: 'delete_plan', arguments: { planId: drawnId, confirmTitle: 'Not its name' } },
   });
   check(
@@ -306,22 +331,33 @@ async function main() {
   );
 
   const deleted = await mcp({
-    jsonrpc: '2.0', id: 7, method: 'tools/call',
-    params: { name: 'delete_plan', arguments: { planId: drawnId, confirmTitle: 'Drawn by an agent' } },
+    jsonrpc: '2.0',
+    id: 7,
+    method: 'tools/call',
+    params: {
+      name: 'delete_plan',
+      arguments: { planId: drawnId, confirmTitle: 'Drawn by an agent' },
+    },
   });
-  check('delete_plan removes it once the title matches',
-    (deleted.result?.content?.[0]?.text ?? '').includes('Deleted'));
+  check(
+    'delete_plan puts it in the trash once the title matches',
+    (deleted.result?.content?.[0]?.text ?? '').includes('to the trash'),
+  );
 
   const newProject = await mcp({
-    jsonrpc: '2.0', id: 8, method: 'tools/call',
+    jsonrpc: '2.0',
+    id: 8,
+    method: 'tools/call',
     params: {
       name: 'create_project',
       arguments: { name: 'Drawn by an agent', workspace: workspaces.body[0]?.slug },
     },
   });
-  check('create_project',
+  check(
+    'create_project',
     (newProject.result?.content?.[0]?.text ?? '').includes('drawn-by-an-agent'),
-    newProject.result?.content?.[0]?.text ?? '');
+    newProject.result?.content?.[0]?.text ?? '',
+  );
 
   section('following a flow');
   // The reading tool the whole thing exists for: answer with the thread, not
@@ -335,18 +371,32 @@ async function main() {
       { slug: 'users', title: 'users table' },
     ],
     edges: [
-      { kind: 'flows_to', from: 'login-page', to: 'login-api', via: 'click Sign in', carries: '{ email, password }' },
+      {
+        kind: 'flows_to',
+        from: 'login-page',
+        to: 'login-api',
+        via: 'click Sign in',
+        carries: '{ email, password }',
+      },
       { kind: 'flows_to', from: 'login-api', to: 'users', via: 'select by email' },
       { kind: 'flows_to', from: 'users', to: 'login-api', carries: '{ id, hash }' },
       { kind: 'flows_to', from: 'login-api', to: 'login-page', carries: '{ token }' },
     ],
   });
   const flowPlanId = (flowPlan.match(/\/plan\/([a-z0-9]+)/) ?? [])[1];
-  check('a plan of flows is accepted', typeof flowPlanId === 'string', flowPlanId ?? flowPlan.slice(0, 80));
+  check(
+    'a plan of flows is accepted',
+    typeof flowPlanId === 'string',
+    flowPlanId ?? flowPlan.slice(0, 80),
+  );
 
   const traced = await callTool('trace', { planId: flowPlanId, from: 'Login page' });
   check('trace finds a node by its title', traced.includes('Login page'));
-  check('and says what set each hop off', traced.includes('click Sign in'), traced.split('\n')[3] ?? '');
+  check(
+    'and says what set each hop off',
+    traced.includes('click Sign in'),
+    traced.split('\n')[3] ?? '',
+  );
   check('and what it carried', traced.includes('{ email, password }'));
   check('and stops where the flow comes back on itself', traced.includes('[loops back]'));
 
@@ -358,9 +408,54 @@ async function main() {
   check('trace walks the other way too', upstream.includes('login-page'));
 
   const missing = await callTool('trace', { planId: flowPlanId, from: 'nothing-like-this' });
-  check('and says so when the name is unknown', missing.toLowerCase().includes('nothing in this plan'));
+  check(
+    'and says so when the name is unknown',
+    missing.toLowerCase().includes('nothing in this plan'),
+  );
 
   await callTool('delete_plan', { planId: flowPlanId, confirmTitle: 'Sign-in flow' });
+
+  section('trash');
+  // Deleting is the one action that can lose somebody's work, so the whole
+  // point is that it did not: the plan is still there, and reachable.
+  const binned = await call(`/workspaces/${workspaceId}/trash`, { token });
+  check(
+    'a deleted plan is in the trash',
+    binned.body.some((item) => item.kind === 'plan' && item.name === 'Sign-in flow'),
+    `${binned.body.length} items`,
+  );
+  check('and not in the listings', (await call(`/plans/${flowPlanId}`, { token })).status === 404);
+
+  await call(`/trash/plans/${flowPlanId}/restore`, { method: 'POST', token });
+  check(
+    'restoring brings it back',
+    (await call(`/plans/${flowPlanId}`, { token })).body.title === 'Sign-in flow',
+  );
+
+  await call(`/plans/${flowPlanId}`, { method: 'DELETE', token });
+  const purged = await call(`/trash/plans/${flowPlanId}`, { method: 'DELETE', token });
+  check(
+    'and removing it for good is a second act',
+    purged.status === 200,
+    `status ${purged.status}`,
+  );
+  const afterPurge = await call(`/workspaces/${workspaceId}/trash`, { token });
+  check(
+    'after which it is gone from the trash too',
+    !afterPurge.body.some((item) => item.id === flowPlanId),
+  );
+
+  section('recent');
+  const recent = await call('/recent', { token });
+  check(
+    'the account sees what it has been working on',
+    recent.body.some((plan) => plan.id === planId),
+    `${recent.body.length} plans`,
+  );
+  check(
+    'with the workspace and project each one sits in',
+    recent.body[0]?.workspace?.slug !== undefined && recent.body[0]?.project?.slug !== undefined,
+  );
 
   section('sharing');
   const share = await call(`/plans/${planId}/share`, { method: 'POST', token, body: {} });
@@ -423,12 +518,24 @@ async function main() {
     bytes: png,
     contentType: 'image/png',
   });
-  check('set a picture', (avatar.body.avatarUrl ?? '').startsWith('/api/avatars/'), avatar.body.avatarUrl ?? `status ${avatar.status}`);
+  check(
+    'set a picture',
+    (avatar.body.avatarUrl ?? '').startsWith('/api/avatars/'),
+    avatar.body.avatarUrl ?? `status ${avatar.status}`,
+  );
 
   const served = await call((avatar.body.avatarUrl ?? '').replace('/api', ''), { raw: true });
   const servedBytes = Buffer.from(await served.arrayBuffer());
-  check('and it is served back', served.status === 200 && servedBytes.equals(png), `${servedBytes.length} bytes`);
-  check('as an image nothing is allowed to sniff', served.headers.get('x-content-type-options') === 'nosniff', served.headers.get('content-type') ?? '');
+  check(
+    'and it is served back',
+    served.status === 200 && servedBytes.equals(png),
+    `${servedBytes.length} bytes`,
+  );
+  check(
+    'as an image nothing is allowed to sniff',
+    served.headers.get('x-content-type-options') === 'nosniff',
+    served.headers.get('content-type') ?? '',
+  );
 
   const notAnImage = await call('/auth/me/avatar', {
     method: 'POST',
@@ -436,7 +543,11 @@ async function main() {
     bytes: Buffer.from('<script>alert(1)</script>'),
     contentType: 'image/png',
   });
-  check('anything that is not a PNG is refused', notAnImage.status === 400, `status ${notAnImage.status}`);
+  check(
+    'anything that is not a PNG is refused',
+    notAnImage.status === 400,
+    `status ${notAnImage.status}`,
+  );
 
   const cleared = await call('/auth/me/avatar', { method: 'DELETE', token });
   check('and a picture can be taken down', cleared.body.ok === true);

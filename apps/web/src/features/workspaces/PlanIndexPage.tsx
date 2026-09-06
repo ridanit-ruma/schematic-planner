@@ -1,14 +1,16 @@
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
+import { DropdownAction } from '@/components/ui/dropdown-menu';
 import { Modal } from '@/components/ui/modal';
 import { Page } from '@/components/ui/page';
+import { RowMenu } from '@/components/ui/row-menu';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
-import { plans, projects, type PlanSummary } from '@/lib/api';
+import { canAdminister, plans, projects, type PlanSummary } from '@/lib/api';
 import { formatWhen, plural } from '@/lib/utils';
 import { useWorkspace } from './workspace-context';
 
@@ -26,8 +28,10 @@ export function PlanIndexPage() {
   const [error, setError] = useState<unknown>(null);
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState('');
+  const [deleting, setDeleting] = useState<PlanSummary | null>(null);
+  const mayDelete = canAdminister(current.role);
 
-  useEffect(() => {
+  const reload = (): void => {
     setList(null);
     setProject(null);
     projects
@@ -37,7 +41,8 @@ export function PlanIndexPage() {
         setList(await plans.list(found.id));
       })
       .catch(setError);
-  }, [current.id, projectSlug]);
+  };
+  useEffect(reload, [current.id, projectSlug]);
 
   const create = async (): Promise<void> => {
     const trimmed = title.trim();
@@ -45,6 +50,16 @@ export function PlanIndexPage() {
     try {
       const plan = await plans.create(project.id, trimmed);
       void navigate(`/plan/${plan.id}`);
+    } catch (cause) {
+      setError(cause);
+    }
+  };
+
+  const remove = async (plan: PlanSummary): Promise<void> => {
+    try {
+      await plans.remove(plan.id);
+      setDeleting(null);
+      reload();
     } catch (cause) {
       setError(cause);
     }
@@ -98,6 +113,11 @@ export function PlanIndexPage() {
             <TH className="w-32" align="right">
               Updated
             </TH>
+            {mayDelete ? (
+              <TH className="w-10">
+                <span className="sr-only">Actions</span>
+              </TH>
+            ) : null}
           </THead>
           <tbody>
             {list.map((plan) => (
@@ -118,11 +138,43 @@ export function PlanIndexPage() {
                 <TD align="right" className="text-xs text-ink-muted">
                   {formatWhen(plan.updatedAt)}
                 </TD>
+                {mayDelete ? (
+                  <TD>
+                    <RowMenu label={plan.title}>
+                      <DropdownAction tone="danger" onSelect={() => setDeleting(plan)}>
+                        <Trash2 className="size-3.5" />
+                        Move to trash
+                      </DropdownAction>
+                    </RowMenu>
+                  </TD>
+                ) : null}
               </TR>
             ))}
           </tbody>
         </Table>
       )}
+
+      <Modal
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={`Move ${deleting?.title ?? ''} to the trash?`}
+        description="It stops appearing everywhere it is listed. You can bring it back from the trash."
+      >
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setDeleting(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              if (deleting !== null) void remove(deleting);
+            }}
+          >
+            <Trash2 className="size-3.5" />
+            Move to trash
+          </Button>
+        </div>
+      </Modal>
 
       <Modal open={creating} onOpenChange={setCreating} title="New plan">
         <form

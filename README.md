@@ -45,7 +45,7 @@ holding a plan still. Ask one to build a feature and it will happily produce a
 plausible task list, lose half of it three messages later, and reinvent the
 architecture on the next run.
 
-Schematic Planner is the step *before* the code. It gives a plan a **shape** — a graph
+Schematic Planner is the step _before_ the code. It gives a plan a **shape** — a graph
 of features, tasks and decisions laid out on a coordinate plane — so that both the
 human and the agent are looking at the same artifact. When the shape is agreed, the
 plan leaves as files you can commit next to your source.
@@ -60,12 +60,12 @@ Two properties define the product:
 
 ## Who it is for
 
-| Audience | What they get |
-|---|---|
-| Solo developers doing AI-assisted ("vibe") coding | A durable plan an agent can read on every run instead of re-deriving it |
-| Small product teams | A shared canvas for scoping, with real-time co-editing and share links |
-| Obsidian / plain-text users | Plans that land in the vault as Markdown and Canvas, not in someone's database |
-| Companies with source-code policies | A self-hostable instance behind their own network boundary |
+| Audience                                          | What they get                                                                  |
+| ------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Solo developers doing AI-assisted ("vibe") coding | A durable plan an agent can read on every run instead of re-deriving it        |
+| Small product teams                               | A shared canvas for scoping, with real-time co-editing and share links         |
+| Obsidian / plain-text users                       | Plans that land in the vault as Markdown and Canvas, not in someone's database |
+| Companies with source-code policies               | A self-hostable instance behind their own network boundary                     |
 
 ## How it works
 
@@ -135,20 +135,38 @@ A workspace and a project are addressed by a readable slug; a plan is not, and
 sits at the top level:
 
 ```
-/                                  the site
+/                                  what you have worked on lately, across every workspace
 /workspace/acme                    projects
 /workspace/acme/project/billing    plans
-/workspace/acme/members  /agents  /settings
+/workspace/acme/members  /settings  /trash
 /plan/:planId                      the canvas
 /share/:token                      read only, no session
-/settings                          your account
+/settings  /settings/agents        your account, and the keys your agents hold
 ```
+
+The application opens on `/` rather than on a workspace: people come back to a
+plan, and rarely remember which workspace it was filed under. Your account and
+your agent keys are not part of any workspace either, so they live behind the
+account row at the foot of the rail instead of in it.
 
 A plan link is the thing people paste to each other, so it stays flat: renaming
 a workspace or a project must not break a link somebody saved. The cost is that
 the canvas cannot tell where it sits from its own address, so it asks —
 `GET /plans/:id/navigation` returns the workspace tree around a plan, names
 only, and the canvas draws it as the rail you move between plans with.
+
+### Deleting, and the trash
+
+Deleting a plan or a project sets `deletedAt` and nothing more. Every listing
+filters on `deletedAt IS NULL` — `AccessService` treats a trashed row as missing
+unless the caller passes `includeTrashed`, which only the trash itself does — so
+one flag is enough and no query has to remember a second table.
+
+A trashed project takes its plans with it without marking them: their own
+`deletedAt` stays clear, so restoring the project brings back exactly what was
+under it and not the plans somebody had already thrown away. Nothing leaves the
+trash on its own; removing a row for good is a separate call, and emptying the
+trash is the only thing that deletes in bulk.
 
 ### Plan vocabulary
 
@@ -183,16 +201,16 @@ node and reference it in an edge in the same call, with no read-back round trip.
 is one call, applied inside a single `Y.transact`, so it appears on every open canvas
 at once.
 
-| Tool | Purpose |
-|---|---|
-| `list_workspaces()` | Workspaces the key can act in |
-| `list_projects({ workspace? })` | Projects the key can reach, across the account or narrowed |
-| `list_plans({ workspace? })` | Plans, grouped by workspace and project |
-| `get_plan(id, { view })` | `view`: `outline` \| `graph` \| `markdown`. Positions and styling are excluded by default to keep responses small |
-| `create_plan(spec)` | Whole structure in one shot — the path for "the agent already wrote a plan, now draw it". Takes a workspace and project slug; with one workspace reachable neither is needed, and with several it names them rather than guessing |
-| `apply_ops(id, ops[])` | The only write door. Upsert by slug, so retries never duplicate |
-| `layout(id, { scope })` | Re-run layout over everything that is not pinned |
-| `export_plan(id)` | Markdown tree plus `.canvas` |
+| Tool                            | Purpose                                                                                                                                                                                                                           |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_workspaces()`             | Workspaces the key can act in                                                                                                                                                                                                     |
+| `list_projects({ workspace? })` | Projects the key can reach, across the account or narrowed                                                                                                                                                                        |
+| `list_plans({ workspace? })`    | Plans, grouped by workspace and project                                                                                                                                                                                           |
+| `get_plan(id, { view })`        | `view`: `outline` \| `graph` \| `markdown`. Positions and styling are excluded by default to keep responses small                                                                                                                 |
+| `create_plan(spec)`             | Whole structure in one shot — the path for "the agent already wrote a plan, now draw it". Takes a workspace and project slug; with one workspace reachable neither is needed, and with several it names them rather than guessing |
+| `apply_ops(id, ops[])`          | The only write door. Upsert by slug, so retries never duplicate                                                                                                                                                                   |
+| `layout(id, { scope })`         | Re-run layout over everything that is not pinned                                                                                                                                                                                  |
+| `export_plan(id)`               | Markdown tree plus `.canvas`                                                                                                                                                                                                      |
 
 Authentication is a hosted Remote MCP endpoint: the user copies a URL and a Bearer key
 from their settings page into any MCP client. Nothing to install, nothing to keep
@@ -204,7 +222,7 @@ such a key could not see the others exist. A key acts as its owner wherever they
 are a member, which is why the tools take a workspace argument and the endpoint
 lives under the account rather than a workspace.
 
-Markdown is deliberately *not* parsed server-side. An agent converting its own prose
+Markdown is deliberately _not_ parsed server-side. An agent converting its own prose
 into the structured spec does a far better job than a parser guessing at headings.
 
 ## The export format
@@ -384,18 +402,18 @@ convenience** — it makes the session cookie same-site, which removes CORS and
 cross-site cookie rules from the picture instead of configuring around them.
 Migrations run to completion in their own container before the API starts.
 
-| Script | Does |
-|---|---|
-| `pnpm dev` | All apps in watch mode |
-| `pnpm build` | Full Turborepo build |
-| `pnpm typecheck` | TypeScript across every workspace |
-| `pnpm lint` | ESLint across every workspace |
-| `pnpm test` | Vitest across every workspace |
-| `pnpm check` | typecheck + lint + test — run this before you call something done |
-| `pnpm --filter @schematic/api smoke` | End-to-end check against a running server |
-| `pnpm --filter @schematic/web canvas-check` | Drives the canvas in a real browser |
-| `pnpm --filter @schematic/api db:migrate` | Create a migration from a schema change |
-| `pnpm --filter @schematic/api db:deploy` | Apply existing migrations |
+| Script                                      | Does                                                              |
+| ------------------------------------------- | ----------------------------------------------------------------- |
+| `pnpm dev`                                  | All apps in watch mode                                            |
+| `pnpm build`                                | Full Turborepo build                                              |
+| `pnpm typecheck`                            | TypeScript across every workspace                                 |
+| `pnpm lint`                                 | ESLint across every workspace                                     |
+| `pnpm test`                                 | Vitest across every workspace                                     |
+| `pnpm check`                                | typecheck + lint + test — run this before you call something done |
+| `pnpm --filter @schematic/api smoke`        | End-to-end check against a running server                         |
+| `pnpm --filter @schematic/web canvas-check` | Drives the canvas in a real browser                               |
+| `pnpm --filter @schematic/api db:migrate`   | Create a migration from a schema change                           |
+| `pnpm --filter @schematic/api db:deploy`    | Apply existing migrations                                         |
 
 There is no CI pipeline. `pnpm check` passing locally is the bar.
 
@@ -437,7 +455,7 @@ one) and a seeded plan to look at.
 
 - **Everything written into this repository is in English.** Code, comments, commit
   messages, PR titles and bodies, test names, documentation. No exceptions.
-- **Comments explain *why*, and only where a reader would otherwise be puzzled.** Do
+- **Comments explain _why_, and only where a reader would otherwise be puzzled.** Do
   not narrate what the code already says. Sparse and load-bearing beats thorough.
 - **Commits follow [Conventional Commits](https://www.conventionalcommits.org/)**:
   `feat(web): ...`, `fix(api): ...`, `refactor(exporter): ...`.
@@ -498,6 +516,7 @@ Still missing:
 - [x] Member, invitation, workspace and account management
 - [x] Connections that can be created, changed and removed on the canvas
 - [x] One origin behind a reverse proxy, in containers
+- [x] A trash: deleting hides, and only emptying destroys
 - [ ] Build and run the images
 - [ ] GitHub and Google sign-in callbacks
 - [ ] Email: invitations, address changes, password reset

@@ -11,24 +11,25 @@ import { AuthPage } from '@/features/auth/AuthPage';
 import { PlanPage } from '@/features/plan/PlanPage';
 import { SharedPlanPage } from '@/features/plan/SharedPlanPage';
 import { AgentsPage } from '@/features/settings/AgentsPage';
-import { HomeRedirect } from '@/features/workspaces/HomeRedirect';
+import { RecentPage } from '@/features/recent/RecentPage';
 import { InvitePage } from '@/features/workspaces/InvitePage';
 import { MembersPage } from '@/features/workspaces/MembersPage';
 import { PlanIndexPage } from '@/features/workspaces/PlanIndexPage';
 import { ProjectIndexPage } from '@/features/workspaces/ProjectIndexPage';
+import { TrashPage } from '@/features/workspaces/TrashPage';
 import { WorkspaceSettingsPage } from '@/features/workspaces/WorkspaceSettingsPage';
 import { WorkspaceLayout, WorkspacesProvider } from '@/features/workspaces/workspace-context';
 
 /*
  * Addresses
  *
- *   /                                    the workspace you were last in
+ *   /                                    what you have worked on lately
  *   /login  /register
  *   /settings                            your account
  *   /settings/agents                     the keys your agents hold
  *   /workspace/:slug                     projects
  *   /workspace/:slug/project/:slug       plans in a project
- *   /workspace/:slug/members  /settings
+ *   /workspace/:slug/members  /settings  /trash
  *   /plan/:planId                        the canvas
  *   /share/:token                        read only, no session
  *
@@ -69,7 +70,7 @@ export function App() {
             </RequireAuth>
           }
         >
-          <Route index element={<HomeRedirect />} />
+          <Route index element={<RecentPage />} />
           <Route path="/settings" element={<SettingsLayout />}>
             <Route index element={<AccountSettingsPage />} />
             <Route path="agents" element={<AgentsPage />} />
@@ -81,6 +82,7 @@ export function App() {
             <Route path="project/:projectSlug" element={<PlanIndexPage />} />
             <Route path="members" element={<MembersPage />} />
             <Route path="settings" element={<WorkspaceSettingsPage />} />
+            <Route path="trash" element={<TrashPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -31,7 +31,13 @@ export class WorkspacesService {
   async listForUser(userId: string) {
     const memberships = await this.prisma.membership.findMany({
       where: { userId },
-      include: { workspace: { include: { _count: { select: { projects: true, members: true } } } } },
+      include: {
+        workspace: {
+          include: {
+            _count: { select: { projects: { where: { deletedAt: null } }, members: true } },
+          },
+        },
+      },
       orderBy: { createdAt: 'asc' },
     });
 

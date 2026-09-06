@@ -15,16 +15,15 @@ import { AvatarEditor } from './AvatarEditor';
 function describeClient(userAgent: string | null): string {
   if (userAgent === null || userAgent.trim() === '') return 'Unknown client';
 
-  const browser =
-    /Firefox\/[\d.]+/.test(userAgent)
-      ? 'Firefox'
-      : /Edg\//.test(userAgent)
-        ? 'Edge'
-        : /Chrome\//.test(userAgent)
-          ? 'Chrome'
-          : /Safari\//.test(userAgent)
-            ? 'Safari'
-            : 'Unknown browser';
+  const browser = /Firefox\/[\d.]+/.test(userAgent)
+    ? 'Firefox'
+    : /Edg\//.test(userAgent)
+      ? 'Edge'
+      : /Chrome\//.test(userAgent)
+        ? 'Chrome'
+        : /Safari\//.test(userAgent)
+          ? 'Safari'
+          : 'Unknown browser';
 
   const platform = /Windows/.test(userAgent)
     ? 'Windows'
@@ -63,16 +62,10 @@ export function AccountSettingsPage() {
   useEffect(reloadSessions, []);
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-7">
-      <h1 className="text-lg font-semibold tracking-tight text-ink">Your account</h1>
+    <>
+      {error !== null ? <Problem error={error} /> : null}
 
-      {error !== null ? (
-        <div className="mt-4">
-          <Problem error={error} />
-        </div>
-      ) : null}
-
-      <section className="mt-8 rounded-lg border border-rule bg-surface-2 p-4">
+      <section className="rounded-lg border border-rule bg-surface-2 p-4">
         <h2 className="text-sm font-medium text-ink">Picture</h2>
         <p className="mt-1 text-xs text-ink-muted">
           Shown wherever you appear — a member list, the history of a plan, your cursor on a canvas.
@@ -143,12 +136,12 @@ export function AccountSettingsPage() {
         )}
       </Modal>
 
-      <section className="mt-6 rounded-lg border border-rule bg-surface-2 p-4">
+      <section className="rounded-lg border border-rule bg-surface-2 p-4">
         <h2 className="text-sm font-medium text-ink">Name</h2>
         <p className="mt-1 text-xs text-ink-muted">
           What the people you share a workspace with see. Your email is{' '}
-          <span className="text-ink">{user?.email}</span>; changing it needs email delivery, which is
-          not built yet.
+          <span className="text-ink">{user?.email}</span>; changing it needs email delivery, which
+          is not built yet.
         </p>
         <form
           className="mt-4 flex items-end gap-2"
@@ -181,7 +174,7 @@ export function AccountSettingsPage() {
         </form>
       </section>
 
-      <section className="mt-6 rounded-lg border border-rule bg-surface-2 p-4">
+      <section className="rounded-lg border border-rule bg-surface-2 p-4">
         <h2 className="text-sm font-medium text-ink">Password</h2>
         <p className="mt-1 text-xs text-ink-muted">
           Changing it signs out every other session. If you are changing it because you think it
@@ -237,7 +230,7 @@ export function AccountSettingsPage() {
         </form>
       </section>
 
-      <section className="mt-6 rounded-lg border border-rule bg-surface-2 p-4">
+      <section className="rounded-lg border border-rule bg-surface-2 p-4">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-sm font-medium text-ink">Where you are signed in</h2>
@@ -292,7 +285,7 @@ export function AccountSettingsPage() {
         )}
       </section>
 
-      <section className="mt-6 rounded-lg border border-danger/20 bg-surface-2 p-4">
+      <section className="rounded-lg border border-danger/20 bg-surface-2 p-4">
         <h2 className="text-sm font-medium text-ink">Delete your account</h2>
         <p className="mt-1 max-w-prose text-xs text-ink-muted">
           Everything you own goes with it: workspaces where you are the only owner, and every
@@ -344,6 +337,6 @@ export function AccountSettingsPage() {
           </div>
         </form>
       </Modal>
-    </div>
+    </>
   );
 }

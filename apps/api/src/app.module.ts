@@ -13,6 +13,7 @@ import { HealthModule } from './health/health.module.js';
 import { McpModule } from './mcp/mcp.module.js';
 import { PlansModule } from './plans/plans.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
+import { TrashModule } from './trash/trash.module.js';
 import { WorkspacesModule } from './workspaces/workspaces.module.js';
 
 @Module({
@@ -50,6 +51,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module.js';
     WorkspacesModule,
     ProjectsModule,
     PlansModule,
+    TrashModule,
     McpModule,
     HealthModule,
   ],

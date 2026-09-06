@@ -1,7 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { exportPlan } from '@schematic/exporter';
-import { findNode, normalizeEdge, planEdgeInputSchema, planOpsSchema, tracePlan } from '@schematic/schema';
+import {
+  findNode,
+  normalizeEdge,
+  planEdgeInputSchema,
+  planOpsSchema,
+  tracePlan,
+} from '@schematic/schema';
 
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { PlansService } from '../plans/plans.service.js';
@@ -109,9 +115,7 @@ export class McpFactory {
             if (plans.length === 0) continue;
             lines.push(`${target.slug} / ${project.slug}`);
             for (const plan of plans) {
-              lines.push(
-                `  ${plan.title} — ${plan.nodeCount} nodes — ${this.planUrl(plan.id)}`,
-              );
+              lines.push(`  ${plan.title} — ${plan.nodeCount} nodes — ${this.planUrl(plan.id)}`);
               lines.push(`    id ${plan.id}`);
             }
           }
@@ -275,8 +279,9 @@ export class McpFactory {
       {
         title: 'Delete a plan',
         description:
-          'Permanently removes a plan. The exact title must be given as well, so a wrong id ' +
-          'cannot take somebody else\'s work with it.',
+          'Moves a plan to the workspace trash, where a person can restore it or remove it for ' +
+          'good. The exact title must be given as well, so a wrong id cannot take somebody ' +
+          "else's work with it.",
         inputSchema: deletePlanShape,
         annotations: { destructiveHint: true },
       },
@@ -289,7 +294,7 @@ export class McpFactory {
             );
           }
           await this.plans.remove(identity.userId, planId);
-          return text(`Deleted "${doc.title}".`);
+          return text(`Moved "${doc.title}" to the trash. A person can restore it from there.`);
         } catch (error) {
           return failure(reason(error));
         }
@@ -329,10 +334,15 @@ export class McpFactory {
       },
       async ({ planId, scope, direction }) => {
         try {
-          const doc = await this.plans.layout(identity.userId, planId, { scope, direction }, {
-            userId: identity.userId,
-            apiKeyId: identity.keyId,
-          });
+          const doc = await this.plans.layout(
+            identity.userId,
+            planId,
+            { scope, direction },
+            {
+              userId: identity.userId,
+              apiKeyId: identity.keyId,
+            },
+          );
           return text(`Arranged ${doc.nodes.length} nodes.`);
         } catch (error) {
           return failure(reason(error));

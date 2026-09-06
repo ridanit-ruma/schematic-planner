@@ -63,16 +63,26 @@ export function DropdownItem({
 /** An action rather than a choice: no room is kept for a tick. */
 export function DropdownAction({
   onSelect,
+  tone = 'default',
   children,
 }: {
   onSelect: () => void;
+  tone?: 'default' | 'danger';
   children: ReactNode;
 }) {
   return (
-    <Primitive.Item onSelect={onSelect} className={item}>
+    <Primitive.Item
+      onSelect={onSelect}
+      className={cn(item, tone === 'danger' && 'text-danger data-[highlighted]:bg-danger/10')}
+    >
       {children}
     </Primitive.Item>
   );
+}
+
+/** A heading inside the menu: says whose menu this is, and does nothing. */
+export function DropdownLabel({ children }: { children: ReactNode }) {
+  return <Primitive.Label className="px-2 py-1.5">{children}</Primitive.Label>;
 }
 
 export function DropdownSeparator() {

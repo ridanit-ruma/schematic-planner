@@ -49,6 +49,20 @@ export interface PlanChangeRecord {
   by: { id: string; name: string; avatarUrl: string | null; agent: boolean } | null;
 }
 
+/** One line on the screen the application opens on. */
+export interface RecentPlan {
+  id: string;
+  title: string;
+  updatedAt: Date;
+  project: { slug: string; name: string };
+  workspace: { slug: string; name: string };
+  lastChange: {
+    label: string;
+    at: Date;
+    by: { name: string; avatarUrl: string | null; agent: boolean } | null;
+  } | null;
+}
+
 export interface PlanNavigation {
   workspace: { id: string; slug: string; name: string };
   projectId: string;
@@ -72,7 +86,7 @@ export class PlansService {
   async list(userId: string, projectId: string): Promise<PlanSummary[]> {
     await this.access.requireProject(userId, projectId, 'VIEWER');
     const plans = await this.prisma.plan.findMany({
-      where: { projectId },
+      where: { projectId, deletedAt: null },
       orderBy: { updatedAt: 'desc' },
     });
 
@@ -85,6 +99,72 @@ export class PlansService {
     }));
   }
 
+  /**
+   * What this person has been working on, across every workspace they belong
+   * to. The application opens here: a plan is the thing people come back to,
+   * and which workspace it happened to be filed under is rarely how they
+   * remember it.
+   */
+  async recent(userId: string, limit: number): Promise<RecentPlan[]> {
+    const memberships = await this.prisma.membership.findMany({
+      where: { userId },
+      select: { workspaceId: true },
+    });
+    const workspaceIds = memberships.map((membership) => membership.workspaceId);
+    if (workspaceIds.length === 0) return [];
+
+    const rows = await this.prisma.plan.findMany({
+      where: {
+        deletedAt: null,
+        project: { deletedAt: null, workspaceId: { in: workspaceIds } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        updatedAt: true,
+        project: {
+          select: {
+            slug: true,
+            name: true,
+            workspace: { select: { slug: true, name: true } },
+          },
+        },
+        changes: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            label: true,
+            createdAt: true,
+            apiKeyId: true,
+            user: { select: { name: true, avatarUrl: true } },
+          },
+        },
+      },
+    });
+
+    return rows.map((row) => {
+      const change = row.changes[0];
+      return {
+        id: row.id,
+        title: row.title,
+        updatedAt: row.updatedAt,
+        project: { slug: row.project.slug, name: row.project.name },
+        workspace: row.project.workspace,
+        lastChange:
+          change === undefined
+            ? null
+            : {
+                label: change.label,
+                at: change.createdAt,
+                by:
+                  change.user === null ? null : { ...change.user, agent: change.apiKeyId !== null },
+              },
+      };
+    });
+  }
+
   async navigation(userId: string, planId: string): Promise<PlanNavigation> {
     const access = await this.access.requirePlan(userId, planId, 'VIEWER');
 
@@ -94,7 +174,7 @@ export class PlansService {
         select: { id: true, slug: true, name: true },
       }),
       this.prisma.project.findMany({
-        where: { workspaceId: access.workspaceId },
+        where: { workspaceId: access.workspaceId, deletedAt: null },
         orderBy: { name: 'asc' },
         select: {
           id: true,
@@ -103,6 +183,7 @@ export class PlansService {
           // No node counts here: the snapshot is the whole document, and
           // selecting it would load every plan in the workspace to list names.
           plans: {
+            where: { deletedAt: null },
             orderBy: { updatedAt: 'desc' },
             select: { id: true, title: true, updatedAt: true },
           },
@@ -191,9 +272,13 @@ export class PlansService {
     }));
   }
 
+  /** To the trash. Destroying it is a separate, deliberate act from there. */
   async remove(userId: string, planId: string): Promise<{ ok: true }> {
     await this.access.requirePlan(userId, planId, 'ADMIN');
-    await this.prisma.plan.delete({ where: { id: planId } });
+    await this.prisma.plan.update({
+      where: { id: planId },
+      data: { deletedAt: new Date(), deletedById: userId },
+    });
     return { ok: true };
   }
 
@@ -317,7 +402,8 @@ export class PlansService {
     if (plan === null) throw new NotFoundException('Plan not found');
 
     const parsed = planDocSchema.safeParse(plan.snapshot);
-    if (parsed.success) return { ...parsed.data, id: plan.id, updatedAt: plan.updatedAt.toISOString() };
+    if (parsed.success)
+      return { ...parsed.data, id: plan.id, updatedAt: plan.updatedAt.toISOString() };
 
     return { ...emptyPlanDoc(plan.id, plan.title), description: plan.description };
   }
@@ -338,7 +424,9 @@ export class PlansService {
       ...withStructure,
       nodes: withStructure.nodes.map((node) => ({
         ...node,
-        ...(positions.get(node.slug) !== undefined && { position: positions.get(node.slug) ?? null }),
+        ...(positions.get(node.slug) !== undefined && {
+          position: positions.get(node.slug) ?? null,
+        }),
         ...(sizes.get(node.slug) !== undefined && { size: sizes.get(node.slug) ?? null }),
       })),
       edges: withStructure.edges.map((edge) => ({

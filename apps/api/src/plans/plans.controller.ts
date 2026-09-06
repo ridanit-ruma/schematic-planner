@@ -39,6 +39,13 @@ export class PlansController {
     return this.plans.create(user.id, projectId, body);
   }
 
+  /** What the caller has been working on lately, across every workspace. */
+  @Get('recent')
+  recent(@CurrentUser() user: AuthUser, @Query('limit') limit?: string) {
+    const take = Number.parseInt(limit ?? '', 10);
+    return this.plans.recent(user.id, Number.isFinite(take) ? Math.min(Math.max(take, 1), 50) : 20);
+  }
+
   @Get('plans/:id')
   read(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.plans.read(user.id, id);
@@ -52,13 +59,13 @@ export class PlansController {
 
   /** Who changed what, newest first. */
   @Get('plans/:id/changes')
-  changes(
-    @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Query('limit') limit?: string,
-  ) {
+  changes(@CurrentUser() user: AuthUser, @Param('id') id: string, @Query('limit') limit?: string) {
     const take = Number.parseInt(limit ?? '', 10);
-    return this.plans.changes(user.id, id, Number.isFinite(take) ? Math.min(Math.max(take, 1), 200) : 100);
+    return this.plans.changes(
+      user.id,
+      id,
+      Number.isFinite(take) ? Math.min(Math.max(take, 1), 200) : 100,
+    );
   }
 
   @Patch('plans/:id')

@@ -14,6 +14,14 @@ export interface PlanAccess extends ProjectAccess {
 }
 
 /**
+ * Something in the trash is not there as far as every ordinary route is
+ * concerned. Only the trash itself asks to see it, and it says so.
+ */
+export interface AccessOptions {
+  readonly includeTrashed?: boolean;
+}
+
+/**
  * Every authorisation decision goes through here. Controllers ask for the access
  * they need and get an exception if the caller does not have it, so no route can
  * accidentally answer with someone else's data.
@@ -39,12 +47,20 @@ export class AccessService {
     return membership.role;
   }
 
-  async requireProject(userId: string, projectId: string, required: Role): Promise<ProjectAccess> {
+  async requireProject(
+    userId: string,
+    projectId: string,
+    required: Role,
+    options: AccessOptions = {},
+  ): Promise<ProjectAccess> {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
-      select: { id: true, workspaceId: true },
+      select: { id: true, workspaceId: true, deletedAt: true },
     });
     if (project === null) throw new NotFoundException('Project not found');
+    if (project.deletedAt !== null && options.includeTrashed !== true) {
+      throw new NotFoundException('Project not found');
+    }
 
     const role = await this.requireWorkspace(userId, project.workspaceId, required).catch(() => {
       throw new NotFoundException('Project not found');
@@ -53,12 +69,25 @@ export class AccessService {
     return { projectId: project.id, workspaceId: project.workspaceId, role };
   }
 
-  async requirePlan(userId: string, planId: string, required: Role): Promise<PlanAccess> {
+  async requirePlan(
+    userId: string,
+    planId: string,
+    required: Role,
+    options: AccessOptions = {},
+  ): Promise<PlanAccess> {
     const plan = await this.prisma.plan.findUnique({
       where: { id: planId },
-      select: { id: true, project: { select: { id: true, workspaceId: true } } },
+      select: {
+        id: true,
+        deletedAt: true,
+        project: { select: { id: true, workspaceId: true, deletedAt: true } },
+      },
     });
     if (plan === null) throw new NotFoundException('Plan not found');
+    // A plan under a trashed project is in the trash with it, even though only
+    // the project carries the mark.
+    const trashed = plan.deletedAt !== null || plan.project.deletedAt !== null;
+    if (trashed && options.includeTrashed !== true) throw new NotFoundException('Plan not found');
 
     const role = await this.requireWorkspace(userId, plan.project.workspaceId, required).catch(
       () => {

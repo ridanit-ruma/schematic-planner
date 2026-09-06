@@ -11,6 +11,11 @@ export interface AuthUser {
 
 export type Role = 'OWNER' | 'ADMIN' | 'EDITOR' | 'VIEWER';
 
+/** Deleting, restoring and the workspace's own settings all need this much. */
+export function canAdminister(role: Role): boolean {
+  return role === 'OWNER' || role === 'ADMIN';
+}
+
 export interface WorkspaceSummary {
   id: string;
   slug: string;
@@ -60,6 +65,29 @@ export interface PlanNavigation {
     name: string;
     plans: { id: string; title: string; updatedAt: string }[];
   }[];
+}
+
+/** One line on the screen the application opens on. */
+export interface RecentPlan {
+  id: string;
+  title: string;
+  updatedAt: string;
+  project: { slug: string; name: string };
+  workspace: { slug: string; name: string };
+  lastChange: {
+    label: string;
+    at: string;
+    by: { name: string; avatarUrl: string | null; agent: boolean } | null;
+  } | null;
+}
+
+export interface TrashItem {
+  kind: 'plan' | 'project';
+  id: string;
+  name: string;
+  where: string;
+  deletedAt: string;
+  by: { name: string; avatarUrl: string | null } | null;
 }
 
 export interface PlanChangeRecord {
@@ -211,20 +239,26 @@ export const auth = {
 
 export const workspaces = {
   list: () => api<WorkspaceSummary[]>('/workspaces'),
-  create: (name: string) => api<WorkspaceSummary>('/workspaces', { method: 'POST', ...json({ name }) }),
+  create: (name: string) =>
+    api<WorkspaceSummary>('/workspaces', { method: 'POST', ...json({ name }) }),
   update: (id: string, name: string) =>
     api<WorkspaceSummary>(`/workspaces/${id}`, { method: 'PATCH', ...json({ name }) }),
   remove: (id: string, confirm: string) =>
     api<{ ok: true }>(`/workspaces/${id}`, { method: 'DELETE', ...json({ confirm }) }),
   members: (id: string) => api<Member[]>(`/workspaces/${id}/members`),
   updateMember: (id: string, userId: string, role: Role) =>
-    api<{ ok: true }>(`/workspaces/${id}/members/${userId}`, { method: 'PATCH', ...json({ role }) }),
+    api<{ ok: true }>(`/workspaces/${id}/members/${userId}`, {
+      method: 'PATCH',
+      ...json({ role }),
+    }),
   removeMember: (id: string, userId: string) =>
     api<{ ok: true }>(`/workspaces/${id}/members/${userId}`, { method: 'DELETE' }),
   invite: (id: string, role: Role) =>
     api<{ url: string }>(`/workspaces/${id}/invites`, { method: 'POST', ...json({ role }) }),
   acceptInvite: (token: string) =>
-    api<{ workspace: { id: string; name: string } }>(`/invites/${token}/accept`, { method: 'POST' }),
+    api<{ workspace: { id: string; name: string } }>(`/invites/${token}/accept`, {
+      method: 'POST',
+    }),
 };
 
 export const projects = {
@@ -263,8 +297,7 @@ export const account = {
       body: png,
     }),
   clearAvatar: () => api<{ ok: true }>('/auth/me/avatar', { method: 'DELETE' }),
-  updateName: (name: string) =>
-    api<AuthUser>('/auth/me', { method: 'PATCH', ...json({ name }) }),
+  updateName: (name: string) => api<AuthUser>('/auth/me', { method: 'PATCH', ...json({ name }) }),
   changePassword: (currentPassword: string, newPassword: string) =>
     api<{ ok: true }>('/auth/password', {
       method: 'POST',
@@ -282,6 +315,7 @@ export const account = {
 
 export const plans = {
   list: (projectId: string) => api<PlanSummary[]>(`/projects/${projectId}/plans`),
+  recent: () => api<RecentPlan[]>('/recent'),
   create: (projectId: string, title: string) =>
     api<PlanDoc>(`/projects/${projectId}/plans`, { method: 'POST', ...json({ title }) }),
   read: (planId: string) => api<PlanDoc>(`/plans/${planId}`),
@@ -290,10 +324,25 @@ export const plans = {
   remove: (planId: string) => api<{ ok: true }>(`/plans/${planId}`, { method: 'DELETE' }),
   applyOps: (planId: string, ops: PlanOp[]) =>
     api<PlanDoc>(`/plans/${planId}/ops`, { method: 'POST', ...json({ ops }) }),
-  share: (planId: string) => api<{ token: string }>(`/plans/${planId}/share`, { method: 'POST', ...json({}) }),
+  share: (planId: string) =>
+    api<{ token: string }>(`/plans/${planId}/share`, { method: 'POST', ...json({}) }),
   unshare: (planId: string) => api<{ ok: true }>(`/plans/${planId}/share`, { method: 'DELETE' }),
   readShared: (token: string) => api<PlanDoc>(`/share/${token}`),
   exportUrl: (planId: string) => `${config.apiUrl}/plans/${planId}/export`,
+};
+
+/**
+ * Deleting puts something here rather than destroying it. Emptying the trash is
+ * the act that actually removes rows.
+ */
+export const trash = {
+  list: (workspaceId: string) => api<TrashItem[]>(`/workspaces/${workspaceId}/trash`),
+  empty: (workspaceId: string) =>
+    api<{ removed: number }>(`/workspaces/${workspaceId}/trash`, { method: 'DELETE' }),
+  restore: (kind: 'plan' | 'project', id: string) =>
+    api<{ ok: true }>(`/trash/${kind}s/${id}/restore`, { method: 'POST' }),
+  purge: (kind: 'plan' | 'project', id: string) =>
+    api<{ ok: true }>(`/trash/${kind}s/${id}`, { method: 'DELETE' }),
 };
 
 /**
