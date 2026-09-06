@@ -9,8 +9,15 @@ export interface TraceStep {
   readonly along: PlanEdge | null;
   /** Depth from the starting node. */
   readonly depth: number;
-  /** Set when this node is already on the path above: the branch stops here. */
-  readonly revisits: boolean;
+  /**
+   * Why this step was not followed any further, if it was not.
+   *
+   * `loop` — it is already on this path, so going on would go round again.
+   * `seen` — it was reached by another route and everything under it has been
+   *   written out once. Expanding it again would repeat a whole subtree; in a
+   *   busy graph that is most of the answer, twice.
+   */
+  readonly repeat: 'loop' | 'seen' | null;
 }
 
 export interface TracePath {
@@ -69,10 +76,12 @@ export function findNode(doc: Pick<PlanDoc, 'nodes'>, term: string): PlanNode | 
  * makes the reader do that work again from a pile.
  *
  * A cycle is a fact about real systems, not an error — a reply flows back to
- * where the request came from. So a branch that meets a node already on its own
- * path is marked as revisiting it and stops there. Other branches through the
- * same node keep going, because arriving somewhere twice by two routes is not
- * a loop.
+ * where the request came from — so a branch that meets a node already on its
+ * own path says so and stops.
+ *
+ * Each node is also expanded only once across the whole walk. Two routes into
+ * the same part are worth showing; what hangs off it is identical the second
+ * time, and repeating it can be most of the answer written twice.
  */
 export function tracePlan(
   doc: Pick<PlanDoc, 'nodes' | 'edges'>,
@@ -93,6 +102,7 @@ export function tracePlan(
   const paths: TracePath[] = [];
   const reached: PlanNode[] = [from];
   const seen = new Set<string>([from.slug]);
+  const expanded = new Set<string>();
   let spent = 0;
   let truncated = false;
 
@@ -108,9 +118,11 @@ export function tracePlan(
       const here = trail[trail.length - 1];
       if (here === undefined) return;
 
-      const onwards = here.revisits || here.depth >= settings.depth
-        ? []
-        : (next.get(here.node.slug) ?? []);
+      const onwards =
+        here.repeat !== null || here.depth >= settings.depth
+          ? []
+          : (next.get(here.node.slug) ?? []);
+      expanded.add(here.node.slug);
 
       if (onwards.length === 0) {
         paths.push({ direction, steps: [...trail] });
@@ -137,13 +149,20 @@ export function tracePlan(
             node,
             along: edge,
             depth: here.depth + 1,
-            revisits: trail.some((step) => step.node.slug === node.slug),
+            repeat: trail.some((step) => step.node.slug === node.slug)
+              ? 'loop'
+              : expanded.has(node.slug)
+                ? 'seen'
+                : null,
           },
         ]);
       }
     };
 
-    walk([{ node: from, along: null, depth: 0, revisits: false }]);
+    // Each direction is its own reading, so what one expanded does not silence
+    // the other.
+    expanded.clear();
+    walk([{ node: from, along: null, depth: 0, repeat: null }]);
   }
 
   return { start: from, paths, reached, truncated };

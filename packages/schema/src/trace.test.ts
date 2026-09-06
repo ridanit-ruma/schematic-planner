@@ -65,11 +65,24 @@ describe('tracePlan', () => {
   it('stops a branch that comes back on itself, without dropping it', () => {
     const doc = system();
     const result = tracePlan(doc, start(doc, 'login-page'));
-    const revisiting = result.paths
+    const looping = result.paths
       .flatMap((path) => path.steps)
-      .filter((step) => step.revisits)
+      .filter((step) => step.repeat === 'loop')
       .map((step) => step.node.slug);
-    expect(revisiting).toContain('login-page');
+    expect(looping).toContain('login-page');
+  });
+
+  it('writes out what hangs off a node once, however many routes reach it', () => {
+    // Two ways into the same part, which then leads somewhere else.
+    const doc = applyPlanOps(system(), [
+      { op: 'upsert_node', node: { slug: 'audit', title: 'Audit log' } },
+      { op: 'upsert_edge', edge: { kind: 'flows_to', from: 'login-page', to: 'users', label: null, via: 'a second route', carries: null } },
+      { op: 'upsert_edge', edge: { kind: 'flows_to', from: 'users', to: 'audit', label: null, via: null, carries: null } },
+    ]);
+    const steps = tracePlan(doc, start(doc, 'login-page')).paths.flatMap((path) => path.steps);
+    expect(steps.filter((step) => step.node.slug === 'users').length).toBeGreaterThan(1);
+    expect(steps.filter((step) => step.node.slug === 'audit')).toHaveLength(1);
+    expect(steps.some((step) => step.node.slug === 'users' && step.repeat === 'seen')).toBe(true);
   });
 
   it('walks the other way when asked', () => {

@@ -128,7 +128,11 @@ export function renderTrace(result: TraceResult): string {
       lines.push(
         `  ${'    '.repeat(step.depth)}${arrow}${note === '' ? '' : ` (${note})`} ` +
           `${step.node.title} (${step.node.slug})` +
-          (step.revisits ? '  [already above]' : ''),
+          (step.repeat === 'loop'
+            ? '  [loops back]'
+            : step.repeat === 'seen'
+              ? '  [shown above]'
+              : ''),
       );
     }
     previous = path.steps;
