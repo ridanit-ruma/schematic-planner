@@ -21,10 +21,15 @@ const STYLE: Record<string, { dash?: string; marker: boolean }> = {
 };
 
 /**
- * Below this the note on a line is smaller than the line is thick, and a page
- * of them reads as noise rather than as writing.
+ * When the note on a line is drawn, and when it is not.
+ *
+ * Below this zoom it is smaller than the line is thick. And a line too short to
+ * hold it puts it over its own endpoints and over its neighbours' notes — in a
+ * dense part of a graph that is where they all pile up, so a short line keeps
+ * quiet and says what it carries in the inspector instead.
  */
 const NOTE_ZOOM = 0.55;
+const NOTE_ROOM = 130;
 
 function Line({
   id,
@@ -37,7 +42,9 @@ function Line({
   selected,
   data,
 }: EdgeProps<PlanFlowEdge>) {
-  const legible = useStore((state) => state.transform[2]) >= NOTE_ZOOM;
+  const zoom = useStore((state) => state.transform[2]);
+  const room = Math.abs(targetX - sourceX) + Math.abs(targetY - sourceY);
+  const legible = zoom >= NOTE_ZOOM && room * zoom >= NOTE_ROOM;
   const [path, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
