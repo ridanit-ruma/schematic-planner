@@ -113,14 +113,15 @@ export default function Guide() {
 
         <h2>3. Connect an agent</h2>
         <p>
-          Open <strong>Agents</strong> in your workspace, create a key, and paste the URL and key
-          into your MCP client. Nothing is installed on your machine; the server is reached over
-          HTTP. The <Link href="/docs">docs</Link> have the exact configuration block and the full
-          tool list.
+          Open <strong>Agents</strong> in your account settings, create a key, and paste the URL
+          and key into your MCP client. Nothing is installed on your machine; the server is reached
+          over HTTP. The <Link href="/docs">docs</Link> have the exact configuration block and the
+          full tool list.
         </p>
         <p>
-          A key acts as you within that one workspace. Give a key to one client, name it after that
-          client, and revoke it when the machine changes hands.
+          A key acts as you everywhere you are a member, so one key is enough however many
+          workspaces you have. Give it to one client, name it after that client, and revoke it when
+          the machine changes hands.
         </p>
 
         <h2>4. Let the agent draw</h2>

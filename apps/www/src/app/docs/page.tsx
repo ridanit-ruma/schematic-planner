@@ -18,12 +18,13 @@ const MCP_CONFIG = `{
 }`;
 
 const TOOLS = [
-  ['list_projects', 'Projects in the workspace the key belongs to.'],
-  ['list_plans', 'Plans in that workspace, grouped by project.'],
+  ['list_workspaces', 'Workspaces this key can act in.'],
+  ['list_projects', 'Projects it can reach, across the account or narrowed to one workspace.'],
+  ['list_plans', 'Plans, grouped by workspace and project.'],
   ['get_plan', 'Read one. Outline, graph JSON, or the full Markdown. Never coordinates.'],
   [
     'create_plan',
-    'A whole structure in one call — the path for drawing a plan you already wrote. Takes an optional project slug.',
+    'A whole structure in one call — the path for drawing a plan you already wrote. Names which workspace and project when there is a choice.',
   ],
   ['apply_ops', 'The only write door. Batched, atomic, and keyed by slug so retries are safe.'],
   ['layout', 'Re-arrange. Nodes a person dragged are left where they are.'],
@@ -37,8 +38,14 @@ export default function Docs() {
         <h1 className="text-xl font-semibold tracking-tight text-ink">Connect an agent</h1>
         <p className="mt-4 text-sm leading-relaxed text-ink-muted">
           Schematic Planner speaks MCP over HTTP. There is nothing to install: open{' '}
-          <strong className="font-medium text-ink">Agents</strong> in your workspace, create a key,
-          and paste the URL and key into your client.
+          <strong className="font-medium text-ink">Agents</strong> in your account settings, create
+          a key, and paste the URL and key into your client.
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-ink-muted">
+          A key belongs to you rather than to one workspace, so a single key reaches every
+          workspace you are a member of. Where that leaves a choice, the tools take a workspace
+          argument — and asked to create something without one, the server names the options
+          instead of guessing.
         </p>
 
         <pre className="mt-6 overflow-x-auto border border-rule bg-surface p-4 font-mono text-xs leading-relaxed text-ink">

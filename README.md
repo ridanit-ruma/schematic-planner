@@ -181,10 +181,11 @@ at once.
 
 | Tool | Purpose |
 |---|---|
-| `list_plans()` | Plans in the caller's workspace, grouped by project |
-| `list_projects()` | Projects in the workspace the key belongs to |
+| `list_workspaces()` | Workspaces the key can act in |
+| `list_projects({ workspace? })` | Projects the key can reach, across the account or narrowed |
+| `list_plans({ workspace? })` | Plans, grouped by workspace and project |
 | `get_plan(id, { view })` | `view`: `outline` \| `graph` \| `markdown`. Positions and styling are excluded by default to keep responses small |
-| `create_plan(spec)` | Whole structure in one shot — the path for "the agent already wrote a plan, now draw it". Takes an optional project slug; without one the workspace default is used |
+| `create_plan(spec)` | Whole structure in one shot — the path for "the agent already wrote a plan, now draw it". Takes a workspace and project slug; with one workspace reachable neither is needed, and with several it names them rather than guessing |
 | `apply_ops(id, ops[])` | The only write door. Upsert by slug, so retries never duplicate |
 | `layout(id, { scope })` | Re-run layout over everything that is not pinned |
 | `export_plan(id)` | Markdown tree plus `.canvas` |
@@ -192,6 +193,12 @@ at once.
 Authentication is a hosted Remote MCP endpoint: the user copies a URL and a Bearer key
 from their settings page into any MCP client. Nothing to install, nothing to keep
 updated, and a self-hosted instance simply hands out its own URL.
+
+**A key belongs to a person, not a workspace.** Someone who works across several
+should not have to issue, paste and revoke one per workspace, and an agent holding
+such a key could not see the others exist. A key acts as its owner wherever they
+are a member, which is why the tools take a workspace argument and the endpoint
+lives under the account rather than a workspace.
 
 Markdown is deliberately *not* parsed server-side. An agent converting its own prose
 into the structured spec does a far better job than a parser guessing at headings.
