@@ -44,6 +44,12 @@ export class PlansController {
     return this.plans.read(user.id, id);
   }
 
+  /** The workspace tree around this plan, for the switcher on the canvas. */
+  @Get('plans/:id/navigation')
+  navigation(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.plans.navigation(user.id, id);
+  }
+
   @Patch('plans/:id')
   update(
     @CurrentUser() user: AuthUser,

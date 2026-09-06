@@ -49,6 +49,18 @@ export interface PlanSummary {
   updatedAt: string;
 }
 
+/** The workspace tree around one plan, used by the switcher on the canvas. */
+export interface PlanNavigation {
+  workspace: { id: string; slug: string; name: string };
+  projectId: string;
+  projects: {
+    id: string;
+    slug: string;
+    name: string;
+    plans: { id: string; title: string; updatedAt: string }[];
+  }[];
+}
+
 export interface ApiKeySummary {
   id: string;
   name: string;
@@ -242,6 +254,7 @@ export const plans = {
   create: (projectId: string, title: string) =>
     api<PlanDoc>(`/projects/${projectId}/plans`, { method: 'POST', ...json({ title }) }),
   read: (planId: string) => api<PlanDoc>(`/plans/${planId}`),
+  navigation: (planId: string) => api<PlanNavigation>(`/plans/${planId}/navigation`),
   remove: (planId: string) => api<{ ok: true }>(`/plans/${planId}`, { method: 'DELETE' }),
   applyOps: (planId: string, ops: PlanOp[]) =>
     api<PlanDoc>(`/plans/${planId}/ops`, { method: 'POST', ...json({ ops }) }),

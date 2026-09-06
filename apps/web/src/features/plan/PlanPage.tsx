@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth-store';
 import { EdgeInspector } from './EdgeInspector';
 import { Inspector } from './Inspector';
 import { PlanCanvas } from './PlanCanvas';
+import { PlanSidebar } from './PlanSidebar';
 import { TitleBlock } from './TitleBlock';
 import { usePlanDocument } from './use-plan-document';
 
@@ -175,6 +176,7 @@ function PlanWorkspace({
       ) : null}
 
       <div className="flex min-h-0 flex-1">
+        <PlanSidebar planId={planId} />
         <div className="min-w-0 flex-1">
           <PlanCanvas connection={connection} readOnly={false} onApplyOps={apply} />
         </div>

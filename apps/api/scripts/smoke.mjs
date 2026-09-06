@@ -99,6 +99,24 @@ async function main() {
   const planId = created.body.id;
   check('create plan', typeof planId === 'string');
 
+  // The canvas is addressed by plan id alone, so this is the only thing that
+  // tells it which workspace it is in and what else it can move to.
+  const nav = await call(`/plans/${planId}/navigation`, { token });
+  check('a plan knows its workspace', nav.body.workspace?.id === workspaceId, nav.body.workspace?.slug ?? '');
+  check('and which project holds it', nav.body.projectId === projectId);
+  check(
+    'and lists the sibling plans it can move to',
+    nav.body.projects?.some((project) =>
+      project.plans.some((plan) => plan.id === planId && plan.title === 'Smoke plan'),
+    ) === true,
+    `${nav.body.projects?.length ?? 0} projects`,
+  );
+  check(
+    'navigation carries no plan documents',
+    JSON.stringify(nav.body).length < 4000 && !JSON.stringify(nav.body).includes('"snapshot"'),
+    `${JSON.stringify(nav.body).length} bytes`,
+  );
+
   section('operations');
   const batch = await call(`/plans/${planId}/ops`, {
     method: 'POST',
@@ -286,6 +304,8 @@ async function main() {
   });
   const denied = await call(`/plans/${planId}`, { token: other.body.accessToken });
   check('another account cannot read the plan', denied.status === 404, `status ${denied.status}`);
+  const deniedNav = await call(`/plans/${planId}/navigation`, { token: other.body.accessToken });
+  check('nor list what is around it', deniedNav.status === 404, `status ${deniedNav.status}`);
 
   section('workspace management');
   const invite = await call(`/workspaces/${workspaceId}/invites`, {

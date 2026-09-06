@@ -33,6 +33,22 @@ export interface PlanSummary {
   updatedAt: Date;
 }
 
+/**
+ * Everything the canvas needs to draw its own switcher. A plan is addressed on
+ * its own, without a workspace in the path, so from the plan id alone the page
+ * cannot say where it sits or what else is nearby.
+ */
+export interface PlanNavigation {
+  workspace: { id: string; slug: string; name: string };
+  projectId: string;
+  projects: {
+    id: string;
+    slug: string;
+    name: string;
+    plans: { id: string; title: string; updatedAt: Date }[];
+  }[];
+}
+
 @Injectable()
 export class PlansService {
   constructor(
@@ -56,6 +72,34 @@ export class PlansService {
       nodeCount: planDocSchema.safeParse(plan.snapshot).data?.nodes.length ?? 0,
       updatedAt: plan.updatedAt,
     }));
+  }
+
+  async navigation(userId: string, planId: string): Promise<PlanNavigation> {
+    const access = await this.access.requirePlan(userId, planId, 'VIEWER');
+
+    const [workspace, projects] = await Promise.all([
+      this.prisma.workspace.findUniqueOrThrow({
+        where: { id: access.workspaceId },
+        select: { id: true, slug: true, name: true },
+      }),
+      this.prisma.project.findMany({
+        where: { workspaceId: access.workspaceId },
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          // No node counts here: the snapshot is the whole document, and
+          // selecting it would load every plan in the workspace to list names.
+          plans: {
+            orderBy: { updatedAt: 'desc' },
+            select: { id: true, title: true, updatedAt: true },
+          },
+        },
+      }),
+    ]);
+
+    return { workspace, projectId: access.projectId, projects };
   }
 
   async create(userId: string, projectId: string, input: CreatePlanInput): Promise<PlanDoc> {
