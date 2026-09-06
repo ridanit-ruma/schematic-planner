@@ -464,19 +464,26 @@ async function main() {
   });
   check('change your password', changed.body.ok === true, `status ${changed.status}`);
 
-  const reLogin = await call('/auth/login', {
-    method: 'POST',
-    body: { email, password: 'a-new-long-password' },
-  });
+  // Signing in has its own tight allowance, and the throttling section below
+  // spends it deliberately. A run that follows another too closely inherits
+  // that: waiting is the correct behaviour, not a failure.
+  const signIn = async (password) => {
+    let attempt = await call('/auth/login', { method: 'POST', body: { email, password } });
+    if (attempt.status === 429) {
+      console.log('  … the sign-in allowance is spent; waiting for the window');
+      await wait(62_000);
+      attempt = await call('/auth/login', { method: 'POST', body: { email, password } });
+    }
+    return attempt;
+  };
+
+  const reLogin = await signIn('a-new-long-password');
   check(
     'the new password works',
     typeof reLogin.body.accessToken === 'string',
     `status ${reLogin.status}: ${reLogin.body.message ?? ''}`,
   );
-  const oldPassword = await call('/auth/login', {
-    method: 'POST',
-    body: { email, password: 'correct-horse-battery' },
-  });
+  const oldPassword = await signIn('correct-horse-battery');
   check('the old one does not', oldPassword.status === 401, `status ${oldPassword.status}`);
 
   section('rate limiting');
