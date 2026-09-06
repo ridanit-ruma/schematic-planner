@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 
-import { Wordmark } from '@/components/Wordmark';
+import { Wordmark } from '@/components/Mark';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Problem } from '@/components/ui/feedback';
-import { ThemeToggle } from '@/components/ui/theme';
 import { workspaces } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 
@@ -67,7 +66,6 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
       }}
     >
       <div className="fixed top-3 right-3">
-        <ThemeToggle />
       </div>
 
       <div className="w-full max-w-sm border border-rule bg-surface p-6">

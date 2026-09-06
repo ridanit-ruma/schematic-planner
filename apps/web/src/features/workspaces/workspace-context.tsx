@@ -1,9 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Navigate, NavLink, Outlet, useParams } from 'react-router';
+import { Navigate, Outlet, useParams } from 'react-router';
 
 import { Problem, Spinner } from '@/components/ui/feedback';
 import { workspaces as api, type WorkspaceSummary } from '@/lib/api';
-import { cn } from '@/lib/utils';
 
 interface WorkspacesValue {
   readonly all: WorkspaceSummary[];
@@ -66,13 +65,7 @@ export function WorkspacesProvider({ children }: { children: ReactNode }) {
   return <WorkspacesContext.Provider value={value}>{children}</WorkspacesContext.Provider>;
 }
 
-const TABS = [
-  { to: '', label: 'Projects', end: true },
-  { to: 'members', label: 'Members', end: false },
-  { to: 'settings', label: 'Settings', end: false },
-] as const;
-
-/** Resolves the slug in the address bar and draws the workspace's own nav. */
+/** Resolves the slug in the address bar. The workspace's sections live in the rail. */
 export function WorkspaceLayout() {
   const { workspaceSlug = '' } = useParams();
   const { all } = useWorkspaces();
@@ -87,27 +80,6 @@ export function WorkspaceLayout() {
 
   return (
     <CurrentContext.Provider value={value}>
-      <nav className="border-b border-rule bg-surface">
-        <div className="mx-auto flex max-w-3xl gap-1 px-6">
-          {TABS.map((tab) => (
-            <NavLink
-              key={tab.label}
-              to={`/workspace/${workspaceSlug}${tab.to === '' ? '' : `/${tab.to}`}`}
-              // `end` on the index tab so that only the longest matching route
-              // lights up; a prefix comparison would leave two tabs active.
-              end={tab.end}
-              className={({ isActive }) =>
-                cn(
-                  'border-b-2 px-2 py-2.5 text-xs font-medium transition-colors',
-                  isActive ? 'border-accent text-ink' : 'border-transparent text-ink-muted hover:text-ink',
-                )
-              }
-            >
-              {tab.label}
-            </NavLink>
-          ))}
-        </div>
-      </nav>
       <Outlet />
     </CurrentContext.Provider>
   );

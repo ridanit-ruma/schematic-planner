@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { StatusTally } from '@/components/ui/status';
 import { ToggleGroup, ToggleItem } from '@/components/ui/toggle-group';
 import { Tooltip } from '@/components/ui/tooltip';
-import { ThemeToggle } from '@/components/ui/theme';
 import { cn } from '@/lib/utils';
 import type { ConnectionStatus } from './use-plan-document';
 
@@ -102,7 +101,6 @@ export function TitleBlock({
           <Download className="size-3.5" />
           Export
         </Button>
-        <ThemeToggle />
       </div>
     </header>
   );

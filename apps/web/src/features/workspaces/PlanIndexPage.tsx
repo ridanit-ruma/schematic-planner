@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
@@ -5,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
+import { Page } from '@/components/ui/page';
+import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { plans, projects, type PlanSummary } from '@/lib/api';
 import { formatWhen, plural } from '@/lib/utils';
 import { useWorkspace } from './workspace-context';
@@ -49,9 +52,9 @@ export function PlanIndexPage() {
 
   if (error !== null) {
     return (
-      <div className="mx-auto max-w-3xl px-6 py-10">
+      <Page title="Plans">
         <Problem error={error} />
-      </div>
+      </Page>
     );
   }
   if (list === null || project === null) {
@@ -63,26 +66,18 @@ export function PlanIndexPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
-      <Link
-        to={`/workspace/${current.slug}`}
-        className="text-xs text-ink-muted hover:text-ink"
-      >
-        ← {current.name}
-      </Link>
-
-      <div className="mt-2 flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-medium text-ink">{project.name}</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            {list.length === 0 ? 'Nothing drawn yet.' : plural(list.length, 'plan')} in this project.
-          </p>
-        </div>
+    <Page
+      title={project.name}
+      description={`${
+        list.length === 0 ? 'Nothing drawn yet' : plural(list.length, 'plan')
+      } in this project.`}
+      actions={
         <Button variant="primary" onClick={() => setCreating(true)}>
+          <Plus className="size-3.5" />
           New plan
         </Button>
-      </div>
-
+      }
+    >
       {list.length === 0 ? (
         <Empty
           title="No plans yet"
@@ -94,18 +89,20 @@ export function PlanIndexPage() {
           }
         />
       ) : (
-        <table className="mt-8 w-full table-fixed border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-rule-strong text-left text-xs text-ink-muted">
-              <th className="py-2 font-medium">Plan</th>
-              <th className="w-24 py-2 text-right font-medium">Nodes</th>
-              <th className="w-28 py-2 text-right font-medium">Updated</th>
-            </tr>
-          </thead>
+        <Table>
+          <THead>
+            <TH>Plan</TH>
+            <TH className="w-24" align="right">
+              Nodes
+            </TH>
+            <TH className="w-32" align="right">
+              Updated
+            </TH>
+          </THead>
           <tbody>
             {list.map((plan) => (
-              <tr key={plan.id} className="border-b border-rule hover:bg-surface-2">
-                <td className="py-2.5 pr-4">
+              <TR key={plan.id}>
+                <TD>
                   <Link to={`/plan/${plan.id}`} className="block min-w-0">
                     <span className="block truncate font-medium text-ink">{plan.title}</span>
                     {plan.description !== '' ? (
@@ -114,13 +111,17 @@ export function PlanIndexPage() {
                       </span>
                     ) : null}
                   </Link>
-                </td>
-                <td className="py-2.5 text-right tabular-nums text-ink-muted">{plan.nodeCount}</td>
-                <td className="py-2.5 text-right text-ink-muted">{formatWhen(plan.updatedAt)}</td>
-              </tr>
+                </TD>
+                <TD align="right" className="slug text-ink-muted">
+                  {plan.nodeCount}
+                </TD>
+                <TD align="right" className="text-xs text-ink-muted">
+                  {formatWhen(plan.updatedAt)}
+                </TD>
+              </TR>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
 
       <Modal open={creating} onOpenChange={setCreating} title="New plan">
@@ -152,6 +153,6 @@ export function PlanIndexPage() {
           </div>
         </form>
       </Modal>
-    </div>
+    </Page>
   );
 }

@@ -41,9 +41,9 @@ export function Select<T extends string>({
       <Primitive.Trigger
         id={id}
         className={cn(
-          'flex w-full items-center justify-between gap-2 rounded-[2px] border border-rule bg-surface',
-          'px-2.5 py-1.5 text-left text-sm text-ink',
-          'focus:border-accent focus:outline-none data-[placeholder]:text-ink-faint',
+          'flex w-full items-center justify-between gap-2 rounded-md border border-rule bg-surface',
+          'px-2.5 py-1.5 text-left text-sm text-ink transition-[border-color,box-shadow] duration-100',
+          'focus:outline-none focus:focus-glow data-[placeholder]:text-ink-faint',
           'disabled:pointer-events-none disabled:opacity-45',
           className,
         )}
@@ -60,7 +60,7 @@ export function Select<T extends string>({
           sideOffset={4}
           className={cn(
             'z-50 max-h-72 w-[var(--radix-select-trigger-width)] overflow-hidden',
-            'rounded-[2px] border border-rule bg-surface shadow-lg',
+            'rounded-lg border border-rule bg-surface-3 elevated',
           )}
         >
           <Primitive.Viewport className="p-1">
@@ -69,8 +69,8 @@ export function Select<T extends string>({
                 key={option.value}
                 value={option.value}
                 className={cn(
-                  'relative cursor-default rounded-[2px] py-1.5 pr-2 pl-7 text-sm text-ink outline-none select-none',
-                  'data-[highlighted]:bg-surface-2 data-[state=checked]:bg-accent-soft',
+                  'relative cursor-default rounded-md py-1.5 pr-2 pl-7 text-sm text-ink outline-none select-none',
+                  'data-[highlighted]:bg-surface-4 data-[state=checked]:bg-accent-soft',
                 )}
               >
                 <Primitive.ItemIndicator className="absolute top-2 left-2">

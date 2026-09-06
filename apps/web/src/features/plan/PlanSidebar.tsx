@@ -65,7 +65,7 @@ export function PlanSidebar({ planId }: { planId: string }) {
           <button
             type="button"
             onClick={toggleCollapsed}
-            className="grid size-7 place-items-center rounded-[2px] text-ink-muted hover:bg-surface-2 hover:text-ink"
+            className="grid size-7 place-items-center rounded-md text-ink-muted hover:bg-surface-2 hover:text-ink"
           >
             <PanelLeftOpen className="size-4" />
             <span className="sr-only">Show plans</span>
@@ -76,7 +76,7 @@ export function PlanSidebar({ planId }: { planId: string }) {
           <Tooltip content={`Leave for ${nav.workspace.name}`} side="right">
             <Link
               to={`/workspace/${nav.workspace.slug}`}
-              className="grid size-7 place-items-center rounded-[2px] text-ink-muted hover:bg-surface-2 hover:text-ink"
+              className="grid size-7 place-items-center rounded-md text-ink-muted hover:bg-surface-2 hover:text-ink"
             >
               <ArrowLeft className="size-4" />
               <span className="sr-only">{`Leave for ${nav.workspace.name}`}</span>
@@ -98,7 +98,7 @@ export function PlanSidebar({ planId }: { planId: string }) {
           <Link
             to={`/workspace/${nav.workspace.slug}`}
             title={`Leave for ${nav.workspace.name}`}
-            className="flex min-w-0 flex-1 items-center gap-1.5 rounded-[2px] px-1 py-0.5 text-xs font-medium text-ink hover:bg-surface-2"
+            className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-0.5 text-xs font-medium text-ink hover:bg-surface-2"
           >
             <ArrowLeft className="size-3.5 shrink-0 text-ink-muted" />
             <span className="truncate">{nav.workspace.name}</span>
@@ -108,7 +108,7 @@ export function PlanSidebar({ planId }: { planId: string }) {
           <button
             type="button"
             onClick={toggleCollapsed}
-            className="grid size-6 shrink-0 place-items-center rounded-[2px] text-ink-muted hover:bg-surface-2 hover:text-ink"
+            className="grid size-6 shrink-0 place-items-center rounded-md text-ink-muted hover:bg-surface-2 hover:text-ink"
           >
             <PanelLeftClose className="size-4" />
             <span className="sr-only">Hide plans</span>

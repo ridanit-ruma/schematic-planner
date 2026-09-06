@@ -40,8 +40,8 @@ export function Tooltip({
           sideOffset={6}
           collisionPadding={8}
           className={cn(
-            'z-50 max-w-72 rounded-[2px] border border-rule bg-surface px-2 py-1.5',
-            'text-xs leading-snug text-ink shadow-lg',
+            'z-50 max-w-72 rounded-md bg-surface-3 px-2 py-1.5 elevated',
+            'text-xs leading-snug text-ink',
           )}
         >
           {content}

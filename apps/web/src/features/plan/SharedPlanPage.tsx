@@ -9,7 +9,6 @@ import { useStore } from 'zustand';
 import { Button } from '@/components/ui/button';
 import { Problem, Spinner } from '@/components/ui/feedback';
 import { StatusTally } from '@/components/ui/status';
-import { ThemeToggle } from '@/components/ui/theme';
 import { config } from '@/lib/config';
 import { plans } from '@/lib/api';
 import { PlanCanvas } from './PlanCanvas';
@@ -84,7 +83,6 @@ function SharedCanvas({ plan, token }: { plan: PlanDoc; token: string }) {
           >
             Export
           </Button>
-          <ThemeToggle />
         </header>
         <div className="min-h-0 flex-1">
           <PlanCanvas connection={connection} readOnly onApplyOps={() => undefined} />

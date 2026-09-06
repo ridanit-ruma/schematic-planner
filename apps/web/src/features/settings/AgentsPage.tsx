@@ -171,7 +171,7 @@ export function AgentsPage() {
       >
         <CopyRow value={issued?.key ?? ''} />
         <p className="mt-4 text-xs font-medium text-ink-muted">Configuration for an MCP client</p>
-        <pre className="mt-2 overflow-x-auto rounded-[2px] border border-rule bg-surface-2 p-3 text-2xs leading-relaxed text-ink">
+        <pre className="mt-2 overflow-x-auto rounded-md border border-rule bg-surface-2 p-3 text-2xs leading-relaxed text-ink">
           {JSON.stringify(
             {
               mcpServers: {
@@ -195,7 +195,7 @@ function CopyRow({ value, className }: { value: string; className?: string }) {
 
   return (
     <div className={`flex items-center gap-2 ${className ?? ''}`}>
-      <code className="slug min-w-0 flex-1 truncate rounded-[2px] border border-rule bg-surface-2 px-2.5 py-2 text-ink">
+      <code className="slug min-w-0 flex-1 truncate rounded-md border border-rule bg-surface-2 px-2.5 py-2 text-ink">
         {value}
       </code>
       <Button

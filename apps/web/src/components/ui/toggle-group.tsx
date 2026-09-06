@@ -29,7 +29,7 @@ export function ToggleGroup<T extends string>({
       // There is always a current choice here, so that is not a change.
       onValueChange={(next) => next !== '' && onChange(next as T)}
       aria-label={label}
-      className="flex items-center rounded-[2px] border border-rule"
+      className="flex items-center rounded-md border border-rule"
     >
       {children}
     </Primitive.Root>

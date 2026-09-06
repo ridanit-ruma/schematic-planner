@@ -3,9 +3,15 @@ import { useId } from 'react';
 
 import { cn } from '@/lib/utils';
 
+/*
+ * A low-contrast well rather than a raised box. Focus is announced by an
+ * indigo rim and a short ambient glow — the same beacon the rest of the
+ * interface uses to say "you are here" — instead of a browser outline.
+ */
 const control =
-  'w-full rounded-[2px] border border-rule bg-surface px-2.5 py-1.5 text-sm text-ink ' +
-  'placeholder:text-ink-faint focus:border-accent focus:outline-none';
+  'w-full rounded-md border border-rule bg-surface px-2.5 py-1.5 text-sm text-ink ' +
+  'transition-[border-color,box-shadow] duration-100 ' +
+  'placeholder:text-ink-faint focus:outline-none focus:focus-glow';
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn(control, className)} {...props} />;

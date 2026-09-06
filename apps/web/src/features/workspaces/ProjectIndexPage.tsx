@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 
@@ -5,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
+import { Page } from '@/components/ui/page';
+import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { projects as api, type ProjectSummary } from '@/lib/api';
 import { formatWhen, plural } from '@/lib/utils';
 import { useWorkspace } from './workspace-context';
@@ -37,9 +40,9 @@ export function ProjectIndexPage() {
 
   if (error !== null) {
     return (
-      <div className="mx-auto max-w-3xl px-6 py-10">
+      <Page title="Projects">
         <Problem error={error} />
-      </div>
+      </Page>
     );
   }
   if (list === null) {
@@ -51,20 +54,18 @@ export function ProjectIndexPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-medium text-ink">Projects</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            {list.length === 0 ? 'Nothing here yet.' : plural(list.length, 'project')} in{' '}
-            {current.name}.
-          </p>
-        </div>
+    <Page
+      title="Projects"
+      description={`${
+        list.length === 0 ? 'Nothing here yet' : plural(list.length, 'project')
+      } in ${current.name}.`}
+      actions={
         <Button variant="primary" onClick={() => setCreating(true)}>
+          <Plus className="size-3.5" />
           New project
         </Button>
-      </div>
-
+      }
+    >
       {list.length === 0 ? (
         <Empty
           title="No projects yet"
@@ -76,18 +77,20 @@ export function ProjectIndexPage() {
           }
         />
       ) : (
-        <table className="mt-8 w-full table-fixed border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-rule-strong text-left text-xs text-ink-muted">
-              <th className="py-2 font-medium">Project</th>
-              <th className="w-24 py-2 text-right font-medium">Plans</th>
-              <th className="w-28 py-2 text-right font-medium">Updated</th>
-            </tr>
-          </thead>
+        <Table>
+          <THead>
+            <TH>Project</TH>
+            <TH className="w-24" align="right">
+              Plans
+            </TH>
+            <TH className="w-32" align="right">
+              Updated
+            </TH>
+          </THead>
           <tbody>
             {list.map((project) => (
-              <tr key={project.id} className="border-b border-rule hover:bg-surface-2">
-                <td className="py-2.5 pr-4">
+              <TR key={project.id}>
+                <TD>
                   <Link
                     to={`/workspace/${current.slug}/project/${project.slug}`}
                     className="block min-w-0"
@@ -95,17 +98,17 @@ export function ProjectIndexPage() {
                     <span className="block truncate font-medium text-ink">{project.name}</span>
                     <span className="slug block truncate text-ink-faint">{project.slug}</span>
                   </Link>
-                </td>
-                <td className="py-2.5 text-right tabular-nums text-ink-muted">
+                </TD>
+                <TD align="right" className="slug text-ink-muted">
                   {project.planCount}
-                </td>
-                <td className="py-2.5 text-right text-ink-muted">
+                </TD>
+                <TD align="right" className="text-xs text-ink-muted">
                   {formatWhen(project.updatedAt)}
-                </td>
-              </tr>
+                </TD>
+              </TR>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
 
       <Modal open={creating} onOpenChange={setCreating} title="New project">
@@ -137,6 +140,6 @@ export function ProjectIndexPage() {
           </div>
         </form>
       </Modal>
-    </div>
+    </Page>
   );
 }

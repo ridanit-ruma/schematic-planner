@@ -1,10 +1,12 @@
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
+import { Page } from '@/components/ui/page';
+import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { workspaces, type Member, type Role } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { useWorkspace } from './workspace-context';
@@ -53,21 +55,18 @@ export function MembersPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-medium text-ink">Members</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            Everyone here can reach every project in {current.name}.
-          </p>
-        </div>
-        {canManage ? (
+    <Page
+      title="Members"
+      description={`Everyone who can open ${current.name}.`}
+      actions={
+        canManage ? (
           <Button variant="primary" onClick={() => setInviting(true)}>
+            <UserPlus className="size-3.5" />
             Invite someone
           </Button>
-        ) : null}
-      </div>
-
+        ) : undefined
+      }
+    >
       {error !== null ? (
         <div className="mt-4">
           <Problem error={error} />
@@ -84,22 +83,20 @@ export function MembersPage() {
           body="That should not be possible — a workspace keeps an owner."
         />
       ) : (
-        <table className="mt-8 w-full table-fixed border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-rule-strong text-left text-xs text-ink-muted">
-              <th className="py-2 font-medium">Person</th>
-              <th className="w-32 py-2 font-medium">Role</th>
-              <th className="w-20 py-2 text-right font-medium">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
+        <Table>
+          <THead>
+            <TH>Person</TH>
+            <TH className="w-36">Role</TH>
+            <TH className="w-24" align="right">
+              <span className="sr-only">Actions</span>
+            </TH>
+          </THead>
           <tbody>
             {members.map((member) => {
               const isMe = member.user.id === me?.id;
               return (
-                <tr key={member.user.id} className="border-b border-rule">
-                  <td className="py-2.5 pr-4">
+                <TR key={member.user.id}>
+                  <TD>
                     <span className="block truncate text-ink">
                       {member.user.name}
                       {isMe ? <span className="ml-2 text-xs text-ink-faint">you</span> : null}
@@ -107,8 +104,8 @@ export function MembersPage() {
                     <span className="block truncate text-xs text-ink-muted">
                       {member.user.email}
                     </span>
-                  </td>
-                  <td className="py-2.5">
+                  </TD>
+                  <TD>
                     {canManage && !isMe ? (
                       <Select
                         value={member.role}
@@ -121,8 +118,8 @@ export function MembersPage() {
                     ) : (
                       <span className="text-xs text-ink-muted">{member.role.toLowerCase()}</span>
                     )}
-                  </td>
-                  <td className="py-2.5 text-right">
+                  </TD>
+                  <TD align="right">
                     {canManage && !isMe ? (
                       <Button
                         size="sm"
@@ -134,12 +131,12 @@ export function MembersPage() {
                         Remove
                       </Button>
                     ) : null}
-                  </td>
-                </tr>
+                  </TD>
+                </TR>
               );
             })}
           </tbody>
-        </table>
+        </Table>
       )}
 
       <Modal
@@ -189,7 +186,7 @@ export function MembersPage() {
               The link expires in 14 days. There is no email yet, so send it yourself.
             </p>
             <div className="flex items-center gap-2">
-              <code className="slug min-w-0 flex-1 truncate rounded-[2px] border border-rule bg-surface-2 px-2.5 py-2 text-ink">
+              <code className="slug min-w-0 flex-1 truncate rounded-md border border-rule bg-surface-2 px-2.5 py-2 text-ink">
                 {inviteUrl}
               </code>
               <Button
@@ -209,6 +206,6 @@ export function MembersPage() {
           </div>
         )}
       </Modal>
-    </div>
+    </Page>
   );
 }

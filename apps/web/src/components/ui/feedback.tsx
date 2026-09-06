@@ -39,7 +39,7 @@ export function Problem({ error }: { error: unknown }) {
   return (
     <div
       role="alert"
-      className="rounded-[2px] border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger"
+      className="rounded-md border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger"
     >
       {message}
     </div>

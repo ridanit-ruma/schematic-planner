@@ -87,7 +87,7 @@ export function HistoryPanel({ planId, onClose }: { planId: string; onClose: () 
         <button
           type="button"
           onClick={onClose}
-          className="grid size-6 place-items-center rounded-[2px] text-ink-muted hover:bg-surface-2 hover:text-ink"
+          className="grid size-6 place-items-center rounded-md text-ink-muted hover:bg-surface-2 hover:text-ink"
         >
           <X className="size-4" />
           <span className="sr-only">Close</span>

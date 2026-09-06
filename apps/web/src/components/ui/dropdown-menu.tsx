@@ -5,11 +5,11 @@ import type { ReactElement, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 const content =
-  'z-50 min-w-[var(--radix-dropdown-menu-trigger-width)] overflow-hidden rounded-[2px] ' +
-  'border border-rule bg-surface p-1 shadow-lg';
+  'z-50 min-w-[var(--radix-dropdown-menu-trigger-width)] overflow-hidden rounded-lg ' +
+  'bg-surface-3 p-1 elevated';
 
 const item =
-  'relative flex cursor-default items-center gap-2 rounded-[2px] px-2 py-1.5 text-sm ' +
+  'relative flex cursor-default items-center gap-2 rounded-lg px-2 py-1.5 text-sm ' +
   'text-ink outline-none select-none data-[highlighted]:bg-surface-2 ' +
   'data-[disabled]:pointer-events-none data-[disabled]:opacity-45';
 

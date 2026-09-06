@@ -20,8 +20,8 @@ export function Modal({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-ink/25" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-[2px] border border-rule bg-surface p-5 shadow-lg">
+        <Dialog.Overlay className="fixed inset-0 bg-[rgb(5_6_9/0.75)] backdrop-blur-[8px]" />
+        <Dialog.Content className="fixed top-1/2 left-1/2 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-surface-2 p-5 elevated">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
               <Dialog.Title className="text-base font-medium text-ink">{title}</Dialog.Title>

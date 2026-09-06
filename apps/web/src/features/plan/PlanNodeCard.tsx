@@ -38,7 +38,7 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
          this does not swallow clicks meant for the nodes inside. */
       <div
         className={cn(
-          'h-full w-full rounded-[2px] border-[1.5px] border-rule-strong bg-surface-2/50',
+          'h-full w-full rounded-md border-[1.5px] border-rule-strong bg-surface-2/50',
           selected === true && 'border-accent',
         )}
       >
@@ -71,7 +71,7 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
   return (
     <div
       className={cn(
-        'relative flex min-h-[72px] w-[260px] overflow-hidden rounded-[2px] bg-surface',
+        'relative flex min-h-[72px] w-[260px] overflow-hidden rounded-md bg-surface',
         KIND_BORDER[node.kind] ?? KIND_BORDER['task'],
         selected === true && 'border-accent ring-1 ring-accent',
       )}
