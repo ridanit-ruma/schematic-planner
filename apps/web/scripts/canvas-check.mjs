@@ -104,9 +104,18 @@ try {
   const height = await page.$eval('.react-flow', (el) => el.getBoundingClientRect().height);
   check('the canvas has height', height > 200, `${Math.round(height)}px`);
 
-  const containers = await page.$$eval('.react-flow__node', (list) =>
-    list.filter((n) => n.getBoundingClientRect().width > 320).map((n) => n.getAttribute('data-id')),
-  );
+  // Measured in canvas units, not screen pixels: a plan large enough to be
+  // fitted at a small scale would otherwise report that it has no groups.
+  const containers = await page.evaluate(() => {
+    const zoom = Number(
+      /scale\(([0-9.]+)\)/.exec(
+        document.querySelector('.react-flow__viewport')?.style.transform ?? '',
+      )?.[1] ?? '1',
+    );
+    return [...document.querySelectorAll('.react-flow__node')]
+      .filter((node) => node.getBoundingClientRect().width / zoom > 320)
+      .map((node) => node.getAttribute('data-id'));
+  });
   check('at least one container is drawn at its own bounds', containers.length > 0, containers.join(', '));
 
   console.log('\nreading it from a distance');
