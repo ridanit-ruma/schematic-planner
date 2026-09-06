@@ -1,0 +1,24 @@
+# syntax=docker/dockerfile:1
+#
+# Builds both front ends and hands them to Caddy. Built from the repository root:
+#   docker build -f deploy/Dockerfile.web -t schematic-web .
+
+FROM node:24-alpine AS build
+RUN corepack enable
+WORKDIR /repo
+COPY . .
+RUN pnpm install --frozen-lockfile
+# The marketing site bakes its links at build time; the application reads its
+# server address at runtime from config.js, so one image runs anywhere.
+ARG NEXT_PUBLIC_SITE_URL=http://localhost:8080
+ARG NEXT_PUBLIC_APP_URL=http://localhost:8080/login
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+RUN pnpm turbo run build --filter=@schematic/web --filter=@schematic/www
+
+FROM caddy:2-alpine AS runtime
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /repo/apps/web/dist /srv/app
+COPY --from=build /repo/apps/www/out /srv/site
+# Same origin as the API, so this is a relative path rather than a hostname.
+RUN printf 'window.__SCHEMATIC_CONFIG__ = { apiUrl: "/api", collabUrl: "/api/collab" };\n' > /srv/app/config.js
+EXPOSE 8080

@@ -1,0 +1,59 @@
+# One origin for the whole product.
+#
+#   /                     the marketing site and its documentation
+#   /login /workspace/*   the application
+#   /api/*                the API, with the prefix stripped
+#
+# Serving both from one address is not only tidier: it makes the session cookie
+# same-site, which means no CORS configuration and no cross-site cookie rules to
+# get wrong. Everything below follows from that one decision.
+
+{
+	admin off
+	auto_https {$AUTO_HTTPS:off}
+}
+
+{$SITE_ADDRESS::8080} {
+	encode zstd gzip
+
+	# The API. handle_path removes /api before proxying, so the server keeps its
+	# own paths — /auth/login, /mcp, /collab/:planId — and the browser reaches
+	# them under one origin.
+	handle_path /api/* {
+		reverse_proxy {$UPSTREAM_API:api:3001}
+	}
+
+	# The application's own assets. Named explicitly so they cannot be confused
+	# with the marketing site's.
+	handle /assets/* {
+		root * {$APP_ROOT:/srv/app}
+		file_server
+	}
+	handle /config.js {
+		root * {$APP_ROOT:/srv/app}
+		file_server
+	}
+
+	# Every application route. A single-page app owns these paths and resolves
+	# them itself, so anything not on disk falls back to its index.
+	@app path /login /register /settings /settings/* /workspace/* /plan/* /share/* /invite/*
+	handle @app {
+		root * {$APP_ROOT:/srv/app}
+		try_files {path} /index.html
+		file_server
+	}
+
+	# Everything else is the static site: the landing page, the guide, the docs
+	# and the legal pages.
+	handle {
+		root * {$SITE_ROOT:/srv/site}
+		try_files {path} {path}/ {path}/index.html /404.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}

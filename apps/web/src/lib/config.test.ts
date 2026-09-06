@@ -34,4 +34,27 @@ describe('config precedence', () => {
     expect(config.apiUrl).toBe('http://localhost:4173');
     expect(config.collabUrl).toBe('ws://localhost:4173/collab');
   });
+
+  // The single-origin deployment: one reverse proxy in front of both, which is
+  // what makes the session cookie same-site.
+  it('resolves a relative path against the page', async () => {
+    stubWindow({
+      __SCHEMATIC_CONFIG__: { apiUrl: '/api', collabUrl: '/api/collab' },
+      location: { origin: 'https://plan.example' },
+    });
+
+    const { config } = await import('./config');
+    expect(config.apiUrl).toBe('https://plan.example/api');
+    expect(config.collabUrl).toBe('wss://plan.example/api/collab');
+  });
+
+  it('derives a secure socket from a secure api', async () => {
+    stubWindow({
+      __SCHEMATIC_CONFIG__: { apiUrl: 'https://api.example' },
+      location: { origin: 'https://plan.example' },
+    });
+
+    const { config } = await import('./config');
+    expect(config.collabUrl).toBe('wss://api.example/collab');
+  });
 });

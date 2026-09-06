@@ -36,6 +36,7 @@
     "helmet": "catalog:",
     "nanoid": "catalog:",
     "pg": "catalog:",
+    "prisma": "catalog:",
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
     "ws": "catalog:",
@@ -54,7 +55,6 @@
     "@types/pg": "catalog:",
     "@types/ws": "catalog:",
     "eslint": "catalog:",
-    "prisma": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
