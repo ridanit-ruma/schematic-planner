@@ -1,4 +1,4 @@
-import { BaseEdge, getSmoothStepPath, type EdgeProps } from '@xyflow/react';
+import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useStore, type EdgeProps } from '@xyflow/react';
 import { memo } from 'react';
 
 import type { PlanFlowEdge } from './types';
@@ -20,6 +20,12 @@ const STYLE: Record<string, { dash?: string; marker: boolean }> = {
   relates_to: { dash: '2 4', marker: false },
 };
 
+/**
+ * Below this the note on a line is smaller than the line is thick, and a page
+ * of them reads as noise rather than as writing.
+ */
+const NOTE_ZOOM = 0.55;
+
 function Line({
   id,
   sourceX,
@@ -31,7 +37,8 @@ function Line({
   selected,
   data,
 }: EdgeProps<PlanFlowEdge>) {
-  const [path] = getSmoothStepPath({
+  const legible = useStore((state) => state.transform[2]) >= NOTE_ZOOM;
+  const [path, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
     targetX,
@@ -43,18 +50,41 @@ function Line({
 
   const kind = data?.edge.kind ?? 'depends_on';
   const style = STYLE[kind] ?? STYLE['depends_on']!;
+  const edge = data?.edge;
+
+  // What sets a flow off and what it carries are the flow. Drawn on the line
+  // rather than hidden in the inspector: reading the picture is the point, and
+  // an arrow with nothing written on it says only that two things touch.
+  const note =
+    edge === undefined
+      ? null
+      : edge.kind === 'flows_to'
+        ? [edge.via, edge.carries].filter((part) => part !== null && part !== '').join(': ')
+        : (edge.label ?? '');
 
   return (
-    <BaseEdge
-      id={id}
-      path={path}
-      style={{
-        stroke: selected === true ? 'var(--accent)' : 'var(--edge)',
-        strokeWidth: selected === true ? 2 : 1.5,
-        ...(style.dash !== undefined && { strokeDasharray: style.dash }),
-      }}
-      markerEnd={style.marker ? 'url(#schematic-arrow)' : undefined}
-    />
+    <>
+      <BaseEdge
+        id={id}
+        path={path}
+        style={{
+          stroke: selected === true ? 'var(--accent)' : 'var(--edge)',
+          strokeWidth: selected === true ? 2 : 1.5,
+          ...(style.dash !== undefined && { strokeDasharray: style.dash }),
+        }}
+        markerEnd={style.marker ? 'url(#schematic-arrow)' : undefined}
+      />
+      {note === null || note === '' || !legible ? null : (
+        <EdgeLabelRenderer>
+          <div
+            className="pointer-events-none absolute max-w-52 truncate rounded-[2px] border border-rule bg-surface px-1 py-px text-2xs text-ink-muted"
+            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+          >
+            {note}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
   );
 }
 
