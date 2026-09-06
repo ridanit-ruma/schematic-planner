@@ -11,7 +11,9 @@ import type { PlanFlowEdge } from './types';
 const STYLE: Record<string, { dash?: string; marker: boolean }> = {
   depends_on: { marker: true },
   contains: { dash: '6 4', marker: false },
-  relates_to: { dash: '1 5', marker: false },
+  // Denser than a true dot: at 1.5px on a dark ground a sparse pattern reads as
+  // a line that stops rather than one that continues.
+  relates_to: { dash: '2 4', marker: false },
 };
 
 function Line({
