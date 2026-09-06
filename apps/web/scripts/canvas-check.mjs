@@ -210,33 +210,38 @@ try {
   await wait(4000);
   check('and the move is what everyone else sees', inside(await rectOf(child), await rectOf(group)));
 
-  // A node that is in no group at all. Picking one already inside this group
-  // would drag it around within its own box and prove nothing.
-  let loose = null;
-  for (const slug of held) {
-    if (containers.includes(slug)) continue;
-    const rect = await rectOf(slug);
-    let free = true;
-    for (const holder of containers) if (inside(rect, await rectOf(holder))) free = false;
-    if (free) {
-      loose = slug;
-      break;
-    }
-  }
-  check('there is a node outside every group', loose !== null, loose ?? '');
-  const before = await countIn(group);
-  const box2 = await rectOf(group);
-  const looseRect = await rectOf(loose);
-  if (looseRect !== null && box2 !== null) {
-    await drag(
-      { x: looseRect.x + looseRect.width / 2, y: looseRect.y + looseRect.height / 2 },
-      { x: box2.x + box2.width / 2, y: box2.y + box2.height - 24 },
-    );
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await wait(4000);
-    check('dropping a node in a group joins it', (await countIn(group)) === before + 1, `${before} -> ${await countIn(group)}`);
-    check('and nothing is left straddling the edge', inside(await rectOf(loose), await rectOf(group)));
-  }
+  // Out and back in, rather than looking for a node that happens to sit outside
+  // a group: the check would then depend on what the last run left behind.
+  const boxNow = await rectOf(group);
+  const heldBefore = await countIn(group);
+  const childRect = await rectOf(child);
+  await drag(
+    { x: childRect.x + childRect.width / 2, y: childRect.y + childRect.height / 2 },
+    { x: boxNow.x + boxNow.width + 320, y: boxNow.y + 40 },
+  );
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await wait(4000);
+  check(
+    'dragging a node out of a group leaves it',
+    (await countIn(group)) === heldBefore - 1,
+    `${heldBefore} -> ${await countIn(group)}`,
+  );
+  check('and it is drawn outside the box', !inside(await rectOf(child), await rectOf(group)));
+
+  const boxBack = await rectOf(group);
+  const outsideRect = await rectOf(child);
+  await drag(
+    { x: outsideRect.x + outsideRect.width / 2, y: outsideRect.y + outsideRect.height / 2 },
+    { x: boxBack.x + boxBack.width / 2, y: boxBack.y + boxBack.height - 30 },
+  );
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await wait(4000);
+  check(
+    'dropping it back in joins it again',
+    (await countIn(group)) === heldBefore,
+    `-> ${await countIn(group)}`,
+  );
+  check('and nothing is left straddling the edge', inside(await rectOf(child), await rectOf(group)));
 
   console.log('\na group inside a group');
   const outer = group;
@@ -309,14 +314,23 @@ try {
       .catch(() => null);
 
   const from = await at(container, 'source');
+  // SVG elements carry an object for `className`, so the class list is read
+  // through the attribute instead — an edge on top used to read as a pass.
   const topmost = from
-    ? await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.className ?? '', from)
+    ? await page.evaluate(
+        ({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('class') ?? '',
+        from,
+      )
     : '';
   check(
     "a container's handle is not buried behind the edges",
-    String(topmost).includes('handle'),
-    String(topmost).slice(0, 60),
+    topmost.includes('handle'),
+    topmost.slice(0, 60),
   );
+
+  // Leaves the demo plan tidy rather than wherever the drags above ended.
+  await page.click('button[title^="Arrange"]');
+  await wait(1500);
 
   console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) failed`}`);
   void planId;
