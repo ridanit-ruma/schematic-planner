@@ -88,7 +88,7 @@ export function PlanSidebar({ planId }: { planId: string }) {
   }
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-rule bg-surface">
+    <aside className="flex w-64 shrink-0 flex-col border-r border-rule bg-surface">
       <div className="flex h-11 shrink-0 items-center gap-1 border-b border-rule px-2">
         {nav === null ? (
           <span className="flex-1 truncate px-1 text-xs text-ink-faint">
@@ -116,7 +116,7 @@ export function PlanSidebar({ planId }: { planId: string }) {
         </Tooltip>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto py-1">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
         {nav === null ? (
           failed ? null : (
             <div className="grid place-items-center py-6">
@@ -138,7 +138,7 @@ export function PlanSidebar({ planId }: { planId: string }) {
                       return next;
                     })
                   }
-                  className="flex w-full items-center gap-1 px-2 py-1.5 text-left text-xs text-ink-muted hover:bg-surface-2 hover:text-ink"
+                  className="flex h-8 w-full items-center gap-1 rounded-md px-2 text-left text-sm text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
                 >
                   {expanded ? (
                     <ChevronDown className="size-3.5 shrink-0" />
@@ -146,12 +146,12 @@ export function PlanSidebar({ planId }: { planId: string }) {
                     <ChevronRight className="size-3.5 shrink-0" />
                   )}
                   <span className="min-w-0 flex-1 truncate font-medium">{project.name}</span>
-                  <span className="shrink-0 text-2xs text-ink-faint">{project.plans.length}</span>
+                  <span className="slug shrink-0 text-ink-faint">{project.plans.length}</span>
                 </button>
 
                 {expanded ? (
                   project.plans.length === 0 ? (
-                    <p className="py-1 pr-2 pl-7 text-2xs text-ink-faint">No plans yet</p>
+                    <p className="py-1 pr-2 pl-7 text-xs text-ink-faint">No plans yet</p>
                   ) : (
                     project.plans.map((plan) => {
                       const current = plan.id === planId;
@@ -163,9 +163,9 @@ export function PlanSidebar({ planId }: { planId: string }) {
                           onClick={() => !current && navigate(`/plan/${plan.id}`)}
                           title={plan.title}
                           className={cn(
-                            'flex w-full items-center gap-2 py-1 pr-2 pl-7 text-left text-xs',
+                            'flex h-7 w-full items-center gap-2 rounded-md pr-2 pl-7 text-left text-sm transition-colors',
                             current
-                              ? 'bg-accent-soft font-medium text-ink'
+                              ? 'bg-surface-4 font-medium text-ink'
                               : 'text-ink-muted hover:bg-surface-2 hover:text-ink',
                           )}
                         >

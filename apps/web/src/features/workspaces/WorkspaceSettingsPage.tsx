@@ -34,8 +34,8 @@ export function WorkspaceSettingsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
-      <h1 className="text-xl font-medium text-ink">Workspace settings</h1>
+    <div className="mx-auto max-w-2xl px-6 py-7">
+      <h1 className="text-lg font-semibold tracking-tight text-ink">Workspace settings</h1>
 
       {error !== null ? (
         <div className="mt-4">
@@ -43,7 +43,7 @@ export function WorkspaceSettingsPage() {
         </div>
       ) : null}
 
-      <section className="mt-8 border border-rule bg-surface p-4">
+      <section className="mt-8 rounded-lg border border-rule bg-surface-2 p-4">
         <h2 className="text-sm font-medium text-ink">Name</h2>
         <p className="mt-1 text-xs text-ink-muted">
           The address stays <code className="slug">{current.slug}</code> — a link somebody saved
@@ -79,7 +79,7 @@ export function WorkspaceSettingsPage() {
       </section>
 
       {canDelete ? (
-        <section className="mt-6 border border-danger/40 bg-surface p-4">
+        <section className="mt-6 rounded-lg border border-danger/30 bg-surface-2 p-4">
           <h2 className="text-sm font-medium text-ink">Delete this workspace</h2>
           <p className="mt-1 max-w-prose text-xs text-ink-muted">
             Every project, plan and API key in {current.name} goes with it, for everybody. Export

@@ -20,7 +20,12 @@ export function Avatar({
   return (
     <Primitive.Root
       className={cn(
-        'inline-flex size-5 shrink-0 overflow-hidden rounded-full bg-surface-2 select-none',
+        // Square with a 4px curve rather than a circle: the whole interface is
+        // built from modules on a grid, and a lone disc in a row of them reads
+        // as borrowed from somewhere else. The inner rim keeps a dark picture
+        // from bleeding into a dark surface.
+        'inline-flex size-5 shrink-0 overflow-hidden rounded-sm bg-surface-3 select-none',
+        'shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]',
         className,
       )}
     >

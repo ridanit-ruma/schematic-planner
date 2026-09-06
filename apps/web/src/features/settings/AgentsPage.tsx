@@ -42,15 +42,15 @@ export function AgentsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
-      <h1 className="text-xl font-medium text-ink">Agents</h1>
+    <div className="mx-auto max-w-3xl px-6 py-7">
+      <h1 className="text-lg font-semibold tracking-tight text-ink">Agents</h1>
       <p className="mt-1 max-w-prose text-sm text-ink-muted">
         Connect Cursor, Claude, or any other MCP client. A key belongs to you rather than to one
         workspace, so a single key reaches every workspace you are a member of — the agent can
         read your plans and draw new ones on the same canvas you are looking at.
       </p>
 
-      <section className="mt-8 border border-rule bg-surface p-4">
+      <section className="mt-8 rounded-lg border border-rule bg-surface-2 p-4">
         <h2 className="text-sm font-medium text-ink">Server URL</h2>
         <p className="mt-1 text-xs text-ink-muted">
           The same for everyone on this instance. Pair it with a key below.
@@ -91,11 +91,11 @@ export function AgentsPage() {
         ) : (
           <table className="mt-4 w-full table-fixed border-collapse text-sm">
             <thead>
-              <tr className="border-b border-rule-strong text-left text-xs text-ink-muted">
-                <th className="py-2 font-medium">Name</th>
-                <th className="w-32 py-2 font-medium">Key</th>
-                <th className="w-28 py-2 text-right font-medium">Last used</th>
-                <th className="w-20 py-2 text-right font-medium">
+              <tr className="border-b border-rule text-left">
+                <th className="rail-heading py-2 font-medium">Name</th>
+                <th className="rail-heading w-32 py-2 font-medium">Key</th>
+                <th className="rail-heading w-28 py-2 text-right font-medium">Last used</th>
+                <th className="rail-heading w-20 py-2 text-right font-medium">
                   <span className="sr-only">Actions</span>
                 </th>
               </tr>

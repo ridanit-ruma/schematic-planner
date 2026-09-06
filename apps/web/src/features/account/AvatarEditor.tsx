@@ -106,7 +106,7 @@ export function AvatarEditor({
     <div className="space-y-4">
       <div className="flex justify-center">
         <div
-          className="relative cursor-grab touch-none overflow-hidden rounded-full border border-rule bg-surface-2 active:cursor-grabbing"
+          className="relative cursor-grab touch-none overflow-hidden rounded-md border border-rule bg-surface-3 active:cursor-grabbing"
           style={{ width: FRAME, height: FRAME }}
           onPointerDown={(event) => {
             dragging.current = { x: event.clientX, y: event.clientY };

@@ -15,7 +15,7 @@ const KIND_BORDER: Record<string, string> = {
   task: 'border border-rule',
   decision: 'border border-rule-strong [clip-path:polygon(0_0,calc(100%-10px)_0,100%_10px,100%_100%,0_100%)]',
   note: 'border border-dashed border-rule',
-  group: 'border-[1.5px] border-rule-strong bg-surface-2/70',
+  group: 'border border-rule-strong bg-surface-3/70',
 };
 
 /*
@@ -38,7 +38,7 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
          this does not swallow clicks meant for the nodes inside. */
       <div
         className={cn(
-          'h-full w-full rounded-md border-[1.5px] border-rule-strong bg-surface-2/50',
+          'h-full w-full rounded-lg border border-rule-strong bg-surface/60',
           selected === true && 'border-accent',
         )}
       >
@@ -55,12 +55,12 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
         <Handle
           type="target"
           position={HandlePosition.Left}
-          className="!size-2 !rounded-none !border !border-rule-strong !bg-surface"
+          className="!size-2 !rounded-none !border !border-rule-strong !bg-surface-2"
         />
         <Handle
           type="source"
           position={HandlePosition.Right}
-          className="!size-2 !rounded-none !border !border-rule-strong !bg-surface"
+          className="!size-2 !rounded-none !border !border-rule-strong !bg-surface-2"
         />
       </div>
     );
@@ -71,7 +71,7 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
   return (
     <div
       className={cn(
-        'relative flex min-h-[72px] w-[260px] overflow-hidden rounded-md bg-surface',
+        'relative flex min-h-[72px] w-[260px] overflow-hidden rounded-md bg-surface-2',
         KIND_BORDER[node.kind] ?? KIND_BORDER['task'],
         selected === true && 'border-accent ring-1 ring-accent',
       )}
@@ -93,12 +93,12 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
       <Handle
         type="target"
         position={HandlePosition.Left}
-        className="!size-2 !rounded-none !border !border-rule-strong !bg-surface"
+        className="!size-2 !rounded-none !border !border-rule-strong !bg-surface-2"
       />
       <Handle
         type="source"
         position={HandlePosition.Right}
-        className="!size-2 !rounded-none !border !border-rule-strong !bg-surface"
+        className="!size-2 !rounded-none !border !border-rule-strong !bg-surface-2"
       />
     </div>
   );

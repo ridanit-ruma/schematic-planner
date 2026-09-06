@@ -63,8 +63,8 @@ export function AccountSettingsPage() {
   useEffect(reloadSessions, []);
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
-      <h1 className="text-xl font-medium text-ink">Your account</h1>
+    <div className="mx-auto max-w-2xl px-6 py-7">
+      <h1 className="text-lg font-semibold tracking-tight text-ink">Your account</h1>
 
       {error !== null ? (
         <div className="mt-4">
@@ -72,7 +72,7 @@ export function AccountSettingsPage() {
         </div>
       ) : null}
 
-      <section className="mt-8 border border-rule bg-surface p-4">
+      <section className="mt-8 rounded-lg border border-rule bg-surface-2 p-4">
         <h2 className="text-sm font-medium text-ink">Picture</h2>
         <p className="mt-1 text-xs text-ink-muted">
           Shown wherever you appear — a member list, the history of a plan, your cursor on a canvas.
@@ -81,7 +81,7 @@ export function AccountSettingsPage() {
           <Avatar
             src={user?.avatarUrl}
             name={user?.name ?? '?'}
-            className="size-16 border border-rule text-lg"
+            className="size-16 rounded-md text-lg"
           />
           <div className="flex gap-2">
             <input
@@ -143,7 +143,7 @@ export function AccountSettingsPage() {
         )}
       </Modal>
 
-      <section className="mt-6 border border-rule bg-surface p-4">
+      <section className="mt-6 rounded-lg border border-rule bg-surface-2 p-4">
         <h2 className="text-sm font-medium text-ink">Name</h2>
         <p className="mt-1 text-xs text-ink-muted">
           What the people you share a workspace with see. Your email is{' '}
@@ -181,7 +181,7 @@ export function AccountSettingsPage() {
         </form>
       </section>
 
-      <section className="mt-6 border border-rule bg-surface p-4">
+      <section className="mt-6 rounded-lg border border-rule bg-surface-2 p-4">
         <h2 className="text-sm font-medium text-ink">Password</h2>
         <p className="mt-1 text-xs text-ink-muted">
           Changing it signs out every other session. If you are changing it because you think it
@@ -237,7 +237,7 @@ export function AccountSettingsPage() {
         </form>
       </section>
 
-      <section className="mt-6 border border-rule bg-surface p-4">
+      <section className="mt-6 rounded-lg border border-rule bg-surface-2 p-4">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-sm font-medium text-ink">Where you are signed in</h2>
@@ -292,7 +292,7 @@ export function AccountSettingsPage() {
         )}
       </section>
 
-      <section className="mt-6 border border-danger/40 bg-surface p-4">
+      <section className="mt-6 rounded-lg border border-danger/30 bg-surface-2 p-4">
         <h2 className="text-sm font-medium text-ink">Delete your account</h2>
         <p className="mt-1 max-w-prose text-xs text-ink-muted">
           Everything you own goes with it: workspaces where you are the only owner, and every

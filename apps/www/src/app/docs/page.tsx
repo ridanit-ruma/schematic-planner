@@ -48,7 +48,7 @@ export default function Docs() {
           instead of guessing.
         </p>
 
-        <pre className="mt-6 overflow-x-auto border border-rule bg-surface p-4 font-mono text-xs leading-relaxed text-ink">
+        <pre className="mt-6 overflow-x-auto rounded-lg border border-rule bg-surface-2 p-4 font-mono text-xs leading-relaxed text-ink">
           {MCP_CONFIG}
         </pre>
 

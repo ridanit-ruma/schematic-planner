@@ -32,10 +32,10 @@ const EXPORT_TREE = `plan-export.zip
 export default function Home() {
   return (
     <SiteChrome>
-      <section className="mx-auto max-w-4xl px-6 pt-16 pb-20">
+      <section className="mx-auto max-w-5xl px-6 pt-20 pb-24">
         <div className="grid gap-12 md:grid-cols-[1fr_1.1fr] md:items-center">
           <div>
-            <h1 className="max-w-[18ch] text-2xl leading-[1.15] font-semibold tracking-tight text-ink">
+            <h1 className="max-w-[18ch] text-3xl leading-[1.1] font-semibold tracking-[-0.035em] text-ink">
               Give the plan a shape before you write the code.
             </h1>
             <p className="mt-5 max-w-[52ch] text-base leading-relaxed text-ink-muted">
@@ -45,17 +45,20 @@ export default function Home() {
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <a
                 href={appUrl()}
-                className="rounded-[2px] bg-accent px-4 py-2 text-sm font-medium text-accent-ink"
+                className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-ink shadow-[inset_0_1px_0_0_rgb(255_255_255/0.2)] transition-colors hover:bg-accent-hover"
               >
                 Start planning
               </a>
-              <Link href="/guide" className="rounded-[2px] border border-rule px-4 py-2 text-sm text-ink">
+              <Link
+                href="/guide"
+                className="rounded-md border border-rule bg-surface-2 px-4 py-2 text-sm text-ink transition-colors hover:border-rule-strong hover:bg-surface-3"
+              >
                 Read the guide
               </Link>
             </div>
           </div>
 
-          <div className="border border-rule bg-surface p-3">
+          <div className="rounded-lg border border-rule bg-surface-2 p-3">
             <HeroSchematic />
           </div>
         </div>
@@ -118,7 +121,7 @@ export default function Home() {
               The tool reference
             </Link>
           </div>
-          <pre className="overflow-x-auto border border-rule bg-surface p-4 font-mono text-xs leading-relaxed text-ink">
+          <pre className="overflow-x-auto rounded-lg border border-rule bg-surface-2 p-4 font-mono text-xs leading-relaxed text-ink">
             {AGENT_CALL}
           </pre>
         </div>
@@ -135,7 +138,7 @@ export default function Home() {
               exports to the same bytes.
             </p>
           </div>
-          <pre className="overflow-x-auto border border-rule bg-surface p-4 font-mono text-xs leading-relaxed text-ink">
+          <pre className="overflow-x-auto rounded-lg border border-rule bg-surface-2 p-4 font-mono text-xs leading-relaxed text-ink">
             {EXPORT_TREE}
           </pre>
         </div>
@@ -149,7 +152,10 @@ export default function Home() {
           cannot leave your network, neither do your plans.
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <a href={repoUrl} className="rounded-[2px] border border-rule px-4 py-2 text-sm text-ink">
+          <a
+            href={repoUrl}
+            className="rounded-md border border-rule bg-surface-2 px-4 py-2 text-sm text-ink transition-colors hover:border-rule-strong hover:bg-surface-3"
+          >
             Read the source
           </a>
           <Link href="/guide" className="text-sm text-accent underline">
@@ -174,7 +180,7 @@ export default function Home() {
 function Band({ children }: { children: React.ReactNode }) {
   return (
     <section className="border-t border-rule">
-      <div className="mx-auto max-w-4xl px-6 py-16">{children}</div>
+      <div className="mx-auto max-w-5xl px-6 py-16">{children}</div>
     </section>
   );
 }

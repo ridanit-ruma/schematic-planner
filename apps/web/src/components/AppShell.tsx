@@ -10,7 +10,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useState, type ComponentType, type ReactNode } from 'react';
-import { Link, NavLink, Outlet, useNavigate, useParams } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router';
 
 import { Mark } from './Mark';
 import { Avatar } from './ui/avatar';
@@ -143,31 +143,53 @@ function RailLink({
   );
 }
 
-/** Where you are, as a path. Reads left to right and never wraps. */
+/**
+ * Where you are, as a path.
+ *
+ * The workspace on its own would only repeat the rail, so the trail always ends
+ * on the thing you are actually looking at. Account screens are not inside a
+ * workspace and do not pretend to be.
+ */
 function TopBar({ current }: { current: Workspace | undefined }) {
   const { projectSlug } = useParams();
+  const { pathname } = useLocation();
 
-  const crumbs = [
-    current === undefined ? null : { label: current.name, to: `/workspace/${current.slug}` },
-    projectSlug === undefined || current === undefined
-      ? null
-      : { label: projectSlug, to: `/workspace/${current.slug}/project/${projectSlug}` },
-  ].filter((crumb) => crumb !== null);
+  const crumbs: { label: string; to?: string }[] = pathname.startsWith('/settings')
+    ? [
+        { label: 'Account' },
+        { label: pathname === '/settings/agents' ? 'Agent keys' : 'Profile' },
+      ]
+    : current === undefined
+      ? []
+      : [
+          { label: current.name, to: `/workspace/${current.slug}` },
+          projectSlug !== undefined
+            ? { label: projectSlug, to: `/workspace/${current.slug}/project/${projectSlug}` }
+            : { label: pathname.endsWith('/members') ? 'Members' : pathname.endsWith('/settings') ? 'Settings' : 'Projects' },
+        ];
 
   return (
     <header className="flex h-11 shrink-0 items-center gap-1 border-b border-rule bg-surface px-3">
       {crumbs.map((crumb, index) => (
-        <span key={crumb.to} className="flex min-w-0 items-center gap-1">
+        <span key={crumb.label} className="flex min-w-0 items-center gap-1">
           {index > 0 ? <ChevronRight className="size-3.5 shrink-0 text-ink-faint" /> : null}
-          <Link
-            to={crumb.to}
-            className={cn(
-              'truncate rounded-md px-1.5 py-1 text-sm hover:bg-surface-2',
-              index === crumbs.length - 1 ? 'text-ink' : 'text-ink-muted',
-            )}
-          >
-            {crumb.label}
-          </Link>
+          {crumb.to === undefined ? (
+            <span
+              className={cn(
+                'truncate px-1.5 py-1 text-sm',
+                index === crumbs.length - 1 ? 'text-ink' : 'text-ink-muted',
+              )}
+            >
+              {crumb.label}
+            </span>
+          ) : (
+            <Link
+              to={crumb.to}
+              className="truncate rounded-md px-1.5 py-1 text-sm text-ink-muted hover:bg-surface-2 hover:text-ink"
+            >
+              {crumb.label}
+            </Link>
+          )}
         </span>
       ))}
     </header>

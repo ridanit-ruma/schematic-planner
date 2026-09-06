@@ -52,13 +52,13 @@ export function TitleBlock({
 
       {peers.length > 0 ? (
         <div
-          className="flex items-center -space-x-1.5"
+          className="flex items-center -space-x-1"
           aria-label={`${peers.length} other people here`}
         >
           {peers.slice(0, 4).map((peer) => (
             <Tooltip key={peer.userId} content={peer.name}>
               <span
-                className="grid size-5 place-items-center rounded-full border border-surface text-2xs font-medium text-white"
+                className="grid size-5 place-items-center rounded-sm border border-surface text-2xs font-medium text-white"
                 style={{ background: peer.color }}
               >
                 {peer.name.slice(0, 1).toUpperCase()}

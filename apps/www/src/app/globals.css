@@ -1,80 +1,62 @@
 @import 'tailwindcss';
 
-@custom-variant dark (&:is(.dark *));
-
-/* The marketing site has no theme switch, so it follows the reader's system. */
-
 /*
- * A drafting palette. The ground is cool paper rather than warm cream, the ink
- * is genuinely blue-black rather than tinted grey, and there is exactly one
- * accent — blueprint blue — reserved for selection and primary action.
- * Every other colour in the interface is status data, never decoration.
+ * The same palette the application is drawn in — Craft Minimal Workspace, dark
+ * only. A site that looked different from the product would be advertising
+ * something else.
  */
 :root {
-  --ground: #edf0f4;
-  --surface: #ffffff;
-  --surface-2: #f6f8fa;
-  --ink: #101720;
-  --ink-muted: #55616f;
-  --ink-faint: #8b96a5;
-  --rule: #cdd5e0;
-  --rule-strong: #a8b4c4;
-  --accent: #1b4fd8;
+  color-scheme: dark;
+
+  --ground: #090a0f;
+  --surface: #10121a;
+  --surface-2: #161922;
+  --surface-3: #1e2230;
+  --surface-4: #272c3e;
+
+  --ink: #f1f3f9;
+  --ink-muted: #8e95a9;
+  --ink-faint: #525866;
+
+  --rule: rgb(255 255 255 / 0.06);
+  --rule-strong: rgb(255 255 255 / 0.14);
+
+  --accent: #5e6ad2;
+  --accent-hover: #4f5bc4;
   --accent-ink: #ffffff;
-  --accent-soft: #e2eafd;
-  --grid-fine: #dfe5ed;
-  --grid-coarse: #ccd5e1;
+  --accent-soft: #1b2038;
 
-  --status-idea: #75828f;
-  --status-planned: #2f63c9;
-  --status-progress: #a95f0c;
-  --status-blocked: #b3352b;
-  --status-done: #237046;
-  --status-dropped: #9aa3af;
+  --grid-fine: #10131b;
+  --grid-coarse: #161a24;
 
-  --danger: #b3352b;
-}
+  --status-idea: #64748b;
+  --status-planned: #5e6ad2;
+  --status-progress: #f59e0b;
+  --status-blocked: #ef4444;
+  --status-done: #10b981;
+  --status-dropped: #3f4654;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-  --ground: #0c1017;
-  --surface: #131a24;
-  --surface-2: #18212e;
-  --ink: #e4eaf2;
-  --ink-muted: #94a1b2;
-  --ink-faint: #6d7a8c;
-  --rule: #26313f;
-  --rule-strong: #3a4757;
-  --accent: #6e9bff;
-  --accent-ink: #0a0e14;
-  --accent-soft: #17243c;
-  --grid-fine: #161e29;
-  --grid-coarse: #1e2836;
-
-  --status-idea: #8e9bab;
-  --status-planned: #6e9bff;
-  --status-progress: #d99a3d;
-  --status-blocked: #e2685c;
-  --status-done: #4bb37c;
-  --status-dropped: #6b7684;
-
-  --danger: #e2685c;
-}
+  --danger: #ef4444;
+  --collab: #8b5cf6;
 }
 
 @theme inline {
   --color-ground: var(--ground);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
   --color-ink-faint: var(--ink-faint);
   --color-rule: var(--rule);
   --color-rule-strong: var(--rule-strong);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
+  --color-collab: var(--collab);
 
   --color-status-idea: var(--status-idea);
   --color-status-planned: var(--status-planned);
@@ -83,19 +65,22 @@
   --color-status-done: var(--status-done);
   --color-status-dropped: var(--status-dropped);
 
-  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
-  /* Modular scale, ratio 1.25 */
   --text-2xs: 0.6875rem;
-  --text-xs: 0.8rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.25rem;
-  --text-xl: 1.5625rem;
-  --text-2xl: 1.953rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --text-3xl: 3rem;
 
-  --radius-sheet: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
 }
 
 @layer base {
@@ -103,18 +88,20 @@
     border-color: var(--rule);
   }
 
-  html {
-    color-scheme: light dark;
-  }
-
-
   body {
     background-color: var(--ground);
     color: var(--ink);
     font-family: var(--font-sans);
-    font-size: 0.875rem;
-    line-height: 1.55;
+    font-size: 1rem;
+    line-height: 1.6;
+    letter-spacing: -0.011em;
     -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.025em;
   }
 
   /* Identifiers are monospace because agents type them and people copy them;
@@ -125,8 +112,17 @@
     letter-spacing: 0.01em;
   }
 
+  .rail-heading {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
   :focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 1px solid var(--accent);
     outline-offset: 2px;
   }
 
@@ -143,4 +139,3 @@
     transition-duration: 0.01ms !important;
   }
 }
-
