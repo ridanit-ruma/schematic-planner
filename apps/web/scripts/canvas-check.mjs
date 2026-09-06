@@ -210,7 +210,20 @@ try {
   await wait(4000);
   check('and the move is what everyone else sees', inside(await rectOf(child), await rectOf(group)));
 
-  const loose = held.find((slug) => slug !== group && !containers.includes(slug) && slug !== child);
+  // A node that is in no group at all. Picking one already inside this group
+  // would drag it around within its own box and prove nothing.
+  let loose = null;
+  for (const slug of held) {
+    if (containers.includes(slug)) continue;
+    const rect = await rectOf(slug);
+    let free = true;
+    for (const holder of containers) if (inside(rect, await rectOf(holder))) free = false;
+    if (free) {
+      loose = slug;
+      break;
+    }
+  }
+  check('there is a node outside every group', loose !== null, loose ?? '');
   const before = await countIn(group);
   const box2 = await rectOf(group);
   const looseRect = await rectOf(loose);
