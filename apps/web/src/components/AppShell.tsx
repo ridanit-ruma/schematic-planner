@@ -68,7 +68,7 @@ function Rail({ current }: { current: Workspace | undefined }) {
     <aside className="flex w-14 shrink-0 flex-col border-r border-rule bg-surface lg:w-64">
       <div className="flex h-11 shrink-0 items-center border-b border-rule px-2">
         <Link
-          to="/"
+          to="/recent"
           className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-surface-2"
         >
           <Mark className="size-6 shrink-0" />
@@ -82,7 +82,7 @@ function Rail({ current }: { current: Workspace | undefined }) {
         {/* Yours, not a workspace's — so it sits above the workspace band with
             air between them rather than under a heading that would file it
             under whichever workspace you happen to be in. */}
-        <RailLink to="/" icon={Clock} label="Recent" end>
+        <RailLink to="/recent" icon={Clock} label="Recent">
           Recent
         </RailLink>
 

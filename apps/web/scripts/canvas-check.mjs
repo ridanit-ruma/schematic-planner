@@ -102,7 +102,8 @@ try {
 
   check(
     'the application opens on what you were working on',
-    (await page.$eval('h1', (h) => h.textContent)) === 'Recent',
+    page.url().endsWith('/recent'),
+    page.url(),
   );
 
   console.log('\nthe canvas');

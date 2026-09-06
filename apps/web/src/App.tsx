@@ -23,7 +23,7 @@ import { WorkspaceLayout, WorkspacesProvider } from '@/features/workspaces/works
 /*
  * Addresses
  *
- *   /                                    what you have worked on lately
+ *   /recent                              what you have worked on lately
  *   /login  /register
  *   /settings                            your account
  *   /settings/agents                     the keys your agents hold
@@ -70,7 +70,10 @@ export function App() {
             </RequireAuth>
           }
         >
-          <Route index element={<RecentPage />} />
+          {/* `/` is the marketing site on the usual one-origin deployment, so
+              the first screen has an address of its own. */}
+          <Route index element={<Navigate to="/recent" replace />} />
+          <Route path="/recent" element={<RecentPage />} />
           <Route path="/settings" element={<SettingsLayout />}>
             <Route index element={<AccountSettingsPage />} />
             <Route path="agents" element={<AgentsPage />} />
@@ -85,7 +88,7 @@ export function App() {
             <Route path="trash" element={<TrashPage />} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/recent" replace />} />
         </Route>
       </Routes>
     </TooltipProvider>

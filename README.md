@@ -135,7 +135,7 @@ A workspace and a project are addressed by a readable slug; a plan is not, and
 sits at the top level:
 
 ```
-/                                  what you have worked on lately, across every workspace
+/recent                            what you have worked on lately, across every workspace
 /workspace/acme                    projects
 /workspace/acme/project/billing    plans
 /workspace/acme/members  /settings  /trash
@@ -144,7 +144,7 @@ sits at the top level:
 /settings  /settings/agents        your account, and the keys your agents hold
 ```
 
-The application opens on `/` rather than on a workspace: people come back to a
+The application opens on `/recent` rather than on a workspace: people come back to a
 plan, and rarely remember which workspace it was filed under. Your account and
 your agent keys are not part of any workspace either, so they live behind the
 account row at the foot of the rail instead of in it.

@@ -36,7 +36,7 @@
 
 	# Every application route. A single-page app owns these paths and resolves
 	# them itself, so anything not on disk falls back to its index.
-	@app path /login /register /settings /settings/* /workspace/* /plan/* /share/* /invite/*
+	@app path /login /register /recent /settings /settings/* /workspace/* /plan/* /share/* /invite/*
 	handle @app {
 		root * {$APP_ROOT:/srv/app}
 		try_files {path} /index.html

@@ -5,7 +5,6 @@ import { Wordmark } from '@/components/Mark';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Problem } from '@/components/ui/feedback';
-import { workspaces } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 
 /**
@@ -13,17 +12,15 @@ import { useAuth } from '@/lib/auth-store';
  *
  * Not `/`: on the usual deployment one origin serves the marketing site there,
  * and landing on it would take the person straight back out of the application.
- * Their own workspace is the answer, and a deep link they were interrupted on
- * beats even that.
+ * What they were last working on is the answer, and a deep link they were
+ * interrupted on beats even that.
  */
-async function landing(state: unknown): Promise<string> {
+function landing(state: unknown): string {
   const from = (state as { from?: string } | null)?.from;
   if (typeof from === 'string' && from !== '/' && from !== '/login' && from !== '/register') {
     return from;
   }
-  const list = await workspaces.list().catch(() => []);
-  const first = list[0];
-  return first === undefined ? '/' : `/workspace/${first.slug}`;
+  return '/recent';
 }
 
 export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
@@ -37,7 +34,7 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
-  if (status === 'signed-in') return <Navigate to="/" replace />;
+  if (status === 'signed-in') return <Navigate to="/recent" replace />;
 
   const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
@@ -46,7 +43,7 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     try {
       if (mode === 'sign-in') await signIn(email, password);
       else await signUp(name, email, password);
-      void navigate(await landing(location.state), { replace: true });
+      void navigate(landing(location.state), { replace: true });
     } catch (cause) {
       setError(cause);
     } finally {
