@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
@@ -59,7 +59,7 @@ export function PlanSidebar({ planId }: { planId: string }) {
 
   if (collapsed) {
     return (
-      <aside className="flex w-9 shrink-0 flex-col items-center border-r border-rule bg-surface py-2">
+      <aside className="flex w-9 shrink-0 flex-col items-center gap-1 border-r border-rule bg-surface py-2">
         <button
           type="button"
           onClick={toggleCollapsed}
@@ -69,6 +69,17 @@ export function PlanSidebar({ planId }: { planId: string }) {
           <PanelLeftOpen className="size-4" />
           <span className="sr-only">Show plans</span>
         </button>
+        {/* The way out stays reachable with the rail folded away. */}
+        {nav === null ? null : (
+          <Link
+            to={`/workspace/${nav.workspace.slug}`}
+            title={`Leave for ${nav.workspace.name}`}
+            className="grid size-7 place-items-center rounded-[2px] text-ink-muted hover:bg-surface-2 hover:text-ink"
+          >
+            <ArrowLeft className="size-4" />
+            <span className="sr-only">{`Leave for ${nav.workspace.name}`}</span>
+          </Link>
+        )}
       </aside>
     );
   }
@@ -83,10 +94,11 @@ export function PlanSidebar({ planId }: { planId: string }) {
         ) : (
           <Link
             to={`/workspace/${nav.workspace.slug}`}
-            title={`Back to ${nav.workspace.name}`}
-            className="min-w-0 flex-1 truncate rounded-[2px] px-1 py-0.5 text-xs font-medium text-ink hover:bg-surface-2"
+            title={`Leave for ${nav.workspace.name}`}
+            className="flex min-w-0 flex-1 items-center gap-1.5 rounded-[2px] px-1 py-0.5 text-xs font-medium text-ink hover:bg-surface-2"
           >
-            {nav.workspace.name}
+            <ArrowLeft className="size-3.5 shrink-0 text-ink-muted" />
+            <span className="truncate">{nav.workspace.name}</span>
           </Link>
         )}
         <button

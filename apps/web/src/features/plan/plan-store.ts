@@ -1,5 +1,5 @@
 import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } from '@xyflow/react';
-import { buildPlanGraph } from '@schematic/schema';
+import { buildPlanGraph, containmentDepth } from '@schematic/schema';
 import type { PlanDoc, PlanEdge, PlanEdgeKind, PlanNode, Position } from '@schematic/schema';
 import { edgesMap, nodesMap, readPlanDoc, type Presence } from '@schematic/ydoc';
 import { createStore } from 'zustand/vanilla';
@@ -21,6 +21,14 @@ export interface PlanState {
   peers: Presence[];
   /** Positions other people are dragging right now. Ephemeral, never stored. */
   remoteDrag: Record<string, Position>;
+  /**
+   * Absolute position of every node. The canvas hands React Flow positions
+   * relative to the group a node sits in, so this is what anything reasoning
+   * about the plan's own coordinates — a drop, a hit test — reads instead.
+   */
+  absolute: Record<string, Position>;
+  /** The group each node belongs to, where that group is drawn as a boundary. */
+  parentOf: Record<string, string>;
 
   onNodesChange: (changes: NodeChange<PlanFlowNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<PlanFlowEdge>[]) => void;
@@ -31,17 +39,31 @@ export interface PlanState {
 
 export type PlanStore = ReturnType<typeof createPlanStore>;
 
-function toFlowNode(node: PlanNode, childCount: number): PlanFlowNode {
+function toFlowNode(
+  node: PlanNode,
+  childCount: number,
+  parent: { slug: string; position: Position } | null,
+  depth: number,
+): PlanFlowNode {
   const isContainer = childCount > 0;
+  const absolute = node.position ?? { x: 0, y: 0 };
   return {
     id: node.slug,
     type: 'plan',
-    position: node.position ?? { x: 0, y: 0 },
+    // React Flow places a child within its parent, which is what makes a group
+    // carry its contents when it is dragged. The plan stores absolute
+    // coordinates, so the two are converted at this boundary and nowhere else.
+    position:
+      parent === null
+        ? absolute
+        : { x: absolute.x - parent.position.x, y: absolute.y - parent.position.y },
+    ...(parent !== null && { parentId: parent.slug }),
     data: { node, childCount },
     // A container paints below the nodes it holds, but not below the edge layer:
     // a negative index put it behind the edges, and its own handles then could
     // not be reached at all. Its body is click-through instead — see PlanNodeCard.
-    zIndex: isContainer ? 0 : 1,
+    // Depth keeps that true at every level of nesting.
+    zIndex: depth * 10 + (isContainer ? 0 : 1),
     ...(isContainer &&
       node.size !== null && {
         style: { width: node.size.width, height: node.size.height },
@@ -74,6 +96,8 @@ export function createPlanStore(doc: Y.Doc) {
     connectKind: 'depends_on',
     peers: [],
     remoteDrag: {},
+    absolute: {},
+    parentOf: {},
 
     onNodesChange: (changes) => set({ nodes: applyNodeChanges(changes, get().nodes) }),
     onEdgesChange: (changes) => set({ edges: applyEdgeChanges(changes, get().edges) }),
@@ -94,30 +118,72 @@ export function createPlanStore(doc: Y.Doc) {
     const graph = buildPlanGraph(plan);
     const previous = get_nodes();
 
-    const nextNodes = plan.nodes.map((node) => {
-      const existing = previous.get(node.slug);
-      const childCount = graph.childrenOf.get(node.slug)?.length ?? 0;
-      if (existing !== undefined && touched !== undefined && !touched.has(node.slug)) {
-        return existing;
-      }
-      if (
-        existing !== undefined &&
-        existing.data.node === node &&
-        existing.data.childCount === childCount
-      ) {
-        return existing;
-      }
-      return { ...toFlowNode(node, childCount), selected: existing?.selected ?? false };
-    });
-
     // A node holding others is drawn as the boundary around them, which already
     // says what a containment line would. Drawing it as well produced long
     // dashed paths wandering across the canvas and reading as phantom boxes.
+    // Only a group with bounds can hold anything: without them there is no box
+    // to be inside, so its children stay on the open canvas.
     const drawnAsBoundary = new Set(
       plan.nodes
         .filter((node) => (graph.childrenOf.get(node.slug)?.length ?? 0) > 0 && node.size !== null)
         .map((node) => node.slug),
     );
+
+    const byslug = new Map(plan.nodes.map((node) => [node.slug, node]));
+    const absolute: Record<string, Position> = {};
+    const parentOf: Record<string, string> = {};
+    for (const node of plan.nodes) {
+      absolute[node.slug] = node.position ?? { x: 0, y: 0 };
+      const parent = graph.parentOf.get(node.slug);
+      if (parent !== undefined && drawnAsBoundary.has(parent)) parentOf[node.slug] = parent;
+    }
+
+    // React Flow needs a parent before its children, so the list is walked down
+    // the containment tree rather than taken in document order.
+    const ordered: PlanNode[] = [];
+    const seen = new Set<string>();
+    const walk = (slug: string): void => {
+      const node = byslug.get(slug);
+      if (node === undefined || seen.has(slug)) return;
+      seen.add(slug);
+      ordered.push(node);
+      for (const child of graph.childrenOf.get(slug) ?? []) walk(child);
+    };
+    for (const root of graph.roots) walk(root);
+    // A containment cycle leaves nodes unreachable from any root. They are still
+    // part of the plan and still have to be drawn.
+    for (const node of plan.nodes) if (!seen.has(node.slug)) ordered.push(node);
+
+    const nextNodes = ordered.map((node) => {
+      const existing = previous.get(node.slug);
+      const childCount = graph.childrenOf.get(node.slug)?.length ?? 0;
+      const parentSlug = parentOf[node.slug];
+      const parent =
+        parentSlug === undefined
+          ? null
+          : { slug: parentSlug, position: absolute[parentSlug] ?? { x: 0, y: 0 } };
+
+      if (
+        existing !== undefined &&
+        existing.data.node === node &&
+        existing.data.childCount === childCount &&
+        existing.parentId === parentSlug
+      ) {
+        return existing;
+      }
+      if (
+        existing !== undefined &&
+        touched !== undefined &&
+        !touched.has(node.slug) &&
+        existing.parentId === parentSlug
+      ) {
+        return existing;
+      }
+      return {
+        ...toFlowNode(node, childCount, parent, containmentDepth(graph, node.slug)),
+        selected: existing?.selected ?? false,
+      };
+    });
 
     store.setState({
       nodes: nextNodes,
@@ -126,6 +192,8 @@ export function createPlanStore(doc: Y.Doc) {
         .map(toFlowEdge),
       title: plan.title,
       description: plan.description,
+      absolute,
+      parentOf,
     });
   };
 
