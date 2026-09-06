@@ -225,6 +225,88 @@ async function main() {
   const denied = await call(`/plans/${planId}`, { token: other.body.accessToken });
   check('another account cannot read the plan', denied.status === 404, `status ${denied.status}`);
 
+  section('workspace management');
+  const invite = await call(`/workspaces/${workspaceId}/invites`, {
+    method: 'POST',
+    token,
+    body: { role: 'EDITOR' },
+  });
+  check('an invitation link is issued', (invite.body.url ?? '').includes('/invite/'));
+
+  const members = await call(`/workspaces/${workspaceId}/members`, { token });
+  check('the owner is a member', members.body[0]?.role === 'OWNER', members.body[0]?.user?.email);
+
+  const renamed = await call(`/workspaces/${workspaceId}`, {
+    method: 'PATCH',
+    token,
+    body: { name: 'Renamed workspace' },
+  });
+  check('rename a workspace', renamed.body.name === 'Renamed workspace');
+  check(
+    'the address does not change with the name',
+    renamed.body.slug === workspaces.body[0]?.slug,
+    renamed.body.slug,
+  );
+
+  const badDelete = await call(`/workspaces/${workspaceId}`, {
+    method: 'DELETE',
+    token,
+    body: { confirm: 'not the name' },
+  });
+  check('deleting needs the name typed exactly', badDelete.status === 400);
+
+  section('account');
+  const profile = await call('/auth/me', { method: 'PATCH', token, body: { name: 'Renamed' } });
+  check('rename yourself', profile.body.name === 'Renamed');
+
+  const sessionsBefore = await call('/auth/sessions', { token });
+  check(
+    'your sessions are listed',
+    Array.isArray(sessionsBefore.body) && sessionsBefore.body.length >= 1,
+    `${sessionsBefore.body.length ?? 0} session(s)`,
+  );
+
+  const wrongPassword = await call('/auth/password', {
+    method: 'POST',
+    token,
+    body: { currentPassword: 'not-it', newPassword: 'a-new-long-password' },
+  });
+  check('a wrong current password is refused', wrongPassword.status === 401);
+
+  const changed = await call('/auth/password', {
+    method: 'POST',
+    token,
+    body: { currentPassword: 'correct-horse-battery', newPassword: 'a-new-long-password' },
+  });
+  check('change your password', changed.body.ok === true, `status ${changed.status}`);
+
+  const reLogin = await call('/auth/login', {
+    method: 'POST',
+    body: { email, password: 'a-new-long-password' },
+  });
+  check('the new password works', typeof reLogin.body.accessToken === 'string');
+  const oldPassword = await call('/auth/login', {
+    method: 'POST',
+    body: { email, password: 'correct-horse-battery' },
+  });
+  check('the old one does not', oldPassword.status === 401);
+
+  section('rate limiting');
+  // The allowance is per credential-less client, so a burst of bad sign-ins from
+  // one address has to be turned away before it becomes a password guessing run.
+  let sawTooMany = false;
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const response = await call('/auth/login', {
+      method: 'POST',
+      body: { email, password: `guess-${attempt}` },
+    });
+    if (response.status === 429) {
+      sawTooMany = true;
+      break;
+    }
+  }
+  check('repeated sign-in attempts are throttled', sawTooMany, '429 within 25 tries');
+
   section('collaboration');
   const open = (label) => {
     const doc = new Y.Doc();
