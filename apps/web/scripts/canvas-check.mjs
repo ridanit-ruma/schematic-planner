@@ -313,9 +313,11 @@ try {
     const outerWas = await rectOf('alpha');
     const innerWas = await rectOf('beta');
     const deepWas = await rectOf('b-one');
+    // By its own label band. The bottom of the box now holds the group that was
+    // dropped into it, and grabbing there picks that up instead.
     await drag(
-      { x: outerWas.x + 30, y: outerWas.y + outerWas.height - 12 },
-      { x: outerWas.x + 30 - 130, y: outerWas.y + outerWas.height - 12 + 90 },
+      { x: outerWas.x + 30, y: outerWas.y + 10 },
+      { x: outerWas.x + 30 - 130, y: outerWas.y + 10 + 90 },
     );
     const shift = { x: (await rectOf('alpha')).x - outerWas.x, y: (await rectOf('alpha')).y - outerWas.y };
     const innerIs = await rectOf('beta');
