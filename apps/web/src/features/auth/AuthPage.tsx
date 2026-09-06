@@ -1,16 +1,36 @@
 import { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 
 import { Wordmark } from '@/components/Wordmark';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Problem } from '@/components/ui/feedback';
 import { ThemeToggle } from '@/components/ui/theme';
+import { workspaces } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
+
+/**
+ * Where to go once signed in.
+ *
+ * Not `/`: on the usual deployment one origin serves the marketing site there,
+ * and landing on it would take the person straight back out of the application.
+ * Their own workspace is the answer, and a deep link they were interrupted on
+ * beats even that.
+ */
+async function landing(state: unknown): Promise<string> {
+  const from = (state as { from?: string } | null)?.from;
+  if (typeof from === 'string' && from !== '/' && from !== '/login' && from !== '/register') {
+    return from;
+  }
+  const list = await workspaces.list().catch(() => []);
+  const first = list[0];
+  return first === undefined ? '/' : `/workspace/${first.slug}`;
+}
 
 export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   const { status, signIn, signUp } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -27,7 +47,7 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     try {
       if (mode === 'sign-in') await signIn(email, password);
       else await signUp(name, email, password);
-      void navigate('/');
+      void navigate(await landing(location.state), { replace: true });
     } catch (cause) {
       setError(cause);
     } finally {

@@ -2,8 +2,8 @@ import Link from 'next/link';
 
 import { HeroSchematic } from '@/components/HeroSchematic';
 import { SiteChrome } from '@/components/SiteChrome';
+import { appUrl } from '@/lib/app-url';
 
-const appUrl = process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:5173';
 const repoUrl = 'https://github.com/ridanit-ruma/schematic-planner';
 
 const AGENT_CALL = `create_plan({
@@ -44,7 +44,7 @@ export default function Home() {
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <a
-                href={appUrl}
+                href={appUrl()}
                 className="rounded-[2px] bg-accent px-4 py-2 text-sm font-medium text-accent-ink"
               >
                 Start planning

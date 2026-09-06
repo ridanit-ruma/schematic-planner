@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
-const appUrl = process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:5173';
+import { appUrl } from '@/lib/app-url';
+
+
 
 export function SiteChrome({ children }: { children: ReactNode }) {
   return (
@@ -33,7 +35,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
           </nav>
           <div className="flex-1" />
           <a
-            href={appUrl}
+            href={appUrl()}
             className="rounded-[2px] bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink"
           >
             Open the app

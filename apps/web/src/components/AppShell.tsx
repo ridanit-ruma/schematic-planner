@@ -13,11 +13,16 @@ import { useWorkspaces } from '@/features/workspaces/workspace-context';
 
 export function AppShell() {
   const { signOut } = useAuth();
+  const { all } = useWorkspaces();
+  const { workspaceSlug } = useParams();
+  // On one origin `/` is the marketing site, so the mark leads back into the
+  // workspace rather than out of the application.
+  const home = workspaceSlug ?? all[0]?.slug;
 
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="flex h-11 shrink-0 items-center gap-4 border-b border-rule bg-surface px-4">
-        <Link to="/" className="text-ink">
+        <Link to={home === undefined ? '/settings' : `/workspace/${home}`} className="text-ink">
           <Wordmark />
         </Link>
 

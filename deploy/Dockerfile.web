@@ -11,7 +11,8 @@ RUN pnpm install --frozen-lockfile
 # The marketing site bakes its links at build time; the application reads its
 # server address at runtime from config.js, so one image runs anywhere.
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:8080
-ARG NEXT_PUBLIC_APP_URL=http://localhost:8080/login
+# Blank: the site and the app share an origin here, so its links stay relative.
+ARG NEXT_PUBLIC_APP_URL=
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 RUN pnpm turbo run build --filter=@schematic/web --filter=@schematic/www
 

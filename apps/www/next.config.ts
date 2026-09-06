@@ -25,7 +25,9 @@ const config: NextConfig = {
   // being inlined as the development default.
   env: {
     NEXT_PUBLIC_SITE_URL: process.env['NEXT_PUBLIC_SITE_URL'] ?? 'http://localhost:3000',
-    NEXT_PUBLIC_APP_URL: process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:5173',
+    // Empty rather than a hostname: the components fall back to a relative
+    // path, which works on whatever origin the built site is served from.
+    NEXT_PUBLIC_APP_URL: process.env['NEXT_PUBLIC_APP_URL'] ?? '',
   },
 };
 

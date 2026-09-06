@@ -74,7 +74,10 @@ services:
       dockerfile: deploy/Dockerfile.web
       args:
         NEXT_PUBLIC_SITE_URL: ${SITE_URL:-http://localhost:8080}
-        NEXT_PUBLIC_APP_URL: ${SITE_URL:-http://localhost:8080}/login
+        # Blank on purpose: one origin serves both, so the site links to the app
+        # with a relative path and nothing about this address is baked into the
+        # build.
+        NEXT_PUBLIC_APP_URL: ''
     restart: unless-stopped
     environment:
       SITE_ADDRESS: ':8080'
