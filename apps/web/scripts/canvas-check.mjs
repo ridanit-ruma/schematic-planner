@@ -309,49 +309,40 @@ try {
         Math.abs(deepIs.y - deepWas.y - shift.y) < 2,
       `outer ${Math.round(shift.x)},${Math.round(shift.y)}`,
     );
-  } finally {
-    await call(`/plans/${fixture.id}`, { method: 'DELETE' });
-  }
+    console.log('\ndrawing a connection');
+    await page.click('button[title^="Contains"]');
+    await wait(300);
+    check(
+      'the connection control selects Contains',
+      (await page.$eval('button[title^="Contains"]', (b) => b.getAttribute('aria-pressed'))) === 'true',
+    );
 
-  await page.goto(`${BASE}${planHref}`, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('button[title^="Contains"]', { timeout: 20_000 });
-  await wait(2500);
-
-  console.log('\ndrawing a connection');
-  await page.click('button[title^="Contains"]');
-  await wait(300);
-  check(
-    'the connection control selects Contains',
-    (await page.$eval('button[title^="Contains"]', (b) => b.getAttribute('aria-pressed'))) === 'true',
-  );
-
-  const container = containers[0];
-  const at = (slug, kind) =>
-    page
-      .$eval(`.react-flow__node[data-id="${slug}"] .react-flow__handle.${kind}`, (el) => {
+    // SVG elements carry an object for `className`, so the class list is read
+    // through the attribute instead — an edge on top used to read as a pass.
+    const terminal = await page
+      .$eval('.react-flow__node[data-id="alpha"] .react-flow__handle.source', (el) => {
         const r = el.getBoundingClientRect();
         return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
       })
       .catch(() => null);
+    const topmost =
+      terminal === null
+        ? ''
+        : await page.evaluate(
+            ({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('class') ?? '',
+            terminal,
+          );
+    check(
+      "a group's terminal is not buried behind the edges",
+      topmost.includes('handle'),
+      topmost.slice(0, 60),
+    );
 
-  const from = await at(container, 'source');
-  // SVG elements carry an object for `className`, so the class list is read
-  // through the attribute instead — an edge on top used to read as a pass.
-  const topmost = from
-    ? await page.evaluate(
-        ({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('class') ?? '',
-        from,
-      )
-    : '';
-  check(
-    "a container's handle is not buried behind the edges",
-    topmost.includes('handle'),
-    topmost.slice(0, 60),
-  );
+  } finally {
+    await call(`/plans/${fixture.id}`, { method: 'DELETE' });
+  }
 
-  // Leaves the demo plan tidy rather than wherever the drags above ended.
-  await page.click('button[title^="Arrange"]');
-  await wait(1500);
+  void planHref;
 
   console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) failed`}`);
   void planId;
