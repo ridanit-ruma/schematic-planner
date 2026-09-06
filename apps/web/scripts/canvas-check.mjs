@@ -132,10 +132,18 @@ try {
   await wait(500);
 
   console.log('\nmoving between plans');
-  const rail = await page.$$eval('aside button', (list) =>
-    list.map((b) => b.textContent?.trim() ?? '').filter((t) => t !== ''),
-  );
-  check('the rail lists what else is in the workspace', rail.length > 0, rail.slice(0, 6).join(' | '));
+  const rail = await page.evaluate(() => {
+    const aside = document.querySelector('aside');
+    if (aside === null) return null;
+    return {
+      workspace: aside.querySelector('a[href^="/workspace/"]')?.textContent?.trim() ?? '',
+      current: aside.querySelector('[aria-current="page"]')?.textContent?.trim() ?? '',
+      plans: aside.querySelectorAll('button[title]').length,
+    };
+  });
+  check('the rail names the workspace it belongs to', (rail?.workspace ?? '') !== '', rail?.workspace ?? 'no rail');
+  check('and marks the plan you are on', (rail?.current ?? '') !== '', rail?.current ?? '');
+  check('and lists the plans you can move to', (rail?.plans ?? 0) > 0, `${rail?.plans ?? 0} plans`);
 
   console.log('\ndrawing a connection');
   await page.click('button[title^="Contains"]');
