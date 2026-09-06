@@ -24,7 +24,7 @@ export function Avatar({
         // built from modules on a grid, and a lone disc in a row of them reads
         // as borrowed from somewhere else. The inner rim keeps a dark picture
         // from bleeding into a dark surface.
-        'inline-flex size-5 shrink-0 overflow-hidden rounded-sm bg-surface-3 select-none',
+        'inline-flex size-5 shrink-0 overflow-hidden rounded-sm bg-surface-3 text-2xs select-none',
         'shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]',
         className,
       )}
@@ -34,7 +34,8 @@ export function Avatar({
       )}
       <Primitive.Fallback
         delayMs={src == null || src === '' ? 0 : 400}
-        className="grid size-full place-items-center text-2xs font-medium text-ink-muted"
+        // Size comes from the box, so a 64px avatar does not draw an 11px letter.
+        className="grid size-full place-items-center font-medium text-ink-muted"
       >
         {(name.trim()[0] ?? '?').toUpperCase()}
       </Primitive.Fallback>

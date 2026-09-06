@@ -65,20 +65,20 @@ export default function Home() {
       </section>
 
       <Band>
-        <h2 className="text-lg font-medium text-ink">The problem it solves</h2>
-        <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-ink-muted">
+        <h2 className="text-xl font-medium tracking-[-0.02em] text-ink">The problem it solves</h2>
+        <p className="mt-3 max-w-[62ch] text-base leading-[1.65] text-ink-muted">
           Coding agents write plans well. What they cannot do is hold one still. Ask for a feature
           and you get a plausible task list, half of it forgotten three messages later, and the
           architecture quietly reinvented on the next run. The plan was never anywhere: it was in
           the conversation, and the conversation moved on.
         </p>
-        <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-ink-muted">
+        <p className="mt-3 max-w-[62ch] text-base leading-[1.65] text-ink-muted">
           Put the plan somewhere both of you can see, and that stops happening.
         </p>
       </Band>
 
       <Band>
-        <h2 className="text-lg font-medium text-ink">How it goes</h2>
+        <h2 className="text-xl font-medium tracking-[-0.02em] text-ink">How it goes</h2>
         <ol className="mt-6 space-y-6">
           <Step
             title="Your agent writes the plan"
@@ -106,14 +106,14 @@ export default function Home() {
       <Band>
         <div className="grid gap-10 md:grid-cols-2 md:items-start">
           <div>
-            <h2 className="text-lg font-medium text-ink">What an agent sees</h2>
-            <p className="mt-3 max-w-[52ch] text-sm leading-relaxed text-ink-muted">
+            <h2 className="text-xl font-medium tracking-[-0.02em] text-ink">What an agent sees</h2>
+            <p className="mt-3 max-w-[52ch] text-base leading-[1.65] text-ink-muted">
               Six tools behind a URL and a key. Nothing to install, nothing to keep in step with the
               server. A whole plan arrives in one call, and every change after that goes through one
               batched, atomic door — so forty nodes appear on your canvas at once rather than
               crawling in one at a time.
             </p>
-            <p className="mt-3 max-w-[52ch] text-sm leading-relaxed text-ink-muted">
+            <p className="mt-3 max-w-[52ch] text-base leading-[1.65] text-ink-muted">
               Nodes are addressed by a slug you would recognise, so a retry changes nothing the
               second time.
             </p>
@@ -130,8 +130,8 @@ export default function Home() {
       <Band>
         <div className="grid gap-10 md:grid-cols-2 md:items-start">
           <div>
-            <h2 className="text-lg font-medium text-ink">What comes out</h2>
-            <p className="mt-3 max-w-[52ch] text-sm leading-relaxed text-ink-muted">
+            <h2 className="text-xl font-medium tracking-[-0.02em] text-ink">What comes out</h2>
+            <p className="mt-3 max-w-[52ch] text-base leading-[1.65] text-ink-muted">
               A zip of plain Markdown with the graph in the frontmatter, plus a{' '}
               <code className="slug">.canvas</code> that opens in Obsidian with the layout intact.
               Nothing in the format needs this service to be readable, and the same plan always
@@ -145,8 +145,8 @@ export default function Home() {
       </Band>
 
       <Band>
-        <h2 className="text-lg font-medium text-ink">Run it yourself</h2>
-        <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-ink-muted">
+        <h2 className="text-xl font-medium tracking-[-0.02em] text-ink">Run it yourself</h2>
+        <p className="mt-3 max-w-[62ch] text-base leading-[1.65] text-ink-muted">
           The whole stack is AGPL-3.0 and needs Node and Postgres. No proprietary authentication
           service, no managed-only dependency, every setting an environment variable. If your source
           cannot leave your network, neither do your plans.
@@ -165,8 +165,8 @@ export default function Home() {
       </Band>
 
       <Band>
-        <h2 className="text-lg font-medium text-ink">Where it actually is</h2>
-        <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-ink-muted">
+        <h2 className="text-xl font-medium tracking-[-0.02em] text-ink">Where it actually is</h2>
+        <p className="mt-3 max-w-[62ch] text-base leading-[1.65] text-ink-muted">
           Pre-alpha, and worth saying plainly. Planning, drawing, live collaboration, the agent
           surface, sharing, export, and managing a workspace and your account all work. No email is
           ever sent, so an invitation is a link you pass along; social sign-in is not built. Export
@@ -189,7 +189,7 @@ function Step({ title, body }: { title: string; body: string }) {
   return (
     <li className="border-l-2 border-rule pl-4">
       <h3 className="text-sm font-medium text-ink">{title}</h3>
-      <p className="mt-1 max-w-[62ch] text-sm leading-relaxed text-ink-muted">{body}</p>
+      <p className="mt-1 max-w-[62ch] text-base leading-[1.65] text-ink-muted">{body}</p>
     </li>
   );
 }
