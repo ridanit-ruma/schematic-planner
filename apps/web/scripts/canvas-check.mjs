@@ -122,36 +122,53 @@ try {
   // Two earlier attempts had the card change with the zoom — text dropped at a
   // threshold, then regrown in canvas units. A card is a drawing now: the same
   // at every distance, only nearer or further away.
-  const measure = () =>
-    page.evaluate(() => {
+  // One card, not the whole canvas: off-screen nodes are culled for speed, so
+  // counting everything would report a difference that is only the viewport.
+  const measure = (slug) =>
+    page.evaluate((id) => {
       const zoom = Number(
         /scale\(([0-9.]+)\)/.exec(
           document.querySelector('.react-flow__viewport')?.style.transform ?? '',
         )?.[1] ?? '1',
       );
-      const labels = [...document.querySelectorAll('.react-flow__node p, .react-flow__node span')]
+      const node =
+        id === null
+          ? null
+          : document.querySelector(`.react-flow__node[data-id="${id}"]`);
+      const labels = [...(node?.querySelectorAll('p, span') ?? [])]
         .filter((el) => el.children.length === 0 && (el.textContent ?? '').trim() !== '')
         .map((el) => getComputedStyle(el).fontSize);
       return { zoom, count: labels.length, sizes: labels.join(',') };
-    });
+    }, slug ?? null);
 
-  // Moving in rather than out: a plan fitted near the minimum zoom has nowhere
-  // further to pull back to, and the check would be measuring the floor.
-  const far = await measure();
+  // Whatever sits nearest the middle stays on screen as the view moves in.
+  const middle = await page.evaluate(() => {
+    const centre = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    let best = null;
+    for (const node of document.querySelectorAll('.react-flow__node')) {
+      const box = node.getBoundingClientRect();
+      const away = Math.hypot(box.x + box.width / 2 - centre.x, box.y + box.height / 2 - centre.y);
+      if (best === null || away < best.away) best = { away, id: node.getAttribute('data-id') };
+    }
+    return best?.id ?? null;
+  });
+  check('there is a card in the middle to watch', middle !== null, middle ?? '');
+
+  const far = await measure(middle);
   for (let i = 0; i < 4; i += 1) {
     await page.click('.react-flow__controls-zoomin');
     await wait(180);
   }
-  const near = await measure();
+  const near = await measure(middle);
   check(
     'moving in actually moved in',
     near.zoom > far.zoom * 1.8,
     `${far.zoom.toFixed(2)} -> ${near.zoom.toFixed(2)}`,
   );
   check(
-    'the same labels are drawn at both distances',
+    'the same card is drawn at both distances',
     far.count === near.count && far.count > 0,
-    `${far.count} -> ${near.count}`,
+    `${middle}: ${far.count} -> ${near.count}`,
   );
   check('and drawn at the same size', far.sizes === near.sizes, near.sizes.slice(0, 40));
   await page.click('.react-flow__controls-fitview');
