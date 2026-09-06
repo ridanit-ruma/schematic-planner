@@ -9,7 +9,11 @@ import type { PlanFlowEdge } from './types';
  * from a boundary.
  */
 const STYLE: Record<string, { dash?: string; marker: boolean }> = {
-  depends_on: { marker: true },
+  // The system's own movement, so it is the plainest, most legible line there
+  // is. A dependency is drawn faintly dashed beside it: it says what must exist
+  // first, which is a different claim from what calls what.
+  flows_to: { marker: true },
+  depends_on: { dash: '5 3', marker: true },
   contains: { dash: '6 4', marker: false },
   // Denser than a true dot: at 1.5px on a dark ground a sparse pattern reads as
   // a line that stops rather than one that continues.

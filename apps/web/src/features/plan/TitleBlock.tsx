@@ -106,12 +106,14 @@ export function TitleBlock({
 }
 
 const CONNECT_LABEL: Record<PlanEdgeKind, string> = {
+  flows_to: 'Flows to',
   depends_on: 'Depends on',
   contains: 'Contains',
   relates_to: 'Relates to',
 };
 
 const CONNECT_HINT: Record<PlanEdgeKind, string> = {
+  flows_to: 'Drag the way it moves: this calls, sends or navigates to that.',
   depends_on: 'Drag right to left: this needs that. Becomes file order on export.',
   contains: 'Drag parent to child: nesting. Becomes a directory on export.',
   relates_to: 'A plain association, carrying no structure.',
@@ -145,13 +147,19 @@ function ConnectKindControl({
         >
           <svg viewBox="0 0 28 8" className="h-2 w-6" aria-hidden>
             <path
-              d={kind === 'depends_on' ? 'M1 4 H22' : 'M1 4 H26'}
+              d={kind === 'depends_on' || kind === 'flows_to' ? 'M1 4 H22' : 'M1 4 H26'}
               stroke={value === kind ? 'var(--accent)' : 'var(--ink-muted)'}
               strokeWidth="1.4"
               fill="none"
-              strokeDasharray={kind === 'contains' ? '5 3' : kind === 'relates_to' ? '1 3' : undefined}
+              strokeDasharray={
+                kind === 'contains' || kind === 'depends_on'
+                  ? '5 3'
+                  : kind === 'relates_to'
+                    ? '1 3'
+                    : undefined
+              }
             />
-            {kind === 'depends_on' ? (
+            {kind === 'depends_on' || kind === 'flows_to' ? (
               <path d="M22 1.5 L27 4 L22 6.5 z" fill={value === kind ? 'var(--accent)' : 'var(--ink-muted)'} />
             ) : null}
           </svg>

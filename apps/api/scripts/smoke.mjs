@@ -209,9 +209,22 @@ async function main() {
     return response.json();
   };
 
+  let mcpId = 100;
+  const callTool = async (name, args) => {
+    mcpId += 1;
+    const response = await mcp({
+      jsonrpc: '2.0',
+      id: mcpId,
+      method: 'tools/call',
+      params: { name, arguments: args },
+    });
+    return response.result?.content?.[0]?.text ?? JSON.stringify(response.error ?? {});
+  };
+
   const tools = await mcp({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
   const names = (tools.result?.tools ?? []).map((tool) => tool.name).sort();
-  check('tools/list', names.length === 10, names.join(', '));
+  check('tools/list', names.length === 11, names.join(', '));
+  check('trace is offered', names.includes('trace'));
 
   const second = await call('/workspaces', { method: 'POST', token, body: { name: 'Second' } });
   check('a second workspace exists', typeof second.body.slug === 'string', second.body.slug ?? '');
@@ -309,6 +322,45 @@ async function main() {
   check('create_project',
     (newProject.result?.content?.[0]?.text ?? '').includes('drawn-by-an-agent'),
     newProject.result?.content?.[0]?.text ?? '');
+
+  section('following a flow');
+  // The reading tool the whole thing exists for: answer with the thread, not
+  // the document.
+  const flowPlan = await callTool('create_plan', {
+    title: 'Sign-in flow',
+    workspace: workspaces.body[0]?.slug,
+    nodes: [
+      { slug: 'login-page', title: 'Login page' },
+      { slug: 'login-api', title: 'POST /api/login' },
+      { slug: 'users', title: 'users table' },
+    ],
+    edges: [
+      { kind: 'flows_to', from: 'login-page', to: 'login-api', via: 'click Sign in', carries: '{ email, password }' },
+      { kind: 'flows_to', from: 'login-api', to: 'users', via: 'select by email' },
+      { kind: 'flows_to', from: 'users', to: 'login-api', carries: '{ id, hash }' },
+      { kind: 'flows_to', from: 'login-api', to: 'login-page', carries: '{ token }' },
+    ],
+  });
+  const flowPlanId = (flowPlan.match(/\/plan\/([a-z0-9]+)/) ?? [])[1];
+  check('a plan of flows is accepted', typeof flowPlanId === 'string', flowPlanId ?? flowPlan.slice(0, 80));
+
+  const traced = await callTool('trace', { planId: flowPlanId, from: 'Login page' });
+  check('trace finds a node by its title', traced.includes('Login page'));
+  check('and says what set each hop off', traced.includes('click Sign in'), traced.split('\n')[3] ?? '');
+  check('and what it carried', traced.includes('{ email, password }'));
+  check('and stops where the flow comes back on itself', traced.includes('already above'));
+
+  const upstream = await callTool('trace', {
+    planId: flowPlanId,
+    from: 'users',
+    direction: 'upstream',
+  });
+  check('trace walks the other way too', upstream.includes('login-page'));
+
+  const missing = await callTool('trace', { planId: flowPlanId, from: 'nothing-like-this' });
+  check('and says so when the name is unknown', missing.toLowerCase().includes('nothing in this plan'));
+
+  await callTool('delete_plan', { planId: flowPlanId, confirmTitle: 'Sign-in flow' });
 
   section('sharing');
   const share = await call(`/plans/${planId}/share`, { method: 'POST', token, body: {} });

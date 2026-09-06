@@ -118,10 +118,15 @@ export async function layoutPlan(
     });
 
   const edges = doc.edges
-    .filter((edge) => edge.kind === 'depends_on')
+    .filter((edge) => edge.kind === 'flows_to' || edge.kind === 'depends_on')
     .filter((edge) => graph.nodes.has(edge.from) && graph.nodes.has(edge.to))
-    // Source is the dependency so the layered direction reads as build order.
-    .map((edge) => ({ id: edge.id, sources: [edge.to], targets: [edge.from] }));
+    // A flow is laid out the way it moves. A dependency is laid out from what is
+    // needed towards what needs it, which reads the same way across the page.
+    .map((edge) =>
+      edge.kind === 'flows_to'
+        ? { id: edge.id, sources: [edge.from], targets: [edge.to] }
+        : { id: edge.id, sources: [edge.to], targets: [edge.from] },
+    );
 
   const laid = await elk.layout({
     id: 'root',

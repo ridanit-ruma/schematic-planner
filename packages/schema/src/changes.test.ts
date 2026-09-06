@@ -9,7 +9,7 @@ function plan(): PlanDoc {
   return applyPlanOps(emptyPlanDoc('p', 'Plan'), [
     { op: 'upsert_node', node: { slug: 'alpha', title: 'Alpha', position: { x: 0, y: 0 } } },
     { op: 'upsert_node', node: { slug: 'beta', title: 'Beta', position: { x: 10, y: 0 } } },
-    { op: 'upsert_edge', edge: { kind: 'depends_on', from: 'beta', to: 'alpha', label: null } },
+    { op: 'upsert_edge', edge: { kind: 'depends_on', from: 'beta', to: 'alpha', label: null, via: null, carries: null } },
   ]);
 }
 

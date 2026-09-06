@@ -3,21 +3,27 @@ import { Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
+import { Select } from '@/components/ui/select';
 
 export const EDGE_LABEL: Record<PlanEdgeKind, string> = {
+  flows_to: 'Flows to',
   depends_on: 'Depends on',
   contains: 'Contains',
   relates_to: 'Relates to',
 };
 
 const EDGE_MEANING: Record<PlanEdgeKind, string> = {
+  flows_to: 'Control or data moves this way. A reply is its own flow, pointing back.',
   depends_on: 'Orders the two. Becomes the number on each filename when you export.',
   contains: 'Nests one inside the other. Becomes a directory when you export.',
   relates_to: 'A plain association. Carries no structure.',
 };
 
-const select =
-  'w-full rounded-[2px] border border-rule bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none';
+const KIND_OPTIONS = planEdgeKinds.map((kind) => ({
+  value: kind,
+  label: EDGE_LABEL[kind],
+  hint: EDGE_MEANING[kind],
+}));
 
 /**
  * Changing the kind is a delete and a create, because an edge is identified by
@@ -35,15 +41,22 @@ export function EdgeInspector({
   onApplyOps: (ops: PlanOp[]) => void;
   onClose: () => void;
 }) {
-  const change = (next: Partial<Pick<PlanEdge, 'kind' | 'label'>>): void => {
-    const kind = next.kind ?? edge.kind;
-    const label = next.label === undefined ? edge.label : next.label;
+  const change = (next: Partial<Pick<PlanEdge, 'kind' | 'label' | 'via' | 'carries'>>): void => {
+    const merged = {
+      kind: next.kind ?? edge.kind,
+      label: next.label === undefined ? edge.label : next.label,
+      via: next.via === undefined ? edge.via : next.via,
+      carries: next.carries === undefined ? edge.carries : next.carries,
+    };
 
     onApplyOps([
-      { op: 'delete_edge', kind: edge.kind, from: edge.from, to: edge.to },
-      { op: 'upsert_edge', edge: { kind, from: edge.from, to: edge.to, label } },
+      { op: 'delete_edge', kind: edge.kind, from: edge.from, to: edge.to, via: edge.via },
+      { op: 'upsert_edge', edge: { from: edge.from, to: edge.to, ...merged } },
     ]);
   };
+
+  const blank = (value: string): string | null => (value.trim() === '' ? null : value);
+  const isFlow = edge.kind === 'flows_to';
 
   return (
     <aside className="flex w-80 shrink-0 flex-col border-l border-rule bg-surface">
@@ -63,34 +76,54 @@ export function EdgeInspector({
 
         <Field label="Meaning" hint={EDGE_MEANING[edge.kind]}>
           {(id) => (
-            <select
+            <Select
               id={id}
-              className={select}
               value={edge.kind}
+              options={KIND_OPTIONS}
               disabled={readOnly}
-              onChange={(event) => change({ kind: event.target.value as PlanEdgeKind })}
-            >
-              {planEdgeKinds.map((kind) => (
-                <option key={kind} value={kind}>
-                  {EDGE_LABEL[kind]}
-                </option>
-              ))}
-            </select>
-          )}
-        </Field>
-
-        <Field label="Label" hint="Drawn on the line. Optional.">
-          {(id) => (
-            <Input
-              id={id}
-              value={edge.label ?? ''}
-              disabled={readOnly}
-              onChange={(event) =>
-                change({ label: event.target.value === '' ? null : event.target.value })
-              }
+              onChange={(kind) => change({ kind })}
             />
           )}
         </Field>
+
+        {isFlow ? (
+          <>
+            <Field label="Set off by" hint="What starts it: a click, a route, a request, a timer.">
+              {(id) => (
+                <Input
+                  id={id}
+                  value={edge.via ?? ''}
+                  disabled={readOnly}
+                  placeholder="click Sign in"
+                  onChange={(event) => change({ via: blank(event.target.value) })}
+                />
+              )}
+            </Field>
+
+            <Field label="Carries" hint="What travels along it: a payload, a record, a return value.">
+              {(id) => (
+                <Input
+                  id={id}
+                  value={edge.carries ?? ''}
+                  disabled={readOnly}
+                  placeholder="{ email, password }"
+                  onChange={(event) => change({ carries: blank(event.target.value) })}
+                />
+              )}
+            </Field>
+          </>
+        ) : (
+          <Field label="Label" hint="Drawn on the line. Optional.">
+            {(id) => (
+              <Input
+                id={id}
+                value={edge.label ?? ''}
+                disabled={readOnly}
+                onChange={(event) => change({ label: blank(event.target.value) })}
+              />
+            )}
+          </Field>
+        )}
       </div>
 
       {!readOnly && (
@@ -101,7 +134,7 @@ export function EdgeInspector({
             className="w-full"
             onClick={() => {
               onApplyOps([
-                { op: 'delete_edge', kind: edge.kind, from: edge.from, to: edge.to },
+                { op: 'delete_edge', kind: edge.kind, from: edge.from, to: edge.to, via: edge.via },
               ]);
               onClose();
             }}

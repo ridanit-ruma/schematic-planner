@@ -18,11 +18,16 @@ export const planNodeStatuses = [
 export type PlanNodeStatus = (typeof planNodeStatuses)[number];
 
 /**
+ * `flows_to` is the one that draws the system: control or data moves from one
+ * node to the next, in the direction it actually moves. A request and its reply
+ * are two of them, pointing opposite ways.
+ *
  * `contains` nests one node inside another and becomes directory structure on
- * export. `depends_on` orders siblings and becomes the numeric filename prefix.
+ * export. `depends_on` orders siblings and becomes the numeric filename prefix —
+ * it says what must exist first, which is not the same as what calls what.
  * `relates_to` is a plain association carrying no structural meaning.
  */
-export const planEdgeKinds = ['contains', 'depends_on', 'relates_to'] as const;
+export const planEdgeKinds = ['flows_to', 'contains', 'depends_on', 'relates_to'] as const;
 export type PlanEdgeKind = (typeof planEdgeKinds)[number];
 
 export const slugSchema = z
@@ -60,9 +65,28 @@ export type PlanNode = z.infer<typeof planNodeSchema>;
 /**
  * Edge identity is derived from its endpoints rather than generated, so the same
  * relationship submitted twice collapses to one edge instead of duplicating.
+ *
+ * What triggers a flow is part of that identity: one screen may reach the same
+ * endpoint from two different buttons, and those are two flows, not one.
  */
-export function edgeId(kind: PlanEdgeKind, from: string, to: string): string {
-  return `${kind}:${from}>${to}`;
+export function edgeId(
+  kind: PlanEdgeKind,
+  from: string,
+  to: string,
+  via: string | null = null,
+): string {
+  const trigger = via === null || via.trim() === '' ? '' : `#${fingerprint(via)}`;
+  return `${kind}:${from}>${to}${trigger}`;
+}
+
+/** A short, stable stand-in for a trigger, so an id stays inside its limit. */
+function fingerprint(value: string): string {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 export const planEdgeSchema = z.object({
@@ -71,6 +95,10 @@ export const planEdgeSchema = z.object({
   from: slugSchema,
   to: slugSchema,
   label: z.string().max(120).nullable().default(null),
+  /** What sets this flow off: a click, a route change, a request, a timer. */
+  via: z.string().max(200).nullable().default(null),
+  /** What travels along it: a payload, a record, an event, a return value. */
+  carries: z.string().max(400).nullable().default(null),
 });
 export type PlanEdge = z.infer<typeof planEdgeSchema>;
 
@@ -80,16 +108,22 @@ export const planEdgeInputSchema = z.object({
   from: slugSchema,
   to: slugSchema,
   label: z.string().max(120).nullable().default(null),
+  /** What sets this flow off: a click, a route change, a request, a timer. */
+  via: z.string().max(200).nullable().default(null),
+  /** What travels along it: a payload, a record, an event, a return value. */
+  carries: z.string().max(400).nullable().default(null),
 });
 export type PlanEdgeInput = z.input<typeof planEdgeInputSchema>;
 
 export function normalizeEdge(input: z.infer<typeof planEdgeInputSchema>): PlanEdge {
   return {
-    id: input.id ?? edgeId(input.kind, input.from, input.to),
+    id: input.id ?? edgeId(input.kind, input.from, input.to, input.via),
     kind: input.kind,
     from: input.from,
     to: input.to,
     label: input.label,
+    via: input.via,
+    carries: input.carries,
   };
 }
 

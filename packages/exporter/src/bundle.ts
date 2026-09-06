@@ -99,7 +99,7 @@ export function exportPlan(doc: PlanDoc, options: ExportOptions = {}): ExportBun
   for (const [slug, path] of fileOf) {
     const node = graph.nodes.get(slug);
     if (node === undefined) continue;
-    files.push({ path, content: nodeToMarkdown(node, graph) });
+    files.push({ path, content: nodeToMarkdown(node, graph, doc.edges) });
   }
 
   if (options.canvas !== false) {

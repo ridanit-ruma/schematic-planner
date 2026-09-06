@@ -4,3 +4,4 @@ export * from './graph.js';
 export * from './sanitize.js';
 export * from './ops.js';
 export * from './changes.js';
+export * from './trace.js';

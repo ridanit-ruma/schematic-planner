@@ -1,14 +1,14 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { exportPlan } from '@schematic/exporter';
-import { normalizeEdge, planEdgeInputSchema, planOpsSchema } from '@schematic/schema';
+import { findNode, normalizeEdge, planEdgeInputSchema, planOpsSchema, tracePlan } from '@schematic/schema';
 
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { PlansService } from '../plans/plans.service.js';
 import { ProjectsService } from '../projects/projects.service.js';
 import { WorkspacesService } from '../workspaces/workspaces.service.js';
 import type { McpIdentity } from './api-key.service.js';
-import { renderPlan } from './render.js';
+import { renderPlan, renderTrace } from './render.js';
 import {
   applyOpsShape,
   createPlanShape,
@@ -16,6 +16,7 @@ import {
   deletePlanShape,
   exportPlanShape,
   getPlanShape,
+  traceShape,
   layoutShape,
   listPlansShape,
   listProjectsShape,
@@ -57,9 +58,18 @@ export class McpFactory {
       { name: 'schematic-planner', version: '0.1.0' },
       {
         instructions:
-          'Turn a written plan into a diagram. Declare structure only — never coordinates; ' +
-          'the server lays the graph out. Refer to nodes by slug. Create a whole plan with ' +
-          'create_plan, then change it with apply_ops, which is batched and applied atomically.',
+          'Draw how a system works, so that a person and an agent can both read it.\n\n' +
+          'The point of this tool is the flow: which part hands to which, what sets each ' +
+          'hand-off off, and what travels along it. A plan whose edges are all `contains` ' +
+          'is a nested list in a different shape and says nothing a heading could not — if ' +
+          'you find yourself drawing one, you have transcribed the source instead of ' +
+          'reading it.\n\n' +
+          'Nodes are the parts. Their `kind` is deliberately generic, because a flow is a ' +
+          'flow whether the parts are screens and endpoints, stages in a pipeline, or steps ' +
+          'in a process — say what a part is in its title and body.\n\n' +
+          'Declare structure only, never coordinates: the server lays the graph out. Refer ' +
+          'to nodes by slug. Build a plan with create_plan, change it with apply_ops, and ' +
+          'read one with trace rather than pulling the whole document.',
       },
     );
 
@@ -141,10 +151,40 @@ export class McpFactory {
     );
 
     server.registerTool(
+      'trace',
+      {
+        title: 'Follow a flow',
+        description:
+          'Follow the flow through one part of a plan: what a node reaches, or what reaches ' +
+          'it, hop by hop, with what sets each hop off and what it carries. Prefer this over ' +
+          'get_plan when you want to understand how something works — it answers with the ' +
+          'thread rather than the whole document. Cycles are reported and not followed twice.',
+        inputSchema: traceShape,
+      },
+      async ({ planId, from, direction, depth }) => {
+        try {
+          const doc = await this.plans.read(identity.userId, planId);
+          const start = findNode(doc, from);
+          if (start === null) {
+            return failure(
+              `Nothing in this plan is called "${from}". Names are matched by slug, then title, ` +
+                'then tag. Use get_plan with view "outline" to see what is there.',
+            );
+          }
+          return text(renderTrace(tracePlan(doc, start, { direction, depth })));
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
       'get_plan',
       {
         title: 'Read a plan',
-        description: 'Read a plan. Positions and styling are never included.',
+        description:
+          'The whole plan at once. For understanding how one part works, trace is the better ' +
+          'tool: it answers with the thread instead of the document. Positions are never included.',
         inputSchema: getPlanShape,
       },
       async ({ planId, view }) => {
@@ -161,8 +201,16 @@ export class McpFactory {
       {
         title: 'Create a plan',
         description:
-          'Create a plan from a whole structure in one call. This is the path for turning ' +
-          'a plan you have already written into a diagram.',
+          'Create a plan in one call: the nodes, and the flows between them.\n\n' +
+          'Draw how the thing works, not a list of what to do. A node is a part of the ' +
+          'system — a screen, a route, an endpoint, a function, a table, a job, an outside ' +
+          'service. A flows_to edge is control or data moving from one to the next, in the ' +
+          'direction it moves, saying what sets it off (via) and what it takes along ' +
+          '(carries). A reply is its own flows_to pointing back.\n\n' +
+          'If the source material is a list — a backlog, a kanban board, a set of headings — ' +
+          'it will not contain these connections, and copying it across produces the same ' +
+          'list with boxes around it. Work out what calls, sends or navigates to what, and ' +
+          'draw that.',
         inputSchema: createPlanShape,
       },
       async ({ title, description, workspace, projectSlug, nodes, edges }) => {

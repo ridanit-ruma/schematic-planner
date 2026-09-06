@@ -41,6 +41,8 @@ export const planOpSchema = z.discriminatedUnion('op', [
     kind: z.enum(planEdgeKinds).default('depends_on'),
     from: slugSchema.optional(),
     to: slugSchema.optional(),
+    /** Needed to name one of several flows between the same pair of nodes. */
+    via: z.string().max(200).nullable().optional(),
   }),
   z.object({
     op: z.literal('set_plan'),
@@ -95,7 +97,7 @@ function resolveEdgeId(op: Extract<PlanOp, { op: 'delete_edge' }>): string {
   if (op.from === undefined || op.to === undefined) {
     throw new PlanOpError('delete_edge needs either an id or both from and to');
   }
-  return edgeId(op.kind, op.from, op.to);
+  return edgeId(op.kind, op.from, op.to, op.via ?? null);
 }
 
 /**

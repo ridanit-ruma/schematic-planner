@@ -99,6 +99,17 @@ export function toCanvas(
         toSide: 'top',
         ...(edge.label !== null && { label: edge.label }),
       });
+    } else if (edge.kind === 'flows_to') {
+      // The way it moves, labelled with what sets it off or what it carries.
+      const note = edge.label ?? edge.via ?? edge.carries;
+      edges.push({
+        id: edge.id,
+        fromNode: edge.from,
+        fromSide: 'right',
+        toNode: edge.to,
+        toSide: 'left',
+        ...(note !== null && { label: note }),
+      });
     } else if (edge.kind === 'depends_on') {
       // Drawn dependency-first so the arrows read in build order.
       edges.push({

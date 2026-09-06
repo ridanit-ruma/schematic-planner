@@ -20,11 +20,35 @@ export const agentNodeSchema = z.object({
 export const agentEdgeSchema = z.object({
   kind: z
     .enum(planEdgeKinds)
-    .default('depends_on')
-    .describe('contains = nesting (becomes directories on export); depends_on = ordering'),
+    .default('flows_to')
+    .describe(
+      'flows_to = control or data moves from `from` to `to`, in the direction it moves. ' +
+        'This is the one that draws the system; a reply is a second flows_to pointing back. ' +
+        'contains = nesting (becomes directories on export). ' +
+        'depends_on = what must exist first, which is NOT what calls what. ' +
+        'relates_to = a plain association carrying no structure.',
+    ),
   from: slugSchema,
   to: slugSchema,
   label: z.string().max(120).nullable().default(null),
+  via: z
+    .string()
+    .max(200)
+    .nullable()
+    .default(null)
+    .describe(
+      'What sets this flow off, on a flows_to edge. A click, a route change, a request, ' +
+        'a timer, a message. e.g. "click Sign in", "POST /api/login", "on save".',
+    ),
+  carries: z
+    .string()
+    .max(400)
+    .nullable()
+    .default(null)
+    .describe(
+      'What travels along a flows_to edge: a payload, a record, an event, a return value. ' +
+        'e.g. "{ email, password }", "the signed token", "rows matching the filter".',
+    ),
 });
 
 export const planViewSchema = z
@@ -54,6 +78,22 @@ export const createPlanShape = {
   description: z.string().max(2000).default(''),
   nodes: z.array(agentNodeSchema).max(2000).default([]),
   edges: z.array(agentEdgeSchema).max(5000).default([]),
+};
+
+export const traceShape = {
+  planId: z.string().min(1),
+  from: z
+    .string()
+    .min(1)
+    .max(200)
+    .describe('Where to start: a slug, a title, or a tag. e.g. "login-page", "POST /api/login"'),
+  direction: z
+    .enum(['downstream', 'upstream', 'both'])
+    .default('downstream')
+    .describe(
+      'downstream = what this reaches; upstream = what reaches this; both = the whole thread',
+    ),
+  depth: z.coerce.number().int().min(1).max(20).default(6).describe('How many hops to follow'),
 };
 
 export const getPlanShape = {

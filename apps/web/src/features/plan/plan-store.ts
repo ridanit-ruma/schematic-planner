@@ -72,15 +72,17 @@ function toFlowNode(
 
 function toFlowEdge(edge: PlanEdge): PlanFlowEdge {
   // Dependencies point from what is needed to what needs it, so the arrows read
-  // in build order — the same direction the export numbers files in.
+  // in build order — the same direction the export numbers files in. A flow is
+  // drawn the way it actually moves, which is the whole of what it says.
   const [source, target] = edge.kind === 'depends_on' ? [edge.to, edge.from] : [edge.from, edge.to];
+  const note = edge.kind === 'flows_to' ? (edge.via ?? edge.carries) : edge.label;
   return {
     id: edge.id,
     source,
     target,
     type: 'plan',
     data: { edge },
-    ...(edge.label !== null && { label: edge.label }),
+    ...(note !== null && { label: note }),
   };
 }
 
@@ -92,7 +94,7 @@ export function createPlanStore(doc: Y.Doc) {
     description: '',
     selected: null,
     selectedEdge: null,
-    connectKind: 'depends_on',
+    connectKind: 'flows_to',
     peers: [],
     remoteDrag: {},
     absolute: {},
