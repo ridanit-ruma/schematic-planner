@@ -122,6 +122,30 @@ PlanDoc snapshot (jsonb)            ← the READ model.
   permissions, one container. Splitting it out is a scaling decision to make when load
   actually shows it, not before.
 
+### Where things live
+
+```
+Workspace           people, roles, invitations, and the API keys agents connect with
+  └─ Project        one thing being built
+       └─ Plan      one graph
+```
+
+A workspace and a project are addressed by a readable slug; a plan is not, and
+sits at the top level:
+
+```
+/                                  the site
+/workspace/acme                    projects
+/workspace/acme/project/billing    plans
+/workspace/acme/members  /agents  /settings
+/plan/:planId                      the canvas
+/share/:token                      read only, no session
+/settings                          your account
+```
+
+A plan link is the thing people paste to each other, so it stays flat: renaming
+a workspace or a project must not break a link somebody saved.
+
 ### Plan vocabulary
 
 `packages/schema` is the plan domain: the zod schemas every app imports, the graph
@@ -157,9 +181,10 @@ at once.
 
 | Tool | Purpose |
 |---|---|
-| `list_plans()` | Plans visible in the caller's workspaces |
+| `list_plans()` | Plans in the caller's workspace, grouped by project |
+| `list_projects()` | Projects in the workspace the key belongs to |
 | `get_plan(id, { view })` | `view`: `outline` \| `graph` \| `markdown`. Positions and styling are excluded by default to keep responses small |
-| `create_plan(workspaceId, spec)` | Whole structure in one shot — the path for "the agent already wrote a plan, now draw it" |
+| `create_plan(spec)` | Whole structure in one shot — the path for "the agent already wrote a plan, now draw it". Takes an optional project slug; without one the workspace default is used |
 | `apply_ops(id, ops[])` | The only write door. Upsert by slug, so retries never duplicate |
 | `layout(id, { scope })` | Re-run layout over everything that is not pinned |
 | `export_plan(id)` | Markdown tree plus `.canvas` |
@@ -199,8 +224,8 @@ pnpm workspaces, orchestrated by Turborepo.
 ```
 apps/
   api/          NestJS + Prisma + Postgres
-                auth · workspaces · plans · sharing · API keys
-                Hocuspocus sync gateway · Remote MCP endpoint
+                auth · workspaces · projects · plans · sharing · API keys
+                rate limiting · Hocuspocus sync gateway · Remote MCP endpoint
   web/          React + Vite + TypeScript — the application itself
                 React Flow + shadcn/ui, client-side rendered
   www/          Next.js — landing, docs, guides, legal
@@ -212,6 +237,7 @@ packages/
   layout/       ELK.js auto-layout. Shared by the web "arrange" button and the MCP
                 layout tool, so the two can never disagree
   exporter/     PlanDoc → directory tree → zip + .canvas. Pure, no I/O
+deploy/         Caddyfile, the web image, and the production Compose file
 tooling/        shared tsconfig and eslint configuration
 ```
 
@@ -240,9 +266,11 @@ Use this order when deciding where something belongs:
 2. **Is it a pure transform over a plan?** → `packages/exporter` or `packages/layout`
 3. **Does it change how the collaborative document is structured?** → `packages/ydoc`,
    and remember both clients now depend on it
-4. **Does it need a database, a request, or a session?** → `apps/api`
-5. **Is it something a person looks at and clicks?** → `apps/web`
-6. **Does it need to be found by Google?** → `apps/www`
+4. **Is it an authorisation decision?** → `apps/api/src/workspaces/access.service.ts`,
+   which is the only place that decides who may see what
+5. **Does it need a database, a request, or a session?** → `apps/api`
+6. **Is it something a person looks at and clicks?** → `apps/web`
+7. **Does it need to be found by Google?** → `apps/www`
 
 If a change seems to need code in both `apps/web` and `apps/api`, that is usually a
 sign it belongs in a package instead.
@@ -295,6 +323,19 @@ pnpm dev                                   # api, web and www together
 The API is at `http://localhost:3001`, the app at `http://localhost:5173`, the
 marketing site at `http://localhost:3000`.
 
+### Deploying
+
+```bash
+cp .env.example .env       # set SITE_URL and the two JWT secrets
+docker compose -f deploy/compose.yaml up -d --build
+```
+
+Three containers behind one address: Postgres, the API, and Caddy serving both
+front ends and proxying `/api/*`. **One origin is a deliberate choice, not a
+convenience** — it makes the session cookie same-site, which removes CORS and
+cross-site cookie rules from the picture instead of configuring around them.
+Migrations run to completion in their own container before the API starts.
+
 | Script | Does |
 |---|---|
 | `pnpm dev` | All apps in watch mode |
@@ -345,58 +386,54 @@ authentication, or the MCP surface.
 
 **Pre-alpha, and specific about what has been exercised.**
 
-`pnpm check` runs 104 tests across 25 tasks and passes. Beyond that, the whole
-stack has been run against a real Postgres instance and driven end to end:
+`pnpm check` runs 106 tests across 25 tasks. Beyond that the stack runs against a
+real Postgres instance and is driven end to end by `pnpm --filter @schematic/api
+smoke`, whose 42 assertions cover registration, the access-token guard, projects,
+batched operations, rejection of an invalid batch, layout, the export zip, the
+MCP surface behind a real key, share links, the permission boundary, workspace
+and account management, throttling, and two live clients converging on one
+document with their edits merging.
 
-- **The smoke check passes**, all 27 assertions — registration, the access-token
-  guard, batched operations, rejection of an invalid batch, layout, the export
-  zip, the MCP surface behind a real key, share links, the permission boundary,
-  and two live clients converging on one document with their edits merging.
-- **The screens have been looked at.** The canvas, sign-in, landing page and docs
-  were rendered and reviewed.
+Every screen has been rendered and reviewed.
 
-That first run found real defects, all since fixed: the collaboration socket was
-never fed frames so every client sat connected and silent; a rejected batch
-answered 500 instead of 400; nodes added by an agent arrived unplaced; the export
-was not actually reproducible; the canvas rendered nothing on a shared link; and
-containers were drawn on top of their own children.
+Running it for the first time is what found the real defects — the collaboration
+socket was never fed frames so every client sat connected and silent; the canvas
+rendered nothing on a shared link; containers were drawn on top of their own
+children; a rejected batch answered 500; nodes added by an agent arrived
+unplaced; the export was not reproducible. All fixed, all now covered.
 
-Still not done:
+Still missing:
 
 - **Social sign-in is configured but not implemented.** `/auth/providers` reports
   which providers an instance holds credentials for; the callback routes are not
   written. Email and password work.
-- **No deployment.** There is a Compose file for a local Postgres, but no image
-  build and no production Compose file yet.
-- **The editor has had no real use.** Dragging, the inspector, and multi-person
-  editing work in principle and are covered by the smoke check at the protocol
-  level, but nobody has sat and planned something with them.
-
-To run it:
-
-```bash
-docker compose up -d postgres
-pnpm --filter @schematic/api db:deploy
-pnpm dev
-```
+- **No email is ever sent.** An invitation produces a link you send yourself, and
+  an email address cannot be changed because there is nothing to verify it with.
+- **The containers have never been built.** The machine this was developed on has
+  no working container runtime. The Caddy routing is verified against a real
+  Caddy; the images are not.
+- **Rate limiting is per instance.** The counters live in memory, so several API
+  instances each get their own allowance. A shared store is the fix when there is
+  more than one.
+- **The editor has had little real use.** It works and is covered at the protocol
+  level, but nobody has sat and planned something substantial with it.
 
 ## Roadmap
 
-- [x] Monorepo scaffold, shared tooling, `packages/schema`
-- [x] `packages/exporter` — Markdown tree, `.canvas`, zip
-- [x] `packages/layout` — ELK.js wrapper
-- [x] `packages/ydoc` and the Hocuspocus gateway — real-time collaboration
-- [x] `apps/api` — auth, workspaces, plans, Prisma schema
-- [x] `apps/web` — React Flow canvas, node editing, inspector
-- [x] Remote MCP endpoint and API key management
-- [x] Share links and workspace invitations
-- [x] `apps/www` — landing, docs, legal
+- [x] The pure packages: schema, exporter, layout, ydoc
+- [x] API, canvas, real-time collaboration, Remote MCP, export, sharing
 - [x] Run it against a real database and fix what that finds
 - [x] An end-to-end smoke check covering the seams unit tests cannot reach
+- [x] Rate limiting on anything that answers a guess
+- [x] Workspace > Project > Plan, with readable addresses
+- [x] Member, invitation, workspace and account management
+- [x] Connections that can be created, changed and removed on the canvas
+- [x] One origin behind a reverse proxy, in containers
+- [ ] Build and run the images
 - [ ] GitHub and Google sign-in callbacks
-- [ ] Docker Compose deployment for self-hosting
+- [ ] Email: invitations, address changes, password reset
 - [ ] Import: read an exported bundle back into a plan (the exporter, reversed)
-- [ ] Containment drawn as canvas groups rather than dashed edges
+- [ ] Undo and redo on the canvas
 - [ ] Plan version history and restore
 
 ## Non-goals
