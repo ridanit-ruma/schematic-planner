@@ -52,7 +52,7 @@ export class AuthController {
    */
   @Post('me/avatar')
   async setAvatar(@CurrentUser() user: AuthUser, @Req() request: Request) {
-    return this.avatars.replace(user.id, request.body as Buffer);
+    return this.avatars.replace(user.id, await this.avatars.read(request));
   }
 
   @Delete('me/avatar')

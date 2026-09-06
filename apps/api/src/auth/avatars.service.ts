@@ -1,4 +1,5 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, PayloadTooLargeException } from '@nestjs/common';
+import type { Readable } from 'node:stream';
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
@@ -31,11 +32,28 @@ export class AvatarsService {
     this.dir = resolve(config.uploads.dir, 'avatars');
   }
 
+  /**
+   * Reads the request body itself rather than through a body parser: nothing
+   * else in this API is handed bytes, and the size limit then lives beside the
+   * other rules about what an avatar may be. Oversize input is refused while it
+   * is still arriving instead of after it has all been held in memory.
+   */
+  async read(stream: Readable): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of stream) {
+      const part = chunk as Buffer;
+      size += part.length;
+      if (size > this.config.uploads.avatarMaxBytes) {
+        throw new PayloadTooLargeException('That image is too large');
+      }
+      chunks.push(part);
+    }
+    return Buffer.concat(chunks);
+  }
+
   async replace(userId: string, body: Buffer): Promise<{ avatarUrl: string }> {
     if (body.length === 0) throw new BadRequestException('No image was sent');
-    if (body.length > this.config.uploads.avatarMaxBytes) {
-      throw new BadRequestException('That image is too large');
-    }
     if (!body.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
       throw new BadRequestException('Only PNG is accepted');
     }
@@ -65,7 +83,7 @@ export class AvatarsService {
   }
 
   /** Reads one stored avatar. The name is checked rather than trusted. */
-  async read(name: string): Promise<Buffer | null> {
+  async load(name: string): Promise<Buffer | null> {
     if (!NAME.test(name)) return null;
     return readFile(join(this.dir, name)).catch(() => null);
   }

@@ -16,7 +16,7 @@ export class AvatarsController {
   @Public()
   @Get(':name')
   async read(@Param('name') name: string, @Res() response: Response): Promise<void> {
-    const file = await this.avatars.read(name);
+    const file = await this.avatars.load(name);
     if (file === null) throw new NotFoundException('No such image');
 
     // The type is stated rather than guessed, and sniffing is refused: the
