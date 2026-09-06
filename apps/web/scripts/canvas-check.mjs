@@ -238,6 +238,59 @@ try {
     check('and nothing is left straddling the edge', inside(await rectOf(loose), await rectOf(group)));
   }
 
+  console.log('\na group inside a group');
+  const outer = group;
+  const innerGroup = containers.find((slug) => slug !== outer);
+  if (innerGroup !== undefined) {
+    const outerBox = await rectOf(outer);
+    const innerBox = await rectOf(innerGroup);
+    // Only the label row of a group takes events, at either end of the drag.
+    await drag(
+      { x: innerBox.x + innerBox.width / 2, y: innerBox.y + 12 },
+      { x: outerBox.x + outerBox.width / 2, y: outerBox.y + outerBox.height - 40 },
+    );
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await wait(4500);
+
+    check('a group can be dropped into a group', inside(await rectOf(innerGroup), await rectOf(outer)));
+
+    // What the inner group holds has to come along for both moves at once.
+    const nestedChild = await page.$$eval('.react-flow__node', (list) =>
+      list.map((n) => n.getAttribute('data-id')),
+    );
+    let grandchild = null;
+    const innerNow = await rectOf(innerGroup);
+    for (const slug of nestedChild) {
+      if (slug === innerGroup || slug === outer) continue;
+      if (inside(await rectOf(slug), innerNow)) {
+        grandchild = slug;
+        break;
+      }
+    }
+    check('the inner group still holds its own', grandchild !== null, grandchild ?? '');
+
+    if (grandchild !== null) {
+      const outerWas = await rectOf(outer);
+      const innerWas = await rectOf(innerGroup);
+      const deepWas = await rectOf(grandchild);
+      await drag(
+        { x: outerWas.x + outerWas.width / 2, y: outerWas.y + 12 },
+        { x: outerWas.x + outerWas.width / 2 - 120, y: outerWas.y + 12 + 90 },
+      );
+      const outerIs = await rectOf(outer);
+      const shift = { x: outerIs.x - outerWas.x, y: outerIs.y - outerWas.y };
+      const innerIs = await rectOf(innerGroup);
+      const deepIs = await rectOf(grandchild);
+      check(
+        'moving the outer group carries the inner one and its contents',
+        Math.abs(innerIs.x - innerWas.x - shift.x) < 2 &&
+          Math.abs(deepIs.x - deepWas.x - shift.x) < 2 &&
+          Math.abs(deepIs.y - deepWas.y - shift.y) < 2,
+        `outer ${Math.round(shift.x)},${Math.round(shift.y)}`,
+      );
+    }
+  }
+
   console.log('\ndrawing a connection');
   await page.click('button[title^="Contains"]');
   await wait(300);
