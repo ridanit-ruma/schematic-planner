@@ -72,16 +72,22 @@ try {
   // Wrapping a link in a tooltip hands it the tooltip's props, and a className
   // written as a function is merged into nonsense — the whole rail lost its
   // styling that way once, silently.
-  const rail = await page.evaluate(() => {
-    const rows = [...document.querySelectorAll('aside a[href^="/workspace/"], aside a[href^="/settings"]')];
+  const railRows = await page.evaluate(() => {
+    const rows = [
+      ...document.querySelectorAll('aside a[href^="/workspace/"], aside a[href^="/settings"]'),
+    ];
     return {
       rows: rows.length,
       tallEnough: rows.filter((row) => row.getBoundingClientRect().height >= 28).length,
       active: rows.filter((row) => row.classList.contains('active')).length,
     };
   });
-  check('the rail draws its rows', rail.rows > 0 && rail.tallEnough === rail.rows, `${rail.tallEnough}/${rail.rows} at full height`);
-  check('and marks exactly one of them', rail.active === 1, `${rail.active} active`);
+  check(
+    'the rail draws its rows',
+    railRows.rows > 0 && railRows.tallEnough === railRows.rows,
+    `${railRows.tallEnough}/${railRows.rows} at full height`,
+  );
+  check('and marks exactly one of them', railRows.active === 1, `${railRows.active} active`);
 
   console.log('\nthe canvas');
   // Workspace, then project, then plan — the hierarchy the addresses describe.
