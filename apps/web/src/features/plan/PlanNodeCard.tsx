@@ -31,13 +31,16 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
   // of its own first child.
   if (childCount > 0) {
     return (
+      /* The body is click-through so that the nodes inside stay reachable; the
+         label row and the two terminals take events back. Without this a
+         container would swallow every click over its own area. */
       <div
         className={cn(
-          'h-full w-full rounded-[2px] border-[1.5px] border-rule-strong bg-surface-2/50',
+          'pointer-events-none h-full w-full rounded-[2px] border-[1.5px] border-rule-strong bg-surface-2/50',
           selected === true && 'border-accent',
         )}
       >
-        <div className="flex items-center gap-2 px-3 py-2">
+        <div className="pointer-events-auto flex items-center gap-2 px-3 py-2">
           <span
             aria-hidden
             className="h-3.5 w-1 shrink-0"
@@ -50,12 +53,12 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
         <Handle
           type="target"
           position={HandlePosition.Left}
-          className="!size-2 !rounded-none !border !border-rule-strong !bg-surface"
+          className="pointer-events-auto !size-2 !rounded-none !border !border-rule-strong !bg-surface"
         />
         <Handle
           type="source"
           position={HandlePosition.Right}
-          className="!size-2 !rounded-none !border !border-rule-strong !bg-surface"
+          className="pointer-events-auto !size-2 !rounded-none !border !border-rule-strong !bg-surface"
         />
       </div>
     );

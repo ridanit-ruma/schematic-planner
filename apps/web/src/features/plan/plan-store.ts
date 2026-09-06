@@ -38,9 +38,10 @@ function toFlowNode(node: PlanNode, childCount: number): PlanFlowNode {
     type: 'plan',
     position: node.position ?? { x: 0, y: 0 },
     data: { node, childCount },
-    // A container is drawn at the bounds layout gave it and sits behind the
-    // nodes it holds; anything else is a fixed-size card.
-    ...(isContainer && { zIndex: -1 }),
+    // A container paints below the nodes it holds, but not below the edge layer:
+    // a negative index put it behind the edges, and its own handles then could
+    // not be reached at all. Its body is click-through instead — see PlanNodeCard.
+    zIndex: isContainer ? 0 : 1,
     ...(isContainer &&
       node.size !== null && {
         style: { width: node.size.width, height: node.size.height },
