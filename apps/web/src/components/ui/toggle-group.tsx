@@ -1,5 +1,5 @@
 import { ToggleGroup as Primitive } from 'radix-ui';
-import type { ReactNode } from 'react';
+import type { ComponentPropsWithRef, ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -36,23 +36,28 @@ export function ToggleGroup<T extends string>({
   );
 }
 
+/**
+ * Passes on whatever is given to it. Anything that wraps this with `asChild` —
+ * a tooltip, for one — hands down the handlers and the ref that make it work,
+ * and a component that quietly dropped them left the wrapper doing nothing.
+ */
 export function ToggleItem({
   value,
   label,
   children,
-}: {
-  value: string;
-  label: string;
-  children: ReactNode;
-}) {
+  className,
+  ...rest
+}: { value: string; label: string; children: ReactNode } & ComponentPropsWithRef<'button'>) {
   return (
     <Primitive.Item
+      {...rest}
       value={value}
       aria-label={label}
       className={cn(
         'flex h-7 w-9 items-center justify-center border-r border-rule last:border-r-0',
         'hover:bg-surface-2 data-[state=on]:bg-accent-soft focus-visible:outline-none',
         'focus-visible:ring-1 focus-visible:ring-accent focus-visible:ring-inset',
+        className,
       )}
     >
       {children}
