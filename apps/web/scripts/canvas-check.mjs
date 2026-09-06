@@ -312,7 +312,8 @@ try {
   }
 
   await page.goto(`${BASE}${planHref}`, { waitUntil: 'domcontentloaded' });
-  await wait(4000);
+  await page.waitForSelector('button[title^="Contains"]', { timeout: 20_000 });
+  await wait(2500);
 
   console.log('\ndrawing a connection');
   await page.click('button[title^="Contains"]');
