@@ -3,6 +3,8 @@ import { JwtModule } from '@nestjs/jwt';
 
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { AuthController } from './auth.controller.js';
+import { AvatarsController } from './avatars.controller.js';
+import { AvatarsService } from './avatars.service.js';
 import { AuthService } from './auth.service.js';
 import { JwtAuthGuard } from './jwt.guard.js';
 
@@ -16,8 +18,8 @@ import { JwtAuthGuard } from './jwt.guard.js';
       }),
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard],
+  controllers: [AuthController, AvatarsController],
+  providers: [AuthService, AvatarsService, JwtAuthGuard],
   exports: [AuthService, JwtAuthGuard, JwtModule],
 })
 export class AuthModule {}

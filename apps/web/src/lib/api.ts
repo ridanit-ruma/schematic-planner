@@ -6,6 +6,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  avatarUrl: string | null;
 }
 
 export type Role = 'OWNER' | 'ADMIN' | 'EDITOR' | 'VIEWER';
@@ -242,6 +243,13 @@ export const account = {
       ...json({ name }),
     }),
   revokeApiKey: (id: string) => api<{ ok: true }>(`/auth/api-keys/${id}`, { method: 'DELETE' }),
+  setAvatar: (png: Blob) =>
+    api<{ avatarUrl: string }>('/auth/me/avatar', {
+      method: 'POST',
+      headers: { 'content-type': 'image/png' },
+      body: png,
+    }),
+  clearAvatar: () => api<{ ok: true }>('/auth/me/avatar', { method: 'DELETE' }),
   updateName: (name: string) =>
     api<AuthUser>('/auth/me', { method: 'PATCH', ...json({ name }) }),
   changePassword: (currentPassword: string, newPassword: string) =>

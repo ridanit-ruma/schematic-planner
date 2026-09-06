@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/modal';
 import { account, type SessionSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { formatWhen } from '@/lib/utils';
+import { AvatarEditor } from './AvatarEditor';
 
 /** Reads "Chrome on Linux" out of a user-agent string, or gives up honestly. */
 function describeClient(userAgent: string | null): string {
@@ -40,7 +41,7 @@ function describeClient(userAgent: string | null): string {
 }
 
 export function AccountSettingsPage() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, patchUser } = useAuth();
   const navigate = useNavigate();
 
   const [name, setName] = useState(user?.name ?? '');
@@ -52,6 +53,8 @@ export function AccountSettingsPage() {
   const [error, setError] = useState<unknown>(null);
   const [deleting, setDeleting] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
+  const [picking, setPicking] = useState<File | null>(null);
+  const pick = useRef<HTMLInputElement>(null);
 
   const reloadSessions = (): void => {
     account.sessions().then(setSessions).catch(setError);
@@ -69,6 +72,86 @@ export function AccountSettingsPage() {
       ) : null}
 
       <section className="mt-8 border border-rule bg-surface p-4">
+        <h2 className="text-sm font-medium text-ink">Picture</h2>
+        <p className="mt-1 text-xs text-ink-muted">
+          Shown wherever you appear — a member list, the history of a plan, your cursor on a canvas.
+        </p>
+        <div className="mt-4 flex items-center gap-4">
+          {user?.avatarUrl != null && user.avatarUrl !== '' ? (
+            <img
+              src={user.avatarUrl}
+              alt=""
+              className="size-16 shrink-0 rounded-full border border-rule object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="grid size-16 shrink-0 place-items-center rounded-full border border-rule bg-surface-2 text-lg font-medium text-ink-muted"
+            >
+              {(user?.name ?? '?').slice(0, 1).toUpperCase()}
+            </span>
+          )}
+          <div className="flex gap-2">
+            <input
+              ref={pick}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                event.target.value = '';
+                if (file !== null) setPicking(file);
+              }}
+            />
+            <Button type="button" variant="ghost" onClick={() => pick.current?.click()}>
+              {user?.avatarUrl == null || user.avatarUrl === '' ? 'Add a picture' : 'Replace'}
+            </Button>
+            {user?.avatarUrl != null && user.avatarUrl !== '' ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  void account
+                    .clearAvatar()
+                    .then(() => {
+                      setError(null);
+                      patchUser({ avatarUrl: null });
+                    })
+                    .catch(setError);
+                }}
+              >
+                Remove
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <Modal
+        open={picking !== null}
+        onOpenChange={(open) => !open && setPicking(null)}
+        title="Your picture"
+      >
+        {picking === null ? null : (
+          <AvatarEditor
+            file={picking}
+            onCancel={() => setPicking(null)}
+            onDone={async (png) => {
+              try {
+                const { avatarUrl } = await account.setAvatar(png);
+                patchUser({ avatarUrl });
+                setError(null);
+                setPicking(null);
+              } catch (cause) {
+                setError(cause);
+                setPicking(null);
+              }
+            }}
+          />
+        )}
+      </Modal>
+
+      <section className="mt-6 border border-rule bg-surface p-4">
         <h2 className="text-sm font-medium text-ink">Name</h2>
         <p className="mt-1 text-xs text-ink-muted">
           What the people you share a workspace with see. Your email is{' '}

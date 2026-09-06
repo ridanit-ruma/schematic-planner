@@ -17,6 +17,7 @@ import { StrictRateLimit } from '../common/throttle.js';
 import { ZodPipe } from '../common/zod.pipe.js';
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { AuthService, type AuthResult } from './auth.service.js';
+import { AvatarsService } from './avatars.service.js';
 import { CurrentUser } from './current-user.decorator.js';
 import { Public } from './public.decorator.js';
 import {
@@ -41,8 +42,23 @@ export const REFRESH_COOKIE = 'sp_refresh';
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly avatars: AvatarsService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
+
+  /**
+   * The finished square, drawn by the browser and sent as PNG bytes. Cropping
+   * and scaling happen there, so nothing here has to decode an image.
+   */
+  @Post('me/avatar')
+  async setAvatar(@CurrentUser() user: AuthUser, @Req() request: Request) {
+    return this.avatars.replace(user.id, request.body as Buffer);
+  }
+
+  @Delete('me/avatar')
+  clearAvatar(@CurrentUser() user: AuthUser) {
+    return this.avatars.remove(user.id);
+  }
 
   @Public()
   @StrictRateLimit()

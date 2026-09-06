@@ -62,6 +62,10 @@ const envSchema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(300),
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().min(1).default(10),
 
+  /** Where uploaded avatars are written. Kept outside any served directory. */
+  UPLOAD_DIR: text('./uploads'),
+  AVATAR_MAX_BYTES: z.coerce.number().int().min(1024).default(2_097_152),
+
   COLLAB_PERSIST_DEBOUNCE_MS: z.coerce.number().int().min(0).default(2000),
   COLLAB_PERSIST_MAX_WAIT_MS: z.coerce.number().int().min(0).default(10_000),
 });
@@ -97,6 +101,7 @@ export interface AppConfig {
     readonly authMax: number;
   };
   readonly collab: { readonly debounceMs: number; readonly maxWaitMs: number };
+  readonly uploads: { readonly dir: string; readonly avatarMaxBytes: number };
 }
 
 export const APP_CONFIG = Symbol('APP_CONFIG');
@@ -168,5 +173,6 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       debounceMs: env.COLLAB_PERSIST_DEBOUNCE_MS,
       maxWaitMs: env.COLLAB_PERSIST_MAX_WAIT_MS,
     },
+    uploads: { dir: env.UPLOAD_DIR, avatarMaxBytes: env.AVATAR_MAX_BYTES },
   };
 }

@@ -32,14 +32,16 @@ function section(title) {
   console.log(`\n${title}`);
 }
 
-async function call(path, { token, method = 'GET', body, raw = false } = {}) {
+async function call(path, { token, method = 'GET', body, bytes, contentType, raw = false } = {}) {
   const response = await fetch(`${API}${path}`, {
     method,
     headers: {
       ...(body !== undefined && { 'Content-Type': 'application/json' }),
+      ...(contentType !== undefined && { 'Content-Type': contentType }),
       ...(token !== undefined && { Authorization: `Bearer ${token}` }),
     },
     ...(body !== undefined && { body: JSON.stringify(body) }),
+    ...(bytes !== undefined && { body: bytes }),
   });
   if (raw) return response;
   return { status: response.status, body: await response.json().catch(() => ({})) };
@@ -339,6 +341,35 @@ async function main() {
 
   section('account');
   const profile = await call('/auth/me', { method: 'PATCH', token, body: { name: 'Renamed' } });
+  // A 1×1 PNG. The browser sends what it drew on a canvas; this stands in for it.
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  const avatar = await call('/auth/me/avatar', {
+    method: 'POST',
+    token,
+    bytes: png,
+    contentType: 'image/png',
+  });
+  check('set a picture', (avatar.body.avatarUrl ?? '').startsWith('/api/avatars/'), avatar.body.avatarUrl ?? `status ${avatar.status}`);
+
+  const served = await call((avatar.body.avatarUrl ?? '').replace('/api', ''), { raw: true });
+  const servedBytes = Buffer.from(await served.arrayBuffer());
+  check('and it is served back', served.status === 200 && servedBytes.equals(png), `${servedBytes.length} bytes`);
+  check('as an image nothing is allowed to sniff', served.headers.get('x-content-type-options') === 'nosniff', served.headers.get('content-type') ?? '');
+
+  const notAnImage = await call('/auth/me/avatar', {
+    method: 'POST',
+    token,
+    bytes: Buffer.from('<script>alert(1)</script>'),
+    contentType: 'image/png',
+  });
+  check('anything that is not a PNG is refused', notAnImage.status === 400, `status ${notAnImage.status}`);
+
+  const cleared = await call('/auth/me/avatar', { method: 'DELETE', token });
+  check('and a picture can be taken down', cleared.body.ok === true);
+
   check('rename yourself', profile.body.name === 'Renamed');
 
   const sessionsBefore = await call('/auth/sessions', { token });

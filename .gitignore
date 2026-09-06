@@ -180,3 +180,6 @@ SCRATCH.md
 /scratch/
 /.scratch/
 /sandbox/
+
+# Uploaded files. Never part of the source.
+uploads/

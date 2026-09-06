@@ -79,7 +79,7 @@ export class AuthService {
       },
     });
 
-    return this.issue({ id: user.id, email: user.email, name: user.name }, userAgent);
+    return this.issue({ id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl }, userAgent);
   }
 
   async login(input: LoginInput, userAgent?: string): Promise<AuthResult> {
@@ -94,7 +94,7 @@ export class AuthService {
       throw new UnauthorizedException('Incorrect email or password');
     }
 
-    return this.issue({ id: user.id, email: user.email, name: user.name }, userAgent);
+    return this.issue({ id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl }, userAgent);
   }
 
   /**
@@ -127,7 +127,7 @@ export class AuthService {
       where: { id: userId },
       data: { name: input.name },
     });
-    return { id: user.id, email: user.email, name: user.name };
+    return { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl };
   }
 
   /**
@@ -262,7 +262,7 @@ export class AuthService {
 
   async userById(id: string): Promise<AuthUser | null> {
     const user = await this.prisma.user.findUnique({ where: { id } });
-    return user === null ? null : { id: user.id, email: user.email, name: user.name };
+    return user === null ? null : { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl };
   }
 
   private async issue(user: AuthUser, userAgent?: string): Promise<AuthResult> {
