@@ -65,10 +65,7 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
         backgroundSize: '20px 20px, 20px 20px, 100px 100px, 100px 100px',
       }}
     >
-      <div className="fixed top-3 right-3">
-      </div>
-
-      <div className="w-full max-w-sm border border-rule bg-surface p-6">
+      <div className="w-full max-w-sm rounded-xl bg-surface-2 p-6 elevated">
         <Wordmark className="text-ink" />
         <p className="mt-4 text-sm text-ink-muted">
           {mode === 'sign-in'

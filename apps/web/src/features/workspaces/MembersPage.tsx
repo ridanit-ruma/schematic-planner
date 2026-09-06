@@ -1,6 +1,7 @@
 import { Check, Copy, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
@@ -97,13 +98,22 @@ export function MembersPage() {
               return (
                 <TR key={member.user.id}>
                   <TD>
-                    <span className="block truncate text-ink">
-                      {member.user.name}
-                      {isMe ? <span className="ml-2 text-xs text-ink-faint">you</span> : null}
-                    </span>
-                    <span className="block truncate text-xs text-ink-muted">
-                      {member.user.email}
-                    </span>
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <Avatar
+                        src={member.user.avatarUrl}
+                        name={member.user.name}
+                        className="size-7"
+                      />
+                      <div className="min-w-0">
+                        <span className="block truncate text-ink">
+                          {member.user.name}
+                          {isMe ? <span className="ml-2 text-xs text-ink-faint">you</span> : null}
+                        </span>
+                        <span className="block truncate text-xs text-ink-muted">
+                          {member.user.email}
+                        </span>
+                      </div>
+                    </div>
                   </TD>
                   <TD>
                     {canManage && !isMe ? (

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
+import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { config } from '@/lib/config';
 import { account, type ApiKeySummary } from '@/lib/api';
 import { formatWhen } from '@/lib/utils';
@@ -46,8 +47,8 @@ export function AgentsPage() {
       <h1 className="text-lg font-semibold tracking-tight text-ink">Agents</h1>
       <p className="mt-1 max-w-prose text-sm text-ink-muted">
         Connect Cursor, Claude, or any other MCP client. A key belongs to you rather than to one
-        workspace, so a single key reaches every workspace you are a member of — the agent can
-        read your plans and draw new ones on the same canvas you are looking at.
+        workspace, so a single key reaches every workspace you are a member of — the agent can read
+        your plans and draw new ones on the same canvas you are looking at.
       </p>
 
       <section className="mt-8 rounded-lg border border-rule bg-surface-2 p-4">
@@ -72,7 +73,11 @@ export function AgentsPage() {
           </Button>
         </div>
 
-        {error !== null ? <div className="mt-4"><Problem error={error} /></div> : null}
+        {error !== null ? (
+          <div className="mt-4">
+            <Problem error={error} />
+          </div>
+        ) : null}
 
         {keys === null ? (
           <div className="grid py-12 place-items-center">
@@ -89,47 +94,49 @@ export function AgentsPage() {
             }
           />
         ) : (
-          <table className="mt-4 w-full table-fixed border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-rule text-left">
-                <th className="rail-heading py-2 font-medium">Name</th>
-                <th className="rail-heading w-32 py-2 font-medium">Key</th>
-                <th className="rail-heading w-28 py-2 text-right font-medium">Last used</th>
-                <th className="rail-heading w-20 py-2 text-right font-medium">
+          <div className="mt-4">
+            <Table>
+              <THead>
+                <TH>Name</TH>
+                <TH className="w-32">Key</TH>
+                <TH className="w-28" align="right">
+                  Last used
+                </TH>
+                <TH className="w-24" align="right">
                   <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {keys.map((key) => (
-                <tr key={key.id} className="border-b border-rule">
-                  <td className="truncate py-2.5 pr-4 text-ink">
-                    {key.name}
-                    {key.restrictedTo != null ? (
-                      <span className="ml-2 text-xs text-ink-faint">
-                        limited to {key.restrictedTo}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="slug py-2.5 text-ink-faint">{key.prefix}…</td>
-                  <td className="py-2.5 text-right text-ink-muted">
-                    {key.lastUsedAt === null ? 'Never' : formatWhen(key.lastUsedAt)}
-                  </td>
-                  <td className="py-2.5 text-right">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        void account.revokeApiKey(key.id).then(reload);
-                      }}
-                    >
-                      Revoke
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                </TH>
+              </THead>
+              <tbody>
+                {keys.map((key) => (
+                  <TR key={key.id}>
+                    <TD className="truncate text-ink">
+                      {key.name}
+                      {key.restrictedTo != null ? (
+                        <span className="ml-2 text-xs text-ink-faint">
+                          limited to {key.restrictedTo}
+                        </span>
+                      ) : null}
+                    </TD>
+                    <TD className="slug text-ink-faint">{key.prefix}…</TD>
+                    <TD align="right" className="text-xs text-ink-muted">
+                      {key.lastUsedAt === null ? 'Never' : formatWhen(key.lastUsedAt)}
+                    </TD>
+                    <TD align="right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          void account.revokeApiKey(key.id).then(reload);
+                        }}
+                      >
+                        Revoke
+                      </Button>
+                    </TD>
+                  </TR>
+                ))}
+              </tbody>
+            </Table>
+          </div>
         )}
       </section>
 

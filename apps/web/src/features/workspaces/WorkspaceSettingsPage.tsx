@@ -79,7 +79,7 @@ export function WorkspaceSettingsPage() {
       </section>
 
       {canDelete ? (
-        <section className="mt-6 rounded-lg border border-danger/30 bg-surface-2 p-4">
+        <section className="mt-6 rounded-lg border border-danger/20 bg-surface-2 p-4">
           <h2 className="text-sm font-medium text-ink">Delete this workspace</h2>
           <p className="mt-1 max-w-prose text-xs text-ink-muted">
             Every project, plan and API key in {current.name} goes with it, for everybody. Export

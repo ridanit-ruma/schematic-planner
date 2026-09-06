@@ -292,7 +292,7 @@ export function AccountSettingsPage() {
         )}
       </section>
 
-      <section className="mt-6 rounded-lg border border-danger/30 bg-surface-2 p-4">
+      <section className="mt-6 rounded-lg border border-danger/20 bg-surface-2 p-4">
         <h2 className="text-sm font-medium text-ink">Delete your account</h2>
         <p className="mt-1 max-w-prose text-xs text-ink-muted">
           Everything you own goes with it: workspaces where you are the only owner, and every
