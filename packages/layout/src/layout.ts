@@ -96,7 +96,7 @@ export async function layoutPlan(
   const settings = { ...DEFAULTS, ...options };
   const graph = buildPlanGraph(doc);
 
-  const options = elkOptions(settings);
+  const rootOptions = elkOptions(settings);
 
   const buildChildren = (slugs: readonly string[]): ElkNode[] =>
     slugs.map((slug) => {
@@ -125,7 +125,7 @@ export async function layoutPlan(
 
   const laid = await elk.layout({
     id: 'root',
-    layoutOptions: options,
+    layoutOptions: rootOptions,
     children: buildChildren(graph.roots),
     edges,
   });
