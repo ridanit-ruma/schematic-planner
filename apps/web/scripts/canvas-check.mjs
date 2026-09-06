@@ -147,6 +147,59 @@ try {
   check('and lists the plans you can move to', (rail?.plans ?? 0) > 0, `${rail?.plans ?? 0} plans`);
 
   console.log('\ngroups');
+  /*
+   * On a plan this check builds for itself. Three rounds of these assertions
+   * failed against the demo data instead — each run left the groups somewhere
+   * new, so what the next run picked up depended on what the last one did.
+   */
+  const token = await page.evaluate(async () => {
+    const response = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' });
+    if (!response.ok) return null;
+    return (await response.json()).accessToken ?? null;
+  });
+  check('a token for the fixture', typeof token === 'string');
+
+  const call = (path, init) =>
+    page.evaluate(
+      async ({ path: p, init: i, token: t }) => {
+        const response = await fetch(`/api${p}`, {
+          ...i,
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${t}` },
+          ...(i?.body === undefined ? {} : { body: JSON.stringify(i.body) }),
+        });
+        return response.ok ? await response.json() : { error: response.status };
+      },
+      { path, init: init ?? {}, token },
+    );
+
+  const workspaces = await call('/workspaces');
+  const projectList = await call(`/workspaces/${workspaces[0].id}/projects`);
+  const fixture = await call(`/projects/${projectList[0].id}/plans`, {
+    method: 'POST',
+    body: {
+      title: `Canvas check ${Date.now()}`,
+      spec: {
+        title: 'Canvas check',
+        description: 'Built and removed by the browser check.',
+        nodes: [
+          { slug: 'alpha', title: 'Alpha' },
+          { slug: 'a-one', title: 'A one' },
+          { slug: 'a-two', title: 'A two' },
+          { slug: 'beta', title: 'Beta' },
+          { slug: 'b-one', title: 'B one' },
+          { slug: 'loose', title: 'Loose' },
+        ],
+        edges: [
+          { kind: 'contains', from: 'alpha', to: 'a-one' },
+          { kind: 'contains', from: 'alpha', to: 'a-two' },
+          { kind: 'contains', from: 'beta', to: 'b-one' },
+        ],
+      },
+    },
+  });
+  check('a plan to drive', typeof fixture.id === 'string', fixture.error ?? fixture.id);
+  await call(`/plans/${fixture.id}/layout`, { method: 'POST', body: { scope: 'all' } });
+
   const rectOf = (slug) =>
     page
       .$eval(`.react-flow__node[data-id="${slug}"]`, (el) => {
@@ -175,128 +228,91 @@ try {
     child.y >= box.y - 1 &&
     child.x + child.width <= box.x + box.width + 1 &&
     child.y + child.height <= box.y + box.height + 1;
+  const reopen = async () => {
+    await page.goto(`${BASE}/plan/${fixture.id}`, { waitUntil: 'domcontentloaded' });
+    await wait(4000);
+  };
 
-  const group = containers[0];
-  const held = await page.$$eval('.react-flow__node', (list) => list.map((n) => n.getAttribute('data-id')));
-  const box0 = await rectOf(group);
-  let child = null;
-  for (const slug of held) {
-    // A leaf: a group nested in this one moves by its own rules and would not
-    // show that a group carries what it holds.
-    if (slug === group || containers.includes(slug)) continue;
-    if (inside(await rectOf(slug), box0)) {
-      child = slug;
-      break;
-    }
-  }
-  check('the group holds something to move', child !== null, `${group} holds ${child}`);
-  if (child === null) throw new Error('no node inside a group to drag with it');
+  try {
+    await reopen();
+    check('the fixture draws its groups as boundaries', inside(await rectOf('a-one'), await rectOf('alpha')));
+    check('alpha holds two', (await countIn('alpha')) === 2, String(await countIn('alpha')));
 
-  const childBefore = await rectOf(child);
-  // Only the label row of a group takes events; its body is click-through so
-  // that the nodes inside stay reachable.
-  await drag({ x: box0.x + box0.width / 2, y: box0.y + 12 }, { x: box0.x + box0.width / 2 + 140, y: box0.y + 12 + 130 });
-  const box1 = await rectOf(group);
-  const childAfter = await rectOf(child);
-  const groupMoved = Math.round(box1.x - box0.x);
-  check('dragging a group moves it', Math.abs(groupMoved) > 60, `${groupMoved}px`);
-  check(
-    'and carries what it holds',
-    Math.abs(childAfter.x - childBefore.x - (box1.x - box0.x)) < 2 &&
-      Math.abs(childAfter.y - childBefore.y - (box1.y - box0.y)) < 2,
-    `child moved ${Math.round(childAfter.x - childBefore.x)},${Math.round(childAfter.y - childBefore.y)}`,
-  );
-
-  // The move has to survive the document, not just the screen.
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  await wait(4000);
-  check('and the move is what everyone else sees', inside(await rectOf(child), await rectOf(group)));
-
-  // Out and back in, rather than looking for a node that happens to sit outside
-  // a group: the check would then depend on what the last run left behind.
-  const boxNow = await rectOf(group);
-  const heldBefore = await countIn(group);
-  const childRect = await rectOf(child);
-  await drag(
-    { x: childRect.x + childRect.width / 2, y: childRect.y + childRect.height / 2 },
-    { x: boxNow.x + boxNow.width + 320, y: boxNow.y + 40 },
-  );
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  await wait(4000);
-  check(
-    'dragging a node out of a group leaves it',
-    (await countIn(group)) === heldBefore - 1,
-    `${heldBefore} -> ${await countIn(group)}`,
-  );
-  check('and it is drawn outside the box', !inside(await rectOf(child), await rectOf(group)));
-
-  const boxBack = await rectOf(group);
-  const outsideRect = await rectOf(child);
-  await drag(
-    { x: outsideRect.x + outsideRect.width / 2, y: outsideRect.y + outsideRect.height / 2 },
-    { x: boxBack.x + boxBack.width / 2, y: boxBack.y + boxBack.height - 30 },
-  );
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  await wait(4000);
-  check(
-    'dropping it back in joins it again',
-    (await countIn(group)) === heldBefore,
-    `-> ${await countIn(group)}`,
-  );
-  check('and nothing is left straddling the edge', inside(await rectOf(child), await rectOf(group)));
-
-  console.log('\na group inside a group');
-  const outer = group;
-  const innerGroup = containers.find((slug) => slug !== outer);
-  if (innerGroup !== undefined) {
-    const outerBox = await rectOf(outer);
-    const innerBox = await rectOf(innerGroup);
-    // Only the label row of a group takes events, at either end of the drag.
+    // A group is picked up anywhere on it; its contents are drawn above it.
+    const alphaWas = await rectOf('alpha');
+    const oneWas = await rectOf('a-one');
     await drag(
-      { x: innerBox.x + innerBox.width / 2, y: innerBox.y + 12 },
-      { x: outerBox.x + outerBox.width / 2, y: outerBox.y + outerBox.height - 40 },
+      { x: alphaWas.x + alphaWas.width - 30, y: alphaWas.y + alphaWas.height - 12 },
+      { x: alphaWas.x + alphaWas.width - 30 + 150, y: alphaWas.y + alphaWas.height - 12 + 120 },
     );
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await wait(4500);
-
-    check('a group can be dropped into a group', inside(await rectOf(innerGroup), await rectOf(outer)));
-
-    // What the inner group holds has to come along for both moves at once.
-    const nestedChild = await page.$$eval('.react-flow__node', (list) =>
-      list.map((n) => n.getAttribute('data-id')),
+    const alphaIs = await rectOf('alpha');
+    const oneIs = await rectOf('a-one');
+    check('dragging a group moves it', Math.abs(alphaIs.x - alphaWas.x) > 60, `${Math.round(alphaIs.x - alphaWas.x)}px`);
+    check(
+      'and carries what it holds',
+      Math.abs(oneIs.x - oneWas.x - (alphaIs.x - alphaWas.x)) < 2 &&
+        Math.abs(oneIs.y - oneWas.y - (alphaIs.y - alphaWas.y)) < 2,
     );
-    let grandchild = null;
-    const innerNow = await rectOf(innerGroup);
-    for (const slug of nestedChild) {
-      if (slug === innerGroup || slug === outer) continue;
-      if (inside(await rectOf(slug), innerNow)) {
-        grandchild = slug;
-        break;
-      }
-    }
-    check('the inner group still holds its own', grandchild !== null, grandchild ?? '');
 
-    if (grandchild !== null) {
-      const outerWas = await rectOf(outer);
-      const innerWas = await rectOf(innerGroup);
-      const deepWas = await rectOf(grandchild);
-      await drag(
-        { x: outerWas.x + outerWas.width / 2, y: outerWas.y + 12 },
-        { x: outerWas.x + outerWas.width / 2 - 120, y: outerWas.y + 12 + 90 },
-      );
-      const outerIs = await rectOf(outer);
-      const shift = { x: outerIs.x - outerWas.x, y: outerIs.y - outerWas.y };
-      const innerIs = await rectOf(innerGroup);
-      const deepIs = await rectOf(grandchild);
-      check(
-        'moving the outer group carries the inner one and its contents',
-        Math.abs(innerIs.x - innerWas.x - shift.x) < 2 &&
-          Math.abs(deepIs.x - deepWas.x - shift.x) < 2 &&
-          Math.abs(deepIs.y - deepWas.y - shift.y) < 2,
-        `outer ${Math.round(shift.x)},${Math.round(shift.y)}`,
-      );
-    }
+    await reopen();
+    check('and the move is what everyone else sees', inside(await rectOf('a-one'), await rectOf('alpha')));
+
+    // Out of the group, then back into it.
+    const box = await rectOf('alpha');
+    const one = await rectOf('a-one');
+    await drag(
+      { x: one.x + one.width / 2, y: one.y + one.height / 2 },
+      { x: box.x + box.width + 300, y: box.y + 30 },
+    );
+    await reopen();
+    check('dragging a node out of a group leaves it', (await countIn('alpha')) === 1, String(await countIn('alpha')));
+    check('and it is drawn outside the box', !inside(await rectOf('a-one'), await rectOf('alpha')));
+
+    const back = await rectOf('alpha');
+    const away = await rectOf('a-one');
+    await drag(
+      { x: away.x + away.width / 2, y: away.y + away.height / 2 },
+      { x: back.x + back.width / 2, y: back.y + back.height - 30 },
+    );
+    await reopen();
+    check('dropping it back in joins it again', (await countIn('alpha')) === 2, String(await countIn('alpha')));
+    check('and nothing is left straddling the edge', inside(await rectOf('a-one'), await rectOf('alpha')));
+
+    console.log('\na group inside a group');
+    const alphaBox = await rectOf('alpha');
+    const betaBox = await rectOf('beta');
+    await drag(
+      { x: betaBox.x + betaBox.width - 30, y: betaBox.y + betaBox.height - 12 },
+      { x: alphaBox.x + alphaBox.width / 2, y: alphaBox.y + alphaBox.height - 30 },
+    );
+    await reopen();
+    check('a group can be dropped into a group', inside(await rectOf('beta'), await rectOf('alpha')));
+    check('the inner group still holds its own', inside(await rectOf('b-one'), await rectOf('beta')));
+    check('and the outer one counts it', (await countIn('alpha')) === 3, String(await countIn('alpha')));
+
+    const outerWas = await rectOf('alpha');
+    const innerWas = await rectOf('beta');
+    const deepWas = await rectOf('b-one');
+    await drag(
+      { x: outerWas.x + 30, y: outerWas.y + outerWas.height - 12 },
+      { x: outerWas.x + 30 - 130, y: outerWas.y + outerWas.height - 12 + 90 },
+    );
+    const shift = { x: (await rectOf('alpha')).x - outerWas.x, y: (await rectOf('alpha')).y - outerWas.y };
+    const innerIs = await rectOf('beta');
+    const deepIs = await rectOf('b-one');
+    check(
+      'moving the outer group carries the inner one and its contents',
+      Math.abs(innerIs.x - innerWas.x - shift.x) < 2 &&
+        Math.abs(deepIs.x - deepWas.x - shift.x) < 2 &&
+        Math.abs(deepIs.y - deepWas.y - shift.y) < 2,
+      `outer ${Math.round(shift.x)},${Math.round(shift.y)}`,
+    );
+  } finally {
+    await call(`/plans/${fixture.id}`, { method: 'DELETE' });
   }
+
+  await page.goto(`${BASE}${planHref}`, { waitUntil: 'domcontentloaded' });
+  await wait(4000);
 
   console.log('\ndrawing a connection');
   await page.click('button[title^="Contains"]');
