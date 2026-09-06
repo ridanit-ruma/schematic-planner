@@ -266,8 +266,12 @@ try {
     check('dragging a group moves it', Math.abs(alphaIs.x - alphaWas.x) > 60, `${Math.round(alphaIs.x - alphaWas.x)}px`);
     check(
       'and carries what it holds',
-      Math.abs(oneIs.x - oneWas.x - (alphaIs.x - alphaWas.x)) < 2 &&
+      // It has to have moved at all: with a shift of nothing every difference
+      // below is zero and the check passes without testing anything.
+      Math.abs(oneIs.x - oneWas.x) > 40 &&
+        Math.abs(oneIs.x - oneWas.x - (alphaIs.x - alphaWas.x)) < 2 &&
         Math.abs(oneIs.y - oneWas.y - (alphaIs.y - alphaWas.y)) < 2,
+      `child ${Math.round(oneIs.x - oneWas.x)},${Math.round(oneIs.y - oneWas.y)}`,
     );
 
     await reopen();
@@ -318,7 +322,8 @@ try {
     const deepIs = await rectOf('b-one');
     check(
       'moving the outer group carries the inner one and its contents',
-      Math.abs(innerIs.x - innerWas.x - shift.x) < 2 &&
+      Math.abs(shift.x) > 40 &&
+        Math.abs(innerIs.x - innerWas.x - shift.x) < 2 &&
         Math.abs(deepIs.x - deepWas.x - shift.x) < 2 &&
         Math.abs(deepIs.y - deepWas.y - shift.y) < 2,
       `outer ${Math.round(shift.x)},${Math.round(shift.y)}`,
