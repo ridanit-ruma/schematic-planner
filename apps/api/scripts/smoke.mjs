@@ -348,7 +348,7 @@ async function main() {
   check('trace finds a node by its title', traced.includes('Login page'));
   check('and says what set each hop off', traced.includes('click Sign in'), traced.split('\n')[3] ?? '');
   check('and what it carried', traced.includes('{ email, password }'));
-  check('and stops where the flow comes back on itself', traced.includes('already above'));
+  check('and stops where the flow comes back on itself', traced.includes('[loops back]'));
 
   const upstream = await callTool('trace', {
     planId: flowPlanId,
@@ -468,12 +468,16 @@ async function main() {
     method: 'POST',
     body: { email, password: 'a-new-long-password' },
   });
-  check('the new password works', typeof reLogin.body.accessToken === 'string');
+  check(
+    'the new password works',
+    typeof reLogin.body.accessToken === 'string',
+    `status ${reLogin.status}: ${reLogin.body.message ?? ''}`,
+  );
   const oldPassword = await call('/auth/login', {
     method: 'POST',
     body: { email, password: 'correct-horse-battery' },
   });
-  check('the old one does not', oldPassword.status === 401);
+  check('the old one does not', oldPassword.status === 401, `status ${oldPassword.status}`);
 
   section('rate limiting');
   // The allowance is per credential-less client, so a burst of bad sign-ins from
