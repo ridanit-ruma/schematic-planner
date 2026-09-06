@@ -76,6 +76,7 @@ function readEdge(edge: YEdge): unknown {
     label: edge.get('label') ?? null,
     via: edge.get('via') ?? null,
     carries: edge.get('carries') ?? null,
+    labelPosition: edge.get('labelPosition') ?? null,
   };
 }
 
@@ -118,6 +119,7 @@ function writeEdge(target: YEdge, edge: PlanEdge): void {
   target.set('label', edge.label);
   target.set('via', edge.via);
   target.set('carries', edge.carries);
+  target.set('labelPosition', edge.labelPosition);
 }
 
 /** Write a whole plan into an empty document. Used when a plan is first opened. */

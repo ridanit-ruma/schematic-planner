@@ -1,7 +1,7 @@
 import * as Y from 'yjs';
 import type { Position } from '@schematic/schema';
 
-import { nodesMap } from './bind.js';
+import { edgesMap, nodesMap } from './bind.js';
 import { ORIGIN_LOCAL } from './keys.js';
 
 /**
@@ -40,8 +40,10 @@ export function commitLayout(
   positions: ReadonlyMap<string, Position>,
   origin: unknown,
   sizes?: ReadonlyMap<string, NodeSize>,
+  labels?: ReadonlyMap<string, Position>,
 ): void {
   const nodes = nodesMap(doc);
+  const edges = edgesMap(doc);
   Y.transact(
     doc,
     () => {
@@ -54,6 +56,13 @@ export function commitLayout(
         const node = nodes.get(slug);
         if (node === undefined) continue;
         node.set('size', { width: Math.round(size.width), height: Math.round(size.height) });
+      }
+      // Where the writing on each line goes, worked out by the same run that
+      // placed the nodes — it is the only thing that knows what else is there.
+      for (const [id, position] of labels ?? []) {
+        const edge = edges.get(id);
+        if (edge === undefined) continue;
+        edge.set('labelPosition', { x: Math.round(position.x), y: Math.round(position.y) });
       }
     },
     origin,

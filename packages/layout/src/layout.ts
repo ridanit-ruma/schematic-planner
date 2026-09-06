@@ -1,5 +1,5 @@
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js';
-import { buildPlanGraph, type PlanDoc, type Position } from '@schematic/schema';
+import { buildPlanGraph, edgeNote, type PlanDoc, type Position } from '@schematic/schema';
 
 export interface Size {
   readonly width: number;
@@ -30,6 +30,12 @@ export interface LayoutResult {
    * ordinary card it lands on top of the first one.
    */
   readonly sizes: ReadonlyMap<string, Size>;
+  /**
+   * Where the writing on each line goes, keyed by edge id. Placed by the same
+   * run that placed the nodes, because avoiding the other lines' notes needs to
+   * know where the other lines are.
+   */
+  readonly labels: ReadonlyMap<string, Position>;
 }
 
 /**
@@ -81,6 +87,30 @@ function elkOptions(options: Required<Pick<LayoutOptions, 'direction' | 'spacing
     // each time it is pressed.
     'elk.layered.cycleBreaking.strategy': 'DEPTH_FIRST',
     'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+    // Beside the line rather than on it, and given room of its own in the gap
+    // between layers instead of being dropped at the midpoint of the path.
+    'elk.edgeLabels.inline': 'false',
+    'elk.edgeLabels.placement': 'CENTER',
+    'elk.spacing.edgeLabel': '6',
+  };
+}
+
+/**
+ * What the note on a line will measure once it is drawn.
+ *
+ * Estimated rather than measured: layout runs on the server too, where there is
+ * no browser to ask. The width is deliberately generous — a reserved gap that
+ * turns out too wide only spreads the drawing, while one too narrow puts the
+ * writing back on top of its neighbours, which is the fault being fixed.
+ */
+const NOTE_CHAR_WIDTH = 5.6;
+const NOTE_MAX_WIDTH = 208;
+const NOTE_HEIGHT = 18;
+
+function noteSize(text: string): { width: number; height: number } {
+  return {
+    width: Math.min(NOTE_MAX_WIDTH, Math.round(text.length * NOTE_CHAR_WIDTH) + 10),
+    height: NOTE_HEIGHT,
   };
 }
 
@@ -122,11 +152,18 @@ export async function layoutPlan(
     .filter((edge) => graph.nodes.has(edge.from) && graph.nodes.has(edge.to))
     // A flow is laid out the way it moves. A dependency is laid out from what is
     // needed towards what needs it, which reads the same way across the page.
-    .map((edge) =>
-      edge.kind === 'flows_to'
-        ? { id: edge.id, sources: [edge.from], targets: [edge.to] }
-        : { id: edge.id, sources: [edge.to], targets: [edge.from] },
-    );
+    .map((edge) => {
+      const ends =
+        edge.kind === 'flows_to'
+          ? { sources: [edge.from], targets: [edge.to] }
+          : { sources: [edge.to], targets: [edge.from] };
+      const note = edgeNote(edge);
+      return {
+        id: edge.id,
+        ...ends,
+        ...(note !== '' && { labels: [{ text: note, ...noteSize(note) }] }),
+      };
+    });
 
   const laid = await elk.layout({
     id: 'root',
@@ -137,11 +174,15 @@ export async function layoutPlan(
 
   const computed = new Map<string, Position>();
   const sizes = new Map<string, Size>();
+  // ELK reports an edge's label against whatever node contains that edge, so
+  // the same accumulation the nodes need is kept for the containers too.
+  const origins = new Map<string, Position>([['root', { x: 0, y: 0 }]]);
   const collect = (nodes: readonly ElkNode[] | undefined, offset: Position): void => {
     for (const node of nodes ?? []) {
       const x = offset.x + (node.x ?? 0);
       const y = offset.y + (node.y ?? 0);
       computed.set(node.id, { x, y });
+      origins.set(node.id, { x, y });
       if ((node.children?.length ?? 0) > 0 && node.width !== undefined && node.height !== undefined) {
         sizes.set(node.id, { width: Math.round(node.width), height: Math.round(node.height) });
       }
@@ -150,7 +191,23 @@ export async function layoutPlan(
   };
   collect(laid.children, { x: 0, y: 0 });
 
-  if (settings.scope === 'all') return { positions: round(computed), sizes };
+  const labels = new Map<string, Position>();
+  const collectLabels = (graph: ElkNode): void => {
+    for (const edge of graph.edges ?? []) {
+      const label = edge.labels?.[0];
+      if (label?.x === undefined || label.y === undefined) continue;
+      const origin = origins.get(edge.container ?? 'root') ?? { x: 0, y: 0 };
+      // Stored as the centre, which is where the canvas draws from.
+      labels.set(edge.id, {
+        x: origin.x + label.x + (label.width ?? 0) / 2,
+        y: origin.y + label.y + (label.height ?? 0) / 2,
+      });
+    }
+    for (const child of graph.children ?? []) collectLabels(child);
+  };
+  collectLabels(laid);
+
+  if (settings.scope === 'all') return { positions: round(computed), sizes, labels: round(labels) };
 
   const pinned = doc.nodes.filter((node) => node.pinned && node.position !== null);
   const shift = translationKeepingPinned(pinned, computed);
@@ -162,7 +219,12 @@ export async function layoutPlan(
     if (point === undefined) continue;
     positions.set(node.slug, { x: point.x + shift.x, y: point.y + shift.y });
   }
-  return { positions: round(positions), sizes };
+
+  // The notes travel with the drawing they belong to.
+  const shifted = new Map<string, Position>();
+  for (const [id, point] of labels) shifted.set(id, { x: point.x + shift.x, y: point.y + shift.y });
+
+  return { positions: round(positions), sizes, labels: round(shifted) };
 }
 
 /**

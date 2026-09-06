@@ -99,32 +99,57 @@ export const planEdgeSchema = z.object({
   via: z.string().max(200).nullable().default(null),
   /** What travels along it: a payload, a record, an event, a return value. */
   carries: z.string().max(400).nullable().default(null),
+  /**
+   * Where the writing on the line goes. Layout output, like a node's position:
+   * the midpoint of a path is where every parallel line puts its note, and in a
+   * busy corridor they land on top of each other. `null` means nobody has laid
+   * this out yet, and the drawing falls back to the midpoint.
+   */
+  labelPosition: positionSchema.nullable().default(null),
 });
 export type PlanEdge = z.infer<typeof planEdgeSchema>;
 
+/**
+ * Everything but the two ends is optional here, and `normalizeEdge` fills the
+ * rest in. Requiring each field to be spelled out meant that adding one to an
+ * edge broke every literal in the codebase that had no opinion about it.
+ */
 export const planEdgeInputSchema = z.object({
   id: z.string().min(1).max(160).optional(),
   kind: z.enum(planEdgeKinds).default('depends_on'),
   from: slugSchema,
   to: slugSchema,
-  label: z.string().max(120).nullable().default(null),
+  label: z.string().max(120).nullish(),
   /** What sets this flow off: a click, a route change, a request, a timer. */
-  via: z.string().max(200).nullable().default(null),
+  via: z.string().max(200).nullish(),
   /** What travels along it: a payload, a record, an event, a return value. */
-  carries: z.string().max(400).nullable().default(null),
+  carries: z.string().max(400).nullish(),
+  /** Where the writing on the line goes. Layout output, like a node's position. */
+  labelPosition: positionSchema.nullish(),
 });
 export type PlanEdgeInput = z.input<typeof planEdgeInputSchema>;
 
 export function normalizeEdge(input: z.infer<typeof planEdgeInputSchema>): PlanEdge {
   return {
-    id: input.id ?? edgeId(input.kind, input.from, input.to, input.via),
+    id: input.id ?? edgeId(input.kind, input.from, input.to, input.via ?? null),
     kind: input.kind,
     from: input.from,
     to: input.to,
-    label: input.label,
-    via: input.via,
-    carries: input.carries,
+    label: input.label ?? null,
+    via: input.via ?? null,
+    carries: input.carries ?? null,
+    labelPosition: input.labelPosition ?? null,
   };
+}
+
+/**
+ * What is written on a line. A flow says what set it off and what it took
+ * along; anything else carries a plain label. Read by the canvas, by layout
+ * when it reserves room for it, and by the export.
+ */
+export function edgeNote(edge: Pick<PlanEdge, 'kind' | 'label' | 'via' | 'carries'>): string {
+  if (edge.kind !== 'flows_to') return edge.label ?? '';
+  return [edge.via, edge.carries].filter((part) => part !== null && part !== '').join(': ');
 }
 
 const planBodySchema = z.object({

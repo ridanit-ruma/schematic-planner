@@ -75,15 +75,9 @@ function toFlowEdge(edge: PlanEdge): PlanFlowEdge {
   // in build order — the same direction the export numbers files in. A flow is
   // drawn the way it actually moves, which is the whole of what it says.
   const [source, target] = edge.kind === 'depends_on' ? [edge.to, edge.from] : [edge.from, edge.to];
-  const note = edge.kind === 'flows_to' ? (edge.via ?? edge.carries) : edge.label;
-  return {
-    id: edge.id,
-    source,
-    target,
-    type: 'plan',
-    data: { edge },
-    ...(note !== null && { label: note }),
-  };
+  // The writing on the line is drawn by PlanEdgeLine, which knows where layout
+  // put it. Handing React Flow a `label` as well would draw a second one.
+  return { id: edge.id, source, target, type: 'plan', data: { edge } };
 }
 
 export function createPlanStore(doc: Y.Doc) {

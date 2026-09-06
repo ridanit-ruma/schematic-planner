@@ -90,4 +90,49 @@ describe('layoutPlan', () => {
     expect(positions.size).toBe(3);
     expect(positions.get('child-a')!.x).toBeGreaterThanOrEqual(positions.get('group')!.x);
   });
+
+  describe('the writing on a line', () => {
+    /** Four flows out of one node, all labelled, all heading the same way. */
+    const busy = (): PlanDoc =>
+      planDocSchema.parse({
+        id: 'plan-2',
+        title: 'Busy',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        nodes: [
+          { slug: 'source', title: 'Source' },
+          { slug: 'one', title: 'One' },
+          { slug: 'two', title: 'Two' },
+          { slug: 'three', title: 'Three' },
+          { slug: 'four', title: 'Four' },
+        ],
+        edges: [
+          { id: 'f1', kind: 'flows_to', from: 'source', to: 'one', via: 'click Save', carries: '{ id }' },
+          { id: 'f2', kind: 'flows_to', from: 'source', to: 'two', via: 'click Delete', carries: '{ id }' },
+          { id: 'f3', kind: 'flows_to', from: 'source', to: 'three', via: 'on load', carries: 'the current filter' },
+          { id: 'f4', kind: 'flows_to', from: 'source', to: 'four', via: 'on submit', carries: 'the whole form' },
+        ],
+      });
+
+    it('gets a place of its own for every labelled flow', async () => {
+      const { labels } = await layoutPlan(busy(), { scope: 'all' });
+      expect([...labels.keys()].sort()).toEqual(['f1', 'f2', 'f3', 'f4']);
+    });
+
+    it('does not put two of them in the same place', async () => {
+      const { labels } = await layoutPlan(busy(), { scope: 'all' });
+      const placed = [...labels.values()];
+      for (let a = 0; a < placed.length; a += 1) {
+        for (let b = a + 1; b < placed.length; b += 1) {
+          const [one, other] = [placed[a]!, placed[b]!];
+          const apart = Math.abs(one.x - other.x) > 100 || Math.abs(one.y - other.y) > 18;
+          expect(apart, `labels at ${one.x},${one.y} and ${other.x},${other.y}`).toBe(true);
+        }
+      }
+    });
+
+    it('leaves a line with nothing written on it out of it', async () => {
+      const { labels } = await layoutPlan(plan(), { scope: 'all' });
+      expect(labels.size).toBe(0);
+    });
+  });
 });

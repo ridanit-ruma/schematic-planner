@@ -1,4 +1,5 @@
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useStore, type EdgeProps } from '@xyflow/react';
+import { edgeNote } from '@schematic/schema';
 import { memo } from 'react';
 
 import type { PlanFlowEdge } from './types';
@@ -62,12 +63,15 @@ function Line({
   // What sets a flow off and what it carries are the flow. Drawn on the line
   // rather than hidden in the inspector: reading the picture is the point, and
   // an arrow with nothing written on it says only that two things touch.
-  const note =
-    edge === undefined
-      ? null
-      : edge.kind === 'flows_to'
-        ? [edge.via, edge.carries].filter((part) => part !== null && part !== '').join(': ')
-        : (edge.label ?? '');
+  const note = edge === undefined ? '' : edgeNote(edge);
+
+  // Where layout put it, which is the only place that knows what else is near.
+  // Falling back to the midpoint when nothing has laid this plan out yet — and
+  // the midpoint is exactly where parallel lines pile their notes up, so a line
+  // too short to hold one keeps quiet until it has somewhere of its own.
+  const placed = edge?.labelPosition ?? null;
+  const at = placed ?? { x: labelX, y: labelY };
+  const show = note !== '' && (placed !== null ? zoom >= NOTE_ZOOM : legible);
 
   return (
     <>
@@ -81,11 +85,11 @@ function Line({
         }}
         markerEnd={style.marker ? 'url(#schematic-arrow)' : undefined}
       />
-      {note === null || note === '' || !legible ? null : (
+      {!show ? null : (
         <EdgeLabelRenderer>
           <div
             className="pointer-events-none absolute max-w-52 truncate rounded-[2px] border border-rule bg-surface px-1 py-px text-2xs text-ink-muted"
-            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+            style={{ transform: `translate(-50%, -50%) translate(${at.x}px, ${at.y}px)` }}
           >
             {note}
           </div>
