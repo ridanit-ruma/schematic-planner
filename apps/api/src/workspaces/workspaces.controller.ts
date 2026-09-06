@@ -6,7 +6,6 @@ import { StrictRateLimit } from '../common/throttle.js';
 import { ZodPipe } from '../common/zod.pipe.js';
 import { WorkspacesService } from './workspaces.service.js';
 import {
-  createApiKeySchema,
   deleteWorkspaceSchema,
   updateWorkspaceSchema,
   type DeleteWorkspaceInput,
@@ -14,7 +13,6 @@ import {
   createInviteSchema,
   createWorkspaceSchema,
   updateMemberSchema,
-  type CreateApiKeyInput,
   type CreateInviteInput,
   type CreateWorkspaceInput,
   type UpdateMemberInput,
@@ -92,28 +90,5 @@ export class WorkspacesController {
   @Post('invites/:token/accept')
   accept(@CurrentUser() user: AuthUser, @Param('token') token: string) {
     return this.workspaces.acceptInvite(user.id, token);
-  }
-
-  @Get('workspaces/:id/api-keys')
-  apiKeys(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.workspaces.listApiKeys(user.id, id);
-  }
-
-  @Post('workspaces/:id/api-keys')
-  createApiKey(
-    @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Body(new ZodPipe(createApiKeySchema)) body: CreateApiKeyInput,
-  ) {
-    return this.workspaces.createApiKey(user.id, id, body);
-  }
-
-  @Delete('workspaces/:id/api-keys/:keyId')
-  revokeApiKey(
-    @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Param('keyId') keyId: string,
-  ) {
-    return this.workspaces.revokeApiKey(user.id, id, keyId);
   }
 }

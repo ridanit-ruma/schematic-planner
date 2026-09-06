@@ -55,6 +55,8 @@ export interface ApiKeySummary {
   prefix: string;
   lastUsedAt: string | null;
   createdAt: string;
+  /** Set only on a key issued before keys belonged to the account. */
+  restrictedTo?: string | null;
 }
 
 export class ApiError extends Error {
@@ -187,14 +189,6 @@ export const workspaces = {
     api<{ url: string }>(`/workspaces/${id}/invites`, { method: 'POST', ...json({ role }) }),
   acceptInvite: (token: string) =>
     api<{ workspace: { id: string; name: string } }>(`/invites/${token}/accept`, { method: 'POST' }),
-  apiKeys: (id: string) => api<ApiKeySummary[]>(`/workspaces/${id}/api-keys`),
-  createApiKey: (id: string, name: string) =>
-    api<ApiKeySummary & { key: string; mcpUrl: string }>(`/workspaces/${id}/api-keys`, {
-      method: 'POST',
-      ...json({ name }),
-    }),
-  revokeApiKey: (id: string, keyId: string) =>
-    api<{ ok: true }>(`/workspaces/${id}/api-keys/${keyId}`, { method: 'DELETE' }),
 };
 
 export const projects = {
@@ -217,6 +211,15 @@ export const projects = {
 };
 
 export const account = {
+  // Keys belong to the account, not a workspace: one key reaches every
+  // workspace its owner belongs to.
+  apiKeys: () => api<ApiKeySummary[]>('/auth/api-keys'),
+  createApiKey: (name: string) =>
+    api<ApiKeySummary & { key: string; mcpUrl: string }>('/auth/api-keys', {
+      method: 'POST',
+      ...json({ name }),
+    }),
+  revokeApiKey: (id: string) => api<{ ok: true }>(`/auth/api-keys/${id}`, { method: 'DELETE' }),
   updateName: (name: string) =>
     api<AuthUser>('/auth/me', { method: 'PATCH', ...json({ name }) }),
   changePassword: (currentPassword: string, newPassword: string) =>

@@ -6,6 +6,7 @@ import { normalizeEdge, planEdgeInputSchema, planOpsSchema } from '@schematic/sc
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { PlansService } from '../plans/plans.service.js';
 import { ProjectsService } from '../projects/projects.service.js';
+import { WorkspacesService } from '../workspaces/workspaces.service.js';
 import type { McpIdentity } from './api-key.service.js';
 import { renderPlan } from './render.js';
 import {
@@ -14,7 +15,10 @@ import {
   exportPlanShape,
   getPlanShape,
   layoutShape,
+  listPlansShape,
+  listProjectsShape,
 } from './mcp.schemas.js';
+import { reachable, resolveWorkspace } from './workspace-scope.js';
 
 const text = (value: string) => ({ content: [{ type: 'text' as const, text: value }] });
 const failure = (value: string) => ({ ...text(value), isError: true });
@@ -28,6 +32,7 @@ export class McpFactory {
   constructor(
     private readonly plans: PlansService,
     private readonly projects: ProjectsService,
+    private readonly workspaces: WorkspacesService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -47,18 +52,43 @@ export class McpFactory {
     );
 
     server.registerTool(
-      'list_plans',
-      { title: 'List plans', description: 'Plans in the workspace this API key belongs to.' },
+      'list_workspaces',
+      {
+        title: 'List workspaces',
+        description:
+          'Workspaces this key can act in. A key belongs to a person, so this is every ' +
+          'workspace they are a member of.',
+      },
       async () => {
-        const projects = await this.projects.list(identity.userId, identity.workspaceId);
+        const options = await reachable(this.workspaces, identity);
+        if (options.length === 0) return text('This key reaches no workspace.');
+        return text(options.map((w) => `${w.slug}  ${w.name}`).join('\n'));
+      },
+    );
+
+    server.registerTool(
+      'list_plans',
+      {
+        title: 'List plans',
+        description:
+          'Plans this key can reach, grouped by workspace and project. Narrow it with the ' +
+          'workspace argument.',
+        inputSchema: listPlansShape,
+      },
+      async ({ workspace }) => {
+        const options = await reachable(this.workspaces, identity);
+        const scope =
+          workspace === undefined ? options : options.filter((w) => w.slug === workspace);
         const lines: string[] = [];
 
-        for (const project of projects) {
-          const plans = await this.plans.list(identity.userId, project.id);
-          if (plans.length === 0) continue;
-          lines.push(`${project.name} (${project.slug})`);
-          for (const plan of plans) {
-            lines.push(`  ${plan.id}  ${plan.title} (${plan.nodeCount} nodes)`);
+        for (const target of scope) {
+          for (const project of await this.projects.list(identity.userId, target.id)) {
+            const plans = await this.plans.list(identity.userId, project.id);
+            if (plans.length === 0) continue;
+            lines.push(`${target.slug} / ${project.slug}`);
+            for (const plan of plans) {
+              lines.push(`  ${plan.id}  ${plan.title} (${plan.nodeCount} nodes)`);
+            }
           }
         }
 
@@ -72,17 +102,26 @@ export class McpFactory {
       {
         title: 'List projects',
         description:
-          'Projects in the workspace this API key belongs to. A workspace holds projects, ' +
-          'and a project holds plans.',
+          'Projects this key can reach. A workspace holds projects, and a project holds plans.',
+        inputSchema: listProjectsShape,
       },
-      async () => {
-        const projects = await this.projects.list(identity.userId, identity.workspaceId);
-        if (projects.length === 0) return text('No projects yet.');
-        return text(
-          projects
-            .map((project) => `${project.slug}  ${project.name} (${project.planCount} plans)`)
-            .join('\n'),
-        );
+      async ({ workspace }) => {
+        const options = await reachable(this.workspaces, identity);
+        const scope =
+          workspace === undefined ? options : options.filter((w) => w.slug === workspace);
+        const lines: string[] = [];
+
+        for (const target of scope) {
+          const projects = await this.projects.list(identity.userId, target.id);
+          for (const project of projects) {
+            lines.push(
+              `${target.slug} / ${project.slug}  ${project.name} (${project.planCount} plans)`,
+            );
+          }
+        }
+
+        if (lines.length === 0) return text('No projects yet.');
+        return text(lines.join('\n'));
       },
     );
 
@@ -111,12 +150,13 @@ export class McpFactory {
           'a plan you have already written into a diagram.',
         inputSchema: createPlanShape,
       },
-      async ({ title, description, projectSlug, nodes, edges }) => {
+      async ({ title, description, workspace, projectSlug, nodes, edges }) => {
         try {
+          const target = await resolveWorkspace(this.workspaces, identity, workspace);
           const projectId =
             projectSlug === undefined
-              ? await this.projects.defaultFor(identity.workspaceId)
-              : (await this.projects.bySlug(identity.userId, identity.workspaceId, projectSlug)).id;
+              ? await this.projects.defaultFor(target.id)
+              : (await this.projects.bySlug(identity.userId, target.id, projectSlug)).id;
 
           const doc = await this.plans.create(identity.userId, projectId, {
             title,

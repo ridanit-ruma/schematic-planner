@@ -16,6 +16,7 @@ import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import type { AuthUser } from './auth.types.js';
 import type {
   ChangePasswordInput,
+  CreateApiKeyInput,
   LoginInput,
   RegisterInput,
   UpdateProfileInput,
@@ -23,6 +24,10 @@ import type {
 import { durationToMs } from './duration.js';
 
 const suffix = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 6);
+
+/** Shown in the settings list so a key can be told apart without revealing it. */
+const API_KEY_PREFIX = 'sp_';
+const API_KEY_PREFIX_LENGTH = 8;
 
 export interface AuthResult {
   readonly user: AuthUser;
@@ -198,6 +203,60 @@ export class AuthService {
     if (!valid) throw new UnauthorizedException('That is not your password');
 
     await this.prisma.user.delete({ where: { id: userId } });
+    return { ok: true as const };
+  }
+
+  async listApiKeys(userId: string) {
+    const keys = await this.prisma.apiKey.findMany({
+      where: { userId, revokedAt: null },
+      include: { workspace: { select: { slug: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return keys.map((key) => ({
+      id: key.id,
+      name: key.name,
+      prefix: key.prefix,
+      lastUsedAt: key.lastUsedAt,
+      createdAt: key.createdAt,
+      // Present only on a key issued under the older per-workspace model.
+      restrictedTo: key.workspace === null ? null : key.workspace.slug,
+    }));
+  }
+
+  /**
+   * Returns the key in full. This is the only moment it exists outside the
+   * caller's machine — the database keeps a hash.
+   *
+   * The key acts as its owner in every workspace they belong to, because
+   * somebody working across several should not have to issue, paste and revoke
+   * one per workspace.
+   */
+  async createApiKey(userId: string, input: CreateApiKeyInput) {
+    const secret = `${API_KEY_PREFIX}${randomToken(24)}`;
+    const key = await this.prisma.apiKey.create({
+      data: {
+        userId,
+        name: input.name,
+        prefix: secret.slice(0, API_KEY_PREFIX_LENGTH),
+        hash: hashToken(secret),
+      },
+    });
+
+    return {
+      id: key.id,
+      name: key.name,
+      prefix: key.prefix,
+      key: secret,
+      mcpUrl: `${this.config.apiPublicUrl}/mcp`,
+    };
+  }
+
+  async revokeApiKey(userId: string, keyId: string) {
+    await this.prisma.apiKey.updateMany({
+      where: { id: keyId, userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
     return { ok: true as const };
   }
 

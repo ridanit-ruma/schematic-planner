@@ -69,7 +69,6 @@ export function WorkspacesProvider({ children }: { children: ReactNode }) {
 const TABS = [
   { to: '', label: 'Projects', end: true },
   { to: 'members', label: 'Members', end: false },
-  { to: 'agents', label: 'Agents', end: false },
   { to: 'settings', label: 'Settings', end: false },
 ] as const;
 

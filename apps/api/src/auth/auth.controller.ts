@@ -21,11 +21,13 @@ import { CurrentUser } from './current-user.decorator.js';
 import { Public } from './public.decorator.js';
 import {
   changePasswordSchema,
+  createApiKeySchema,
   deleteAccountSchema,
   loginSchema,
   registerSchema,
   updateProfileSchema,
   type ChangePasswordInput,
+  type CreateApiKeyInput,
   type DeleteAccountInput,
   type LoginInput,
   type RegisterInput,
@@ -137,6 +139,28 @@ export class AuthController {
     const result = await this.auth.deleteAccount(user.id, body.password);
     response.clearCookie(REFRESH_COOKIE, this.cookieOptions(new Date(0)));
     return result;
+  }
+
+  /**
+   * Keys live with the account rather than a workspace: one key reaches every
+   * workspace its owner belongs to.
+   */
+  @Get('api-keys')
+  apiKeys(@CurrentUser() user: AuthUser) {
+    return this.auth.listApiKeys(user.id);
+  }
+
+  @Post('api-keys')
+  createApiKey(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodPipe(createApiKeySchema)) body: CreateApiKeyInput,
+  ) {
+    return this.auth.createApiKey(user.id, body);
+  }
+
+  @Delete('api-keys/:id')
+  revokeApiKey(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.auth.revokeApiKey(user.id, id);
   }
 
   /** Which sign-in methods this instance actually has configured. */

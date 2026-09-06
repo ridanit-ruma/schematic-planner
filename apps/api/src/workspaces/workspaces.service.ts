@@ -12,7 +12,6 @@ import { PrismaService } from '../common/prisma.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { AccessService } from './access.service.js';
 import type {
-  CreateApiKeyInput,
   CreateInviteInput,
   CreateWorkspaceInput,
   UpdateWorkspaceInput,
@@ -20,10 +19,6 @@ import type {
 import type { Role } from './roles.js';
 
 const suffix = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 6);
-
-/** Shown in the settings list so a key can be told apart without revealing it. */
-const KEY_PREFIX = 'sp_';
-const PREFIX_LENGTH = 8;
 
 @Injectable()
 export class WorkspacesService {
@@ -160,57 +155,6 @@ export class WorkspacesService {
     ]);
 
     return { workspace: { id: invite.workspace.id, name: invite.workspace.name } };
-  }
-
-  async listApiKeys(userId: string, workspaceId: string) {
-    await this.access.requireWorkspace(userId, workspaceId, 'EDITOR');
-    const keys = await this.prisma.apiKey.findMany({
-      where: { workspaceId, revokedAt: null },
-      orderBy: { createdAt: 'desc' },
-    });
-    return keys.map((key) => ({
-      id: key.id,
-      name: key.name,
-      prefix: key.prefix,
-      lastUsedAt: key.lastUsedAt,
-      createdAt: key.createdAt,
-    }));
-  }
-
-  /**
-   * Returns the key in full. This is the only moment it exists outside the
-   * caller's machine — the database keeps a hash.
-   */
-  async createApiKey(userId: string, workspaceId: string, input: CreateApiKeyInput) {
-    await this.access.requireWorkspace(userId, workspaceId, 'EDITOR');
-
-    const secret = `${KEY_PREFIX}${randomToken(24)}`;
-    const key = await this.prisma.apiKey.create({
-      data: {
-        workspaceId,
-        userId,
-        name: input.name,
-        prefix: secret.slice(0, PREFIX_LENGTH),
-        hash: hashToken(secret),
-      },
-    });
-
-    return {
-      id: key.id,
-      name: key.name,
-      prefix: key.prefix,
-      key: secret,
-      mcpUrl: `${this.config.apiPublicUrl}/mcp`,
-    };
-  }
-
-  async revokeApiKey(userId: string, workspaceId: string, keyId: string) {
-    await this.access.requireWorkspace(userId, workspaceId, 'EDITOR');
-    await this.prisma.apiKey.updateMany({
-      where: { id: keyId, workspaceId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-    return { ok: true };
   }
 
   /** A workspace with no owner cannot be administered again. */

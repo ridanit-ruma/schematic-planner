@@ -5,6 +5,7 @@ import { AppShell } from '@/components/AppShell';
 import { Spinner } from '@/components/ui/feedback';
 import { useAuth } from '@/lib/auth-store';
 import { AccountSettingsPage } from '@/features/account/AccountSettingsPage';
+import { SettingsLayout } from '@/features/account/SettingsLayout';
 import { AuthPage } from '@/features/auth/AuthPage';
 import { PlanPage } from '@/features/plan/PlanPage';
 import { SharedPlanPage } from '@/features/plan/SharedPlanPage';
@@ -23,9 +24,10 @@ import { WorkspaceLayout, WorkspacesProvider } from '@/features/workspaces/works
  *   /                                    the workspace you were last in
  *   /login  /register
  *   /settings                            your account
+ *   /settings/agents                     the keys your agents hold
  *   /workspace/:slug                     projects
  *   /workspace/:slug/project/:slug       plans in a project
- *   /workspace/:slug/members  /agents  /settings
+ *   /workspace/:slug/members  /settings
  *   /plan/:planId                        the canvas
  *   /share/:token                        read only, no session
  *
@@ -66,14 +68,16 @@ export function App() {
         }
       >
         <Route index element={<HomeRedirect />} />
-        <Route path="/settings" element={<AccountSettingsPage />} />
+        <Route path="/settings" element={<SettingsLayout />}>
+          <Route index element={<AccountSettingsPage />} />
+          <Route path="agents" element={<AgentsPage />} />
+        </Route>
         <Route path="/invite/:token" element={<InvitePage />} />
 
         <Route path="/workspace/:workspaceSlug" element={<WorkspaceLayout />}>
           <Route index element={<ProjectIndexPage />} />
           <Route path="project/:projectSlug" element={<PlanIndexPage />} />
           <Route path="members" element={<MembersPage />} />
-          <Route path="agents" element={<AgentsPage />} />
           <Route path="settings" element={<WorkspaceSettingsPage />} />
         </Route>
 

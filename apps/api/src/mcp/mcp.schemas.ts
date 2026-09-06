@@ -32,8 +32,19 @@ export const planViewSchema = z
   .default('outline')
   .describe('outline = indented tree, graph = json nodes and edges, markdown = full export');
 
+const workspaceArg = z
+  .string()
+  .min(1)
+  .max(64)
+  .optional()
+  .describe('Workspace slug. Omit when the account has only one');
+
+export const listProjectsShape = { workspace: workspaceArg };
+export const listPlansShape = { workspace: workspaceArg };
+
 export const createPlanShape = {
   title: z.string().min(1).max(200),
+  workspace: workspaceArg,
   projectSlug: z
     .string()
     .min(1)

@@ -6,8 +6,7 @@ import { Field, Input } from '@/components/ui/field';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { config } from '@/lib/config';
-import { workspaces, type ApiKeySummary } from '@/lib/api';
-import { useWorkspace } from '@/features/workspaces/workspace-context';
+import { account, type ApiKeySummary } from '@/lib/api';
 import { formatWhen } from '@/lib/utils';
 
 const MCP_URL = `${config.apiUrl}/mcp`;
@@ -17,8 +16,6 @@ const MCP_URL = `${config.apiUrl}/mcp`;
  * into another program is monospace and one click from the clipboard.
  */
 export function AgentsPage() {
-  const { current } = useWorkspace();
-  const workspaceId = current.id;
   const [keys, setKeys] = useState<ApiKeySummary[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [naming, setNaming] = useState(false);
@@ -26,15 +23,15 @@ export function AgentsPage() {
   const [issued, setIssued] = useState<{ key: string; name: string } | null>(null);
 
   const reload = (): void => {
-    workspaces.apiKeys(workspaceId).then(setKeys).catch(setError);
+    account.apiKeys().then(setKeys).catch(setError);
   };
-  useEffect(reload, [workspaceId]);
+  useEffect(reload, []);
 
   const create = async (): Promise<void> => {
     const trimmed = name.trim();
     if (trimmed === '') return;
     try {
-      const created = await workspaces.createApiKey(workspaceId, trimmed);
+      const created = await account.createApiKey(trimmed);
       setIssued({ key: created.key, name: created.name });
       setNaming(false);
       setName('');
@@ -48,8 +45,9 @@ export function AgentsPage() {
     <div className="mx-auto max-w-3xl px-6 py-10">
       <h1 className="text-xl font-medium text-ink">Agents</h1>
       <p className="mt-1 max-w-prose text-sm text-ink-muted">
-        Connect Cursor, Claude, or any other MCP client to this workspace. The agent can then read
-        your plans and draw new ones on the same canvas you are looking at.
+        Connect Cursor, Claude, or any other MCP client. A key belongs to you rather than to one
+        workspace, so a single key reaches every workspace you are a member of — the agent can
+        read your plans and draw new ones on the same canvas you are looking at.
       </p>
 
       <section className="mt-8 border border-rule bg-surface p-4">
@@ -65,7 +63,8 @@ export function AgentsPage() {
           <div>
             <h2 className="text-sm font-medium text-ink">Keys</h2>
             <p className="mt-1 text-xs text-ink-muted">
-              A key acts as you, in this workspace. Revoke one and it stops working immediately.
+              A key acts as you, everywhere you are a member. Revoke one and it stops working
+              immediately.
             </p>
           </div>
           <Button variant="primary" onClick={() => setNaming(true)}>
@@ -104,7 +103,14 @@ export function AgentsPage() {
             <tbody>
               {keys.map((key) => (
                 <tr key={key.id} className="border-b border-rule">
-                  <td className="truncate py-2.5 pr-4 text-ink">{key.name}</td>
+                  <td className="truncate py-2.5 pr-4 text-ink">
+                    {key.name}
+                    {key.restrictedTo != null ? (
+                      <span className="ml-2 text-xs text-ink-faint">
+                        limited to {key.restrictedTo}
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="slug py-2.5 text-ink-faint">{key.prefix}…</td>
                   <td className="py-2.5 text-right text-ink-muted">
                     {key.lastUsedAt === null ? 'Never' : formatWhen(key.lastUsedAt)}
@@ -114,7 +120,7 @@ export function AgentsPage() {
                       size="sm"
                       variant="ghost"
                       onClick={() => {
-                        void workspaces.revokeApiKey(workspaceId, key.id).then(reload);
+                        void account.revokeApiKey(key.id).then(reload);
                       }}
                     >
                       Revoke

@@ -5,8 +5,13 @@ import { PrismaService } from '../common/prisma.service.js';
 
 export interface McpIdentity {
   readonly userId: string;
-  readonly workspaceId: string;
   readonly keyId: string;
+  /**
+   * Set only on a key issued under the older model, which was tied to one
+   * workspace. Null means the key acts as its owner everywhere they are a
+   * member, which is what every key issued now does.
+   */
+  readonly workspaceId: string | null;
 }
 
 @Injectable()
@@ -23,6 +28,6 @@ export class ApiKeyService {
       data: { lastUsedAt: new Date() },
     });
 
-    return { userId: key.userId, workspaceId: key.workspaceId, keyId: key.id };
+    return { userId: key.userId, keyId: key.id, workspaceId: key.workspaceId };
   }
 }

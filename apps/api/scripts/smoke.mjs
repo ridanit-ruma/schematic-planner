@@ -141,12 +141,9 @@ async function main() {
   );
 
   section('mcp');
-  const key = await call(`/workspaces/${workspaceId}/api-keys`, {
-    method: 'POST',
-    token,
-    body: { name: 'smoke' },
-  });
+  const key = await call('/auth/api-keys', { method: 'POST', token, body: { name: 'smoke' } });
   check('api key issued once', typeof key.body.key === 'string');
+  check('a key belongs to the account, not a workspace', key.body.workspaceId === undefined);
 
   const mcp = async (payload) => {
     const response = await fetch(`${API}/mcp`, {
@@ -163,7 +160,10 @@ async function main() {
 
   const tools = await mcp({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
   const names = (tools.result?.tools ?? []).map((tool) => tool.name).sort();
-  check('tools/list', names.length === 7, names.join(', '));
+  check('tools/list', names.length === 8, names.join(', '));
+
+  const second = await call('/workspaces', { method: 'POST', token, body: { name: 'Second' } });
+  check('a second workspace exists', typeof second.body.slug === 'string', second.body.slug ?? '');
   check(
     'no tool accepts a position',
     JSON.stringify(tools.result?.tools ?? []).includes('position') === false,
@@ -179,10 +179,19 @@ async function main() {
     ).status === 401,
   );
 
+  const listedWorkspaces = await mcp({
+    jsonrpc: '2.0', id: 2, method: 'tools/call',
+    params: { name: 'list_workspaces', arguments: {} },
+  });
+  const seen = listedWorkspaces.result?.content?.[0]?.text ?? '';
+  check(
+    'one key reaches every workspace its owner belongs to',
+    seen.includes(second.body.slug) && seen.includes(workspaces.body[0]?.slug ?? '#'),
+    seen.replace(/\n/g, ' | '),
+  );
+
   const listedProjects = await mcp({
-    jsonrpc: '2.0',
-    id: 2,
-    method: 'tools/call',
+    jsonrpc: '2.0', id: 3, method: 'tools/call',
     params: { name: 'list_projects', arguments: {} },
   });
   check(
@@ -190,14 +199,24 @@ async function main() {
     (listedProjects.result?.content?.[0]?.text ?? '').includes('billing-rework'),
   );
 
+  const ambiguous = await mcp({
+    jsonrpc: '2.0', id: 4, method: 'tools/call',
+    params: { name: 'create_plan', arguments: { title: 'Which one?', nodes: [], edges: [] } },
+  });
+  check(
+    'with several workspaces it asks which, and names them',
+    (ambiguous.result?.content?.[0]?.text ?? '').includes('name one with the workspace argument'),
+  );
+
   const drawn = await mcp({
     jsonrpc: '2.0',
-    id: 3,
+    id: 5,
     method: 'tools/call',
     params: {
       name: 'create_plan',
       arguments: {
         title: 'Drawn by an agent',
+        workspace: workspaces.body[0]?.slug,
         projectSlug: 'billing-rework',
         nodes: [
           { slug: 'ingest', title: 'Ingest' },

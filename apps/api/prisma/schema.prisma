@@ -155,9 +155,14 @@ model PlanShare {
 
 /// Bearer credential for the Remote MCP endpoint. Only the hash is stored;
 /// `prefix` exists so the settings page can show which key is which.
+///
+/// A key belongs to a person, not to a workspace: someone works across several
+/// and should not have to issue, paste and revoke a key per workspace. It acts
+/// as its owner wherever they are a member. `workspaceId` survives only to keep
+/// older narrower keys working and is null for anything issued now.
 model ApiKey {
   id          String    @id @default(cuid())
-  workspaceId String
+  workspaceId String?
   userId      String
   name        String
   prefix      String
@@ -166,8 +171,8 @@ model ApiKey {
   revokedAt   DateTime?
   createdAt   DateTime  @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
   @@index([userId])

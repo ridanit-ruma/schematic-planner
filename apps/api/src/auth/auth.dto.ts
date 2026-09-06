@@ -30,3 +30,8 @@ export const deleteAccountSchema = z.object({
   confirm: z.literal('delete my account'),
 });
 export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>;
+
+export const createApiKeySchema = z.object({
+  name: z.string().min(1).max(80),
+});
+export type CreateApiKeyInput = z.infer<typeof createApiKeySchema>;
