@@ -36,12 +36,8 @@ export interface LayoutResult {
  * Room along the top edge for a container's own label. Applied to every
  * container, not just the root: ELK reads padding per node, and a container
  * without it puts its first child straight over its own title.
- *
- * The band is deep enough for a label drawn at its largest. The editor grows
- * titles in canvas units as the view zooms out so that they stay readable, and
- * a band sized for the label at rest would be overrun by the first child.
  */
-const CONTAINER_PADDING = '[top=56,left=16,bottom=16,right=16]';
+const CONTAINER_PADDING = '[top=40,left=16,bottom=16,right=16]';
 
 /**
  * What a node actually measures on the canvas.

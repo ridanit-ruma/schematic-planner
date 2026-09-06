@@ -104,30 +104,31 @@ try {
   check('at least one container is drawn at its own bounds', containers.length > 0, containers.join(', '));
 
   console.log('\nreading it from a distance');
-  // A title used to be dropped below a zoom threshold, which is exactly the
-  // distance at which you are trying to see which node is which.
+  // Two earlier attempts had the card change with the zoom — text dropped at a
+  // threshold, then regrown in canvas units. A card is a drawing now: the same
+  // at every distance, only nearer or further away.
+  const measure = () =>
+    page.evaluate(() => {
+      const zoom = Number(
+        /scale\(([0-9.]+)\)/.exec(
+          document.querySelector('.react-flow__viewport')?.style.transform ?? '',
+        )?.[1] ?? '1',
+      );
+      const labels = [...document.querySelectorAll('.react-flow__node p, .react-flow__node span')]
+        .filter((el) => el.children.length === 0 && (el.textContent ?? '').trim() !== '')
+        .map((el) => getComputedStyle(el).fontSize);
+      return { zoom, count: labels.length, sizes: labels.join(',') };
+    });
+
+  const near = await measure();
   for (let i = 0; i < 4; i += 1) {
     await page.click('.react-flow__controls-zoomout');
     await wait(180);
   }
-  const far = await page.evaluate(() => {
-    const zoom = Number(
-      /scale\(([0-9.]+)\)/.exec(
-        document.querySelector('.react-flow__viewport')?.style.transform ?? '',
-      )?.[1] ?? '1',
-    );
-    const titles = [...document.querySelectorAll('.react-flow__node p, .react-flow__node span')]
-      .filter((el) => el.textContent !== null && el.textContent.trim() !== '' && el.children.length === 0)
-      .map((el) => ({ onScreen: parseFloat(getComputedStyle(el).fontSize) * zoom }))
-      .filter((t) => t.onScreen > 0);
-    return { zoom, largest: Math.max(0, ...titles.map((t) => t.onScreen)), count: titles.length };
-  });
-  check('zooming out actually pulled back', far.zoom < 0.5, `scale ${far.zoom.toFixed(2)}`);
-  check(
-    'titles are still drawn there',
-    far.count > 0 && far.largest >= 9.5,
-    `${far.count} labels, largest ${far.largest.toFixed(1)}px on screen`,
-  );
+  const far = await measure();
+  check('zooming out actually pulled back', far.zoom < near.zoom / 2, `${near.zoom.toFixed(2)} -> ${far.zoom.toFixed(2)}`);
+  check('the same labels are drawn at both distances', far.count === near.count && far.count > 0, `${near.count} -> ${far.count}`);
+  check('and drawn at the same size', far.sizes === near.sizes, far.sizes.slice(0, 40));
   await page.click('.react-flow__controls-fitview');
   await wait(500);
 

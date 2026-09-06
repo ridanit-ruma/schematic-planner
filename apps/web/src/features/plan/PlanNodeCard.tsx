@@ -1,9 +1,8 @@
-import { Handle, Position as HandlePosition, useStore, type NodeProps } from '@xyflow/react';
+import { Handle, Position as HandlePosition, type NodeProps } from '@xyflow/react';
 import { memo } from 'react';
 
 import { STATUS_COLOR } from '@/components/ui/status';
 import { cn } from '@/lib/utils';
-import { titleSize } from './title-size';
 import type { PlanFlowNode } from './types';
 
 /**
@@ -20,22 +19,19 @@ const KIND_BORDER: Record<string, string> = {
 };
 
 /*
- * Supporting detail — identifier, body, tags — goes below this zoom. It is read
- * one node at a time, and at a distance it is texture. The title never goes;
- * see title-size.ts for how it stays readable instead.
+ * A card does not read the zoom and does not change with it. It is drawn once,
+ * at one size, and the canvas scales the whole drawing — so a node looks the
+ * same at every distance, only nearer or further away. Two earlier attempts
+ * made the card react to the zoom, first dropping text below a threshold and
+ * then regrowing it; both traded a drawing you can predict for a moving one.
  */
-const DETAIL_ZOOM = 0.62;
-
 function Card({ data, selected }: NodeProps<PlanFlowNode>) {
-  const zoom = useStore((state) => state.transform[2]);
-  const detailed = zoom >= DETAIL_ZOOM;
   const { node, childCount } = data;
 
   // A node that holds others is drawn as the boundary around them, labelled at
   // the top edge where nothing else sits. Drawn as a card it would land on top
   // of its own first child.
   if (childCount > 0) {
-    const size = titleSize(12, zoom);
     return (
       /* The body is click-through so that the nodes inside stay reachable; the
          label row and the two terminals take events back. Without this a
@@ -46,27 +42,15 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
           selected === true && 'border-accent',
         )}
       >
-        {/* The row tightens as the label grows so the band stays clear of the
-            first child, whose distance from the top edge is fixed by layout. */}
-        <div
-          className="pointer-events-auto flex items-center gap-2 px-3"
-          style={{ paddingBlock: size > 16 ? 4 : 8 }}
-        >
+        <div className="pointer-events-auto flex items-center gap-2 px-3 py-2">
           <span
             aria-hidden
-            className="w-1 shrink-0"
-            style={{ background: STATUS_COLOR[node.status], height: size }}
+            className="h-3.5 w-1 shrink-0"
+            style={{ background: STATUS_COLOR[node.status] }}
           />
-          <span
-            className="truncate leading-snug font-medium text-ink"
-            style={{ fontSize: size }}
-          >
-            {node.title}
-          </span>
-          {detailed ? <span className="slug truncate text-ink-faint">{node.slug}</span> : null}
-          <span className="ml-auto shrink-0 text-ink-faint" style={{ fontSize: size * 0.7 }}>
-            {childCount}
-          </span>
+          <span className="truncate text-xs font-medium text-ink">{node.title}</span>
+          <span className="slug truncate text-ink-faint">{node.slug}</span>
+          <span className="ml-auto shrink-0 text-2xs text-ink-faint">{childCount}</span>
         </div>
         <Handle
           type="target"
@@ -92,34 +76,16 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
         selected === true && 'border-accent ring-1 ring-accent',
       )}
     >
-      <span
-        aria-hidden
-        className="w-1 shrink-0"
-        style={{ background: STATUS_COLOR[node.status] }}
-      />
+      <span aria-hidden className="w-1 shrink-0" style={{ background: STATUS_COLOR[node.status] }} />
 
-      <div className="flex min-w-0 flex-1 flex-col justify-center px-3 py-2">
-        <p
-          className="truncate leading-snug font-medium text-ink"
-          style={{ fontSize: titleSize(14, zoom) }}
-        >
-          {node.title}
-        </p>
-
-        {detailed ? (
-          <>
-            <p className="slug mt-0.5 truncate text-ink-faint">{node.slug}</p>
-            {excerpt !== '' ? (
-              <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-ink-muted">{excerpt}</p>
-            ) : null}
-            {(childCount > 0 || node.tags.length > 0) && (
-              <p className="mt-1.5 text-2xs text-ink-faint">
-                {childCount > 0 ? `${childCount} inside` : null}
-                {childCount > 0 && node.tags.length > 0 ? '   ' : null}
-                {node.tags.length > 0 ? node.tags.join('  ') : null}
-              </p>
-            )}
-          </>
+      <div className="min-w-0 flex-1 px-3 py-2">
+        <p className="truncate text-sm leading-snug font-medium text-ink">{node.title}</p>
+        <p className="slug mt-0.5 truncate text-ink-faint">{node.slug}</p>
+        {excerpt !== '' ? (
+          <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-ink-muted">{excerpt}</p>
+        ) : null}
+        {node.tags.length > 0 ? (
+          <p className="mt-1.5 truncate text-2xs text-ink-faint">{node.tags.join('  ')}</p>
         ) : null}
       </div>
 
