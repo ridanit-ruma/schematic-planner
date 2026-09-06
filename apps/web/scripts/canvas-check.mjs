@@ -45,13 +45,29 @@ page.on('pageerror', (error) => console.log(`  [page error] ${error.message}`.sl
 
 try {
   console.log('\nsign in');
-  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
-  await wait(2500);
-  await page.type('input[type=email]', EMAIL);
-  await page.type('input[type=password]', PASSWORD);
-  await page.click('button[type=submit]');
-  await wait(3500);
-  check('signed in', !page.url().endsWith('/login'), page.url());
+  // The smoke check deliberately exhausts the sign-in allowance for its address.
+  // Running the two in sequence would otherwise fail here for a reason that has
+  // nothing to do with the canvas.
+  let throttled = false;
+  page.on('response', (r) => {
+    if (r.url().endsWith('/auth/login') && r.status() === 429) throttled = true;
+  });
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    throttled = false;
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
+    await wait(2500);
+    if (!page.url().endsWith('/login')) break;
+    await page.type('input[type=email]', EMAIL);
+    await page.type('input[type=password]', PASSWORD);
+    await page.click('button[type=submit]');
+    await wait(3500);
+    if (!page.url().endsWith('/login')) break;
+    if (!throttled) break;
+    console.log('  rate limited; waiting for the window to pass');
+    await wait(31_000);
+  }
+  check('signed in', !page.url().endsWith('/login'), throttled ? 'still rate limited' : page.url());
 
   console.log('\nthe canvas');
   // Workspace, then project, then plan — the hierarchy the addresses describe.
