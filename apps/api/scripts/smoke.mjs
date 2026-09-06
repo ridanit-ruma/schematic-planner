@@ -48,10 +48,22 @@ async function call(path, { token, method = 'GET', body, raw = false } = {}) {
 async function main() {
   section('auth');
   const email = `smoke-${Date.now()}@example.invalid`;
-  const registered = await call('/auth/register', {
+  let registered = await call('/auth/register', {
     method: 'POST',
     body: { email, name: 'Smoke', password: 'correct-horse-battery' },
   });
+
+  if (registered.status === 429) {
+    // This run's own throttling section spends the allowance for this address,
+    // so a second run straight afterwards is turned away here. Waiting is
+    // correct behaviour, not a failure — say so and carry on.
+    console.log('  … rate limited from a previous run; waiting for the window');
+    await wait(62_000);
+    registered = await call('/auth/register', {
+      method: 'POST',
+      body: { email, name: 'Smoke', password: 'correct-horse-battery' },
+    });
+  }
   check('register', registered.status === 201 || registered.status === 200, `status ${registered.status}`);
   const token = registered.body.accessToken;
   check('access token issued', typeof token === 'string' && token.length > 20);
