@@ -326,6 +326,15 @@ try {
 
     // SVG elements carry an object for `className`, so the class list is read
     // through the attribute instead — an edge on top used to read as a pass.
+    // The hint moved off the native title attribute, which does not exist on a
+    // touch screen and cannot be styled. It has to actually appear.
+    await page.hover('button[aria-label="Depends on"]');
+    await wait(1200);
+    const hint = await page.evaluate(
+      () => document.querySelector('[role="tooltip"]')?.textContent ?? '',
+    );
+    check('a hint appears on the connection control', hint.includes('Depends on'), hint.slice(0, 60));
+
     const terminal = await page
       .$eval('.react-flow__node[data-id="alpha"] .react-flow__handle.source', (el) => {
         const r = el.getBoundingClientRect();
