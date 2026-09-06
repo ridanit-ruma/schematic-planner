@@ -59,11 +59,10 @@ function toFlowNode(
         : { x: absolute.x - parent.position.x, y: absolute.y - parent.position.y },
     ...(parent !== null && { parentId: parent.slug }),
     data: { node, childCount },
-    // A container paints below the nodes it holds, but not below the edge layer:
-    // a negative index put it behind the edges, and its own handles then could
-    // not be reached at all. Its body is click-through instead — see PlanNodeCard.
-    // Depth keeps that true at every level of nesting.
-    zIndex: depth * 10 + (isContainer ? 0 : 1),
+    // Every node sits above the edge layer, or a line routed across a group's
+    // terminal buries it and the group cannot be connected to at all. Within
+    // that, a container stays under what it holds, at every depth of nesting.
+    zIndex: depth * 10 + (isContainer ? 1 : 2),
     ...(isContainer &&
       node.size !== null && {
         style: { width: node.size.width, height: node.size.height },

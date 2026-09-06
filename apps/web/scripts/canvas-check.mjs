@@ -181,7 +181,9 @@ try {
   const box0 = await rectOf(group);
   let child = null;
   for (const slug of held) {
-    if (slug === group) continue;
+    // A leaf: a group nested in this one moves by its own rules and would not
+    // show that a group carries what it holds.
+    if (slug === group || containers.includes(slug)) continue;
     if (inside(await rectOf(slug), box0)) {
       child = slug;
       break;
