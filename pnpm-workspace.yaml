@@ -75,6 +75,7 @@ catalog:
   "@types/react": ^19.2.7
   "@types/react-dom": ^19.2.4
   vite: ^8.2.2
+  puppeteer-core: ^25.10.0
   "@vitejs/plugin-react": ^6.1.1
   "@xyflow/react": ^12.11.6
   "@hocuspocus/provider": ^4.6.0

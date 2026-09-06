@@ -1,0 +1,123 @@
+/**
+ * Drives the canvas in a real browser against a running instance.
+ *
+ * Three defects reached a running server without a single test noticing: the
+ * canvas rendered nothing on a shared link because its container had no height,
+ * containers were drawn on top of their own children, and a container's handles
+ * sat behind the edge layer so a node could not be dragged into a group at all.
+ * None of that is visible from the protocol, so this drives the gestures.
+ *
+ *   CANVAS_CHECK_URL=http://127.0.0.1:8443 \
+ *   CANVAS_CHECK_EMAIL=… CANVAS_CHECK_PASSWORD=… \
+ *   pnpm --filter @schematic/web canvas-check
+ *
+ * Needs puppeteer-core and a Chromium on the machine; both are optional, so the
+ * script says what is missing rather than failing obscurely.
+ */
+const BASE = (process.env['CANVAS_CHECK_URL'] ?? 'http://127.0.0.1:8443').replace(/\/+$/, '');
+const EMAIL = process.env['CANVAS_CHECK_EMAIL'] ?? 'demo@schematic.local';
+const PASSWORD = process.env['CANVAS_CHECK_PASSWORD'] ?? 'schematic-demo-2026';
+const CHROME = process.env['CHROME_PATH'] ?? '/usr/bin/chromium';
+
+let puppeteer;
+try {
+  puppeteer = (await import('puppeteer-core')).default;
+} catch {
+  console.error('puppeteer-core is not installed. pnpm --filter @schematic/web add -D puppeteer-core');
+  process.exit(1);
+}
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+let failures = 0;
+const check = (label, ok, detail = '') => {
+  if (!ok) failures += 1;
+  console.log(`  ${ok ? '✓' : '✗'} ${label}${detail === '' ? '' : `  ${detail}`}`);
+};
+
+const browser = await puppeteer.launch({
+  executablePath: CHROME,
+  headless: true,
+  args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+  defaultViewport: { width: 1600, height: 1000 },
+});
+const page = await browser.newPage();
+page.on('pageerror', (error) => console.log(`  [page error] ${error.message}`.slice(0, 160)));
+
+try {
+  console.log('\nsign in');
+  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
+  await wait(2500);
+  await page.type('input[type=email]', EMAIL);
+  await page.type('input[type=password]', PASSWORD);
+  await page.click('button[type=submit]');
+  await wait(3500);
+  check('signed in', !page.url().endsWith('/login'), page.url());
+
+  console.log('\nthe canvas');
+  // Workspace, then project, then plan — the hierarchy the addresses describe.
+  const projects = await page.$$eval('a[href*="/project/"]', (list) =>
+    list.map((a) => a.getAttribute('href')).filter((h) => h !== null),
+  );
+  check('projects are listed in the workspace', projects.length > 0, projects.join(', '));
+
+  // A workspace usually has an empty project as well as a used one, so take the
+  // first that actually holds a plan rather than assuming an order.
+  let planHref = null;
+  for (const projectHref of projects) {
+    await page.goto(`${BASE}${projectHref}`, { waitUntil: 'domcontentloaded' });
+    await wait(2200);
+    planHref = await page.$eval('a[href^="/plan/"]', (a) => a.getAttribute('href')).catch(() => null);
+    if (planHref !== null) break;
+  }
+  check('a plan is listed in a project', planHref !== null, planHref ?? '');
+  if (planHref === null) throw new Error('no plan to open — seed one first');
+
+  const planId = planHref.split('/').pop();
+  await page.goto(`${BASE}${planHref}`, { waitUntil: 'domcontentloaded' });
+  await wait(4000);
+
+  const nodes = await page.$$eval('.react-flow__node', (list) => list.length);
+  check('nodes render', nodes > 0, `${nodes} nodes`);
+
+  const height = await page.$eval('.react-flow', (el) => el.getBoundingClientRect().height);
+  check('the canvas has height', height > 200, `${Math.round(height)}px`);
+
+  const containers = await page.$$eval('.react-flow__node', (list) =>
+    list.filter((n) => n.getBoundingClientRect().width > 320).map((n) => n.getAttribute('data-id')),
+  );
+  check('at least one container is drawn at its own bounds', containers.length > 0, containers.join(', '));
+
+  console.log('\ndrawing a connection');
+  await page.click('button[title^="Contains"]');
+  await wait(300);
+  check(
+    'the connection control selects Contains',
+    (await page.$eval('button[title^="Contains"]', (b) => b.getAttribute('aria-pressed'))) === 'true',
+  );
+
+  const container = containers[0];
+  const at = (slug, kind) =>
+    page
+      .$eval(`.react-flow__node[data-id="${slug}"] .react-flow__handle.${kind}`, (el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      })
+      .catch(() => null);
+
+  const from = await at(container, 'source');
+  const topmost = from
+    ? await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.className ?? '', from)
+    : '';
+  check(
+    "a container's handle is not buried behind the edges",
+    String(topmost).includes('handle'),
+    String(topmost).slice(0, 60),
+  );
+
+  console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) failed`}`);
+  void planId;
+} finally {
+  await browser.close();
+}
+
+process.exit(failures === 0 ? 0 : 1);

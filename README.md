@@ -345,6 +345,7 @@ Migrations run to completion in their own container before the API starts.
 | `pnpm test` | Vitest across every workspace |
 | `pnpm check` | typecheck + lint + test — run this before you call something done |
 | `pnpm --filter @schematic/api smoke` | End-to-end check against a running server |
+| `pnpm --filter @schematic/web canvas-check` | Drives the canvas in a real browser |
 | `pnpm --filter @schematic/api db:migrate` | Create a migration from a schema change |
 | `pnpm --filter @schematic/api db:deploy` | Apply existing migrations |
 
@@ -365,6 +366,24 @@ SMOKE_API_URL=https://your-instance.example pnpm --filter @schematic/api smoke
 It registers a throwaway account and leaves it behind, so point it at a
 development instance. Run it after anything that touches collaboration,
 authentication, or the MCP surface.
+
+### The canvas check
+
+The smoke check speaks the protocol, which is not enough. Three defects reached a
+running server without a single test noticing: the canvas rendered nothing on a
+shared link because its container had no height, containers were drawn on top of
+their own children, and a container's handles sat behind the edge layer so a node
+could not be dragged into a group at all. None of that is visible from the API.
+
+```bash
+CANVAS_CHECK_URL=http://127.0.0.1:8443 pnpm --filter @schematic/web canvas-check
+```
+
+It signs in, walks workspace to project to plan, and checks the things that
+actually broke: that the canvas has height, that containers are drawn at their
+own bounds, and that a container's handle can be reached rather than buried
+behind the edges. Needs a Chromium on the machine (`CHROME_PATH` to point at
+one) and a seeded plan to look at.
 
 ## Conventions
 
