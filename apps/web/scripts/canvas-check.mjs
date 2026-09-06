@@ -146,6 +146,85 @@ try {
   check('and marks the plan you are on', (rail?.current ?? '') !== '', rail?.current ?? '');
   check('and lists the plans you can move to', (rail?.plans ?? 0) > 0, `${rail?.plans ?? 0} plans`);
 
+  console.log('\ngroups');
+  const rectOf = (slug) =>
+    page
+      .$eval(`.react-flow__node[data-id="${slug}"]`, (el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.x, y: r.y, width: r.width, height: r.height };
+      })
+      .catch(() => null);
+  const countIn = (slug) =>
+    page
+      .$eval(`.react-flow__node[data-id="${slug}"] span:last-child`, (el) =>
+        Number(el.textContent?.trim() ?? '0'),
+      )
+      .catch(() => 0);
+  const drag = async (from, to) => {
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 10 });
+    await page.mouse.move(to.x, to.y, { steps: 10 });
+    await page.mouse.up();
+    await wait(900);
+  };
+  const inside = (child, box) =>
+    child !== null &&
+    box !== null &&
+    child.x >= box.x - 1 &&
+    child.y >= box.y - 1 &&
+    child.x + child.width <= box.x + box.width + 1 &&
+    child.y + child.height <= box.y + box.height + 1;
+
+  const group = containers[0];
+  const held = await page.$$eval('.react-flow__node', (list) => list.map((n) => n.getAttribute('data-id')));
+  const box0 = await rectOf(group);
+  let child = null;
+  for (const slug of held) {
+    if (slug === group) continue;
+    if (inside(await rectOf(slug), box0)) {
+      child = slug;
+      break;
+    }
+  }
+  check('the group holds something to move', child !== null, `${group} holds ${child}`);
+  if (child === null) throw new Error('no node inside a group to drag with it');
+
+  const childBefore = await rectOf(child);
+  // Only the label row of a group takes events; its body is click-through so
+  // that the nodes inside stay reachable.
+  await drag({ x: box0.x + box0.width / 2, y: box0.y + 12 }, { x: box0.x + box0.width / 2 + 140, y: box0.y + 12 + 130 });
+  const box1 = await rectOf(group);
+  const childAfter = await rectOf(child);
+  const groupMoved = Math.round(box1.x - box0.x);
+  check('dragging a group moves it', Math.abs(groupMoved) > 60, `${groupMoved}px`);
+  check(
+    'and carries what it holds',
+    Math.abs(childAfter.x - childBefore.x - (box1.x - box0.x)) < 2 &&
+      Math.abs(childAfter.y - childBefore.y - (box1.y - box0.y)) < 2,
+    `child moved ${Math.round(childAfter.x - childBefore.x)},${Math.round(childAfter.y - childBefore.y)}`,
+  );
+
+  // The move has to survive the document, not just the screen.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await wait(4000);
+  check('and the move is what everyone else sees', inside(await rectOf(child), await rectOf(group)));
+
+  const loose = held.find((slug) => slug !== group && !containers.includes(slug) && slug !== child);
+  const before = await countIn(group);
+  const box2 = await rectOf(group);
+  const looseRect = await rectOf(loose);
+  if (looseRect !== null && box2 !== null) {
+    await drag(
+      { x: looseRect.x + looseRect.width / 2, y: looseRect.y + looseRect.height / 2 },
+      { x: box2.x + box2.width / 2, y: box2.y + box2.height - 24 },
+    );
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await wait(4000);
+    check('dropping a node in a group joins it', (await countIn(group)) === before + 1, `${before} -> ${await countIn(group)}`);
+    check('and nothing is left straddling the edge', inside(await rectOf(loose), await rectOf(group)));
+  }
+
   console.log('\ndrawing a connection');
   await page.click('button[title^="Contains"]');
   await wait(300);
