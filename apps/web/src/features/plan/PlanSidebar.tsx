@@ -36,9 +36,10 @@ export function PlanSidebar({ planId }: { planId: string }) {
         if (!live) return;
         setNav(next);
         setFailed(false);
-        // Only the project you are in starts open. Opening all of them would
-        // bury the current plan in a list on a large workspace.
-        setOpen(new Set([next.projectId]));
+        // Only the project you are in starts open — opening all of them would
+        // bury the current plan on a large workspace — and anything you opened
+        // by hand stays open as you move between plans.
+        setOpen((current) => new Set([...current, next.projectId]));
       })
       .catch(() => live && setFailed(true));
     return () => {
@@ -74,7 +75,7 @@ export function PlanSidebar({ planId }: { planId: string }) {
 
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r border-rule bg-surface">
-      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-rule px-2">
+      <div className="flex h-11 shrink-0 items-center gap-1 border-b border-rule px-2">
         {nav === null ? (
           <span className="flex-1 truncate px-1 text-xs text-ink-faint">
             {failed ? 'Plans unavailable' : 'Loading'}

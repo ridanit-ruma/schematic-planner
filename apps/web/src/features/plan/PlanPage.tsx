@@ -23,18 +23,24 @@ export function PlanPage() {
   const user = useAuth((state) => state.user);
   const { connection, status } = usePlanDocument(planId, user);
 
-  if (connection === null) {
-    return (
-      <div className="grid h-dvh place-items-center">
-        <Spinner />
-      </div>
-    );
-  }
-
+  // The rail sits outside the document gate: opening a plan tears the previous
+  // connection down, and a rail inside would unmount and refetch itself every
+  // time somebody used it.
   return (
-    <ReactFlowProvider>
-      <PlanWorkspace planId={planId} connection={connection} status={status} />
-    </ReactFlowProvider>
+    <div className="flex h-dvh min-h-0">
+      <PlanSidebar planId={planId} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        {connection === null ? (
+          <div className="grid flex-1 place-items-center">
+            <Spinner />
+          </div>
+        ) : (
+          <ReactFlowProvider>
+            <PlanWorkspace planId={planId} connection={connection} status={status} />
+          </ReactFlowProvider>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -154,7 +160,7 @@ function PlanWorkspace({
   };
 
   return (
-    <div className="flex h-dvh min-h-0 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <TitleBlock
         title={title === '' ? 'Untitled plan' : title}
         counts={counts}
@@ -176,7 +182,6 @@ function PlanWorkspace({
       ) : null}
 
       <div className="flex min-h-0 flex-1">
-        <PlanSidebar planId={planId} />
         <div className="min-w-0 flex-1">
           <PlanCanvas connection={connection} readOnly={false} onApplyOps={apply} />
         </div>
