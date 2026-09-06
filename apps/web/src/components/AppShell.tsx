@@ -139,13 +139,16 @@ function RailLink({
         // `end` on an index route so that only the longest match lights up; a
         // prefix comparison leaves two rows active at once.
         end={end ?? false}
-        className={({ isActive }) =>
-          cn(
-            'flex h-8 items-center gap-2 rounded-md text-sm transition-colors',
-            'justify-center lg:justify-start lg:px-2',
-            isActive ? 'bg-surface-4 text-ink' : 'text-ink-muted hover:bg-surface-2 hover:text-ink',
-          )
-        }
+        // A string rather than the function form React Router also accepts:
+        // the tooltip wraps this with `asChild`, and merging a function into a
+        // className leaves the row with no styling at all. React Router adds
+        // its own `active` class, which does the same job.
+        className={cn(
+          'flex h-8 items-center gap-2 rounded-md text-sm transition-colors',
+          'justify-center lg:justify-start lg:px-2',
+          'text-ink-muted hover:bg-surface-2 hover:text-ink',
+          '[&.active]:bg-surface-4 [&.active]:text-ink',
+        )}
       >
         <Icon className="size-4 shrink-0" />
         <span className="hidden min-w-0 flex-1 items-center lg:flex">{children}</span>
