@@ -17,6 +17,10 @@
         "dist/**",
         ".next/**",
         "!.next/cache/**"
+      ],
+      "env": [
+        "NEXT_PUBLIC_*",
+        "VITE_*"
       ]
     },
     "dev": {
@@ -30,7 +34,11 @@
       "dependsOn": [
         "^build"
       ],
-      "outputs": []
+      "outputs": [],
+      "env": [
+        "NEXT_PUBLIC_*",
+        "VITE_*"
+      ]
     },
     "lint": {
       "dependsOn": [
