@@ -103,6 +103,40 @@ try {
   );
   check('at least one container is drawn at its own bounds', containers.length > 0, containers.join(', '));
 
+  console.log('\nreading it from a distance');
+  // A title used to be dropped below a zoom threshold, which is exactly the
+  // distance at which you are trying to see which node is which.
+  for (let i = 0; i < 4; i += 1) {
+    await page.click('.react-flow__controls-zoomout');
+    await wait(180);
+  }
+  const far = await page.evaluate(() => {
+    const zoom = Number(
+      /scale\(([0-9.]+)\)/.exec(
+        document.querySelector('.react-flow__viewport')?.style.transform ?? '',
+      )?.[1] ?? '1',
+    );
+    const titles = [...document.querySelectorAll('.react-flow__node p, .react-flow__node span')]
+      .filter((el) => el.textContent !== null && el.textContent.trim() !== '' && el.children.length === 0)
+      .map((el) => ({ onScreen: parseFloat(getComputedStyle(el).fontSize) * zoom }))
+      .filter((t) => t.onScreen > 0);
+    return { zoom, largest: Math.max(0, ...titles.map((t) => t.onScreen)), count: titles.length };
+  });
+  check('zooming out actually pulled back', far.zoom < 0.5, `scale ${far.zoom.toFixed(2)}`);
+  check(
+    'titles are still drawn there',
+    far.count > 0 && far.largest >= 9.5,
+    `${far.count} labels, largest ${far.largest.toFixed(1)}px on screen`,
+  );
+  await page.click('.react-flow__controls-fitview');
+  await wait(500);
+
+  console.log('\nmoving between plans');
+  const rail = await page.$$eval('aside button', (list) =>
+    list.map((b) => b.textContent?.trim() ?? '').filter((t) => t !== ''),
+  );
+  check('the rail lists what else is in the workspace', rail.length > 0, rail.slice(0, 6).join(' | '));
+
   console.log('\ndrawing a connection');
   await page.click('button[title^="Contains"]');
   await wait(300);

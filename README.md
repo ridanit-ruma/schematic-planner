@@ -144,7 +144,10 @@ sits at the top level:
 ```
 
 A plan link is the thing people paste to each other, so it stays flat: renaming
-a workspace or a project must not break a link somebody saved.
+a workspace or a project must not break a link somebody saved. The cost is that
+the canvas cannot tell where it sits from its own address, so it asks —
+`GET /plans/:id/navigation` returns the workspace tree around a plan, names
+only, and the canvas draws it as the rail you move between plans with.
 
 ### Plan vocabulary
 
