@@ -209,6 +209,8 @@ try {
           { kind: 'contains', from: 'alpha', to: 'a-two' },
           { kind: 'contains', from: 'beta', to: 'b-one' },
           { kind: 'flows_to', from: 'loose', to: 'b-one', via: 'click Save', carries: '{ id }' },
+          { kind: 'flows_to', from: 'loose', to: 'a-one', via: 'click Delete', carries: '{ id }' },
+          { kind: 'flows_to', from: 'loose', to: 'a-two', via: 'on load', carries: 'the current filter' },
         ],
       },
     },
@@ -339,6 +341,34 @@ try {
       'what a flow carries is drawn on it',
       written.some((text) => text.includes('click Save')),
       written.slice(0, 3).join(' | '),
+    );
+
+    // Three flows out of one node used to write their notes at three midpoints
+    // in the same corridor, on top of each other and on the cards beneath.
+    const piled = await page.evaluate(() => {
+      const rects = [...document.querySelectorAll('.react-flow__edgelabel-renderer div')]
+        .filter((el) => (el.textContent ?? '').trim() !== '')
+        .map((el) => el.getBoundingClientRect());
+      let overlapping = 0;
+      for (let a = 0; a < rects.length; a += 1) {
+        for (let b = a + 1; b < rects.length; b += 1) {
+          const [one, other] = [rects[a], rects[b]];
+          if (
+            one.left < other.right &&
+            other.left < one.right &&
+            one.top < other.bottom &&
+            other.top < one.bottom
+          ) {
+            overlapping += 1;
+          }
+        }
+      }
+      return { notes: rects.length, overlapping };
+    });
+    check(
+      'and never on top of another note',
+      piled.notes > 1 && piled.overlapping === 0,
+      `${piled.notes} notes, ${piled.overlapping} overlapping`,
     );
 
     console.log('\ndrawing a connection');
