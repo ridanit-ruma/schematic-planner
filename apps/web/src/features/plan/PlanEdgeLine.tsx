@@ -88,7 +88,7 @@ function Line({
       {!show ? null : (
         <EdgeLabelRenderer>
           <div
-            className="pointer-events-none absolute max-w-52 truncate rounded-sm border border-rule bg-surface-2 px-1.5 py-px text-2xs text-ink-muted"
+            className="pointer-events-none absolute max-w-52 truncate rounded-sm border border-rule-strong bg-surface-3 px-1.5 py-px text-2xs text-ink-muted"
             style={{ transform: `translate(-50%, -50%) translate(${at.x}px, ${at.y}px)` }}
           >
             {note}

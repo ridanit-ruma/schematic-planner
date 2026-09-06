@@ -57,15 +57,21 @@ export function HeroSchematic() {
 
       {NODES.map((node) => (
         <g key={node.slug}>
+          {/* The same card the canvas draws: a level-2 surface, a 6px corner,
+              and status carried by the rail down its left edge. */}
           <rect
             x={node.x}
             y={node.y}
             width={node.w}
             height={node.h}
-            fill="var(--surface)"
-            stroke="var(--rule-strong)"
+            rx="6"
+            fill="var(--surface-2)"
+            stroke="var(--rule)"
           />
-          <rect x={node.x} y={node.y} width="3" height={node.h} fill={COLOR[node.status]} />
+          <path
+            d={`M${node.x + 6} ${node.y} h-2 a4 4 0 0 0 -4 4 v${node.h - 8} a4 4 0 0 0 4 4 h2 z`}
+            fill={COLOR[node.status]}
+          />
           <text
             x={node.x + 12}
             y={node.y + 17}
