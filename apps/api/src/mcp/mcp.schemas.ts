@@ -127,6 +127,18 @@ export const agentOpSchema = z.discriminatedUnion('op', [
     kind: z.enum(planEdgeKinds).default('depends_on'),
     from: slugSchema,
     to: slugSchema,
+    // What sets a flow off is part of its identity, so an edge drawn with one
+    // can only be named again with it. Without this field every triggered flow
+    // an agent draws is one it can never remove.
+    via: z
+      .string()
+      .max(200)
+      .nullable()
+      .default(null)
+      .describe(
+        'The trigger this flow was drawn with, needed to name one of several flows between ' +
+          'the same pair of nodes. Omit it only for an edge that has none.',
+      ),
   }),
   z.object({
     op: z.literal('set_plan'),
