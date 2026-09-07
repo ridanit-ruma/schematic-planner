@@ -120,8 +120,11 @@ export function TrashPage() {
                       {item.name}
                     </span>
                   </span>
+                  <span className="block truncate text-xs text-ink-muted md:hidden">
+                    {item.where}
+                  </span>
                 </TD>
-                <TD className="hidden truncate text-xs text-ink-muted md:table-cell">
+                <TD className="truncate text-xs text-ink-muted" hide="md">
                   {item.where}
                 </TD>
                 <TD align="right" className="text-xs text-ink-muted">
