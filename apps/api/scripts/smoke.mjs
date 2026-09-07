@@ -9,8 +9,9 @@
  *   pnpm --filter @schematic/api smoke
  *   SMOKE_API_URL=https://your-instance.example pnpm --filter @schematic/api smoke
  *
- * It registers a throwaway account and leaves it behind; point it at a
- * development instance, not production.
+ * It registers throwaway accounts and removes them again at the end, so a run
+ * leaves the instance as it found it. Point it at a development instance
+ * anyway: it spends the sign-in allowance on purpose.
  */
 import { HocuspocusProvider } from '@hocuspocus/provider';
 import { planOpsSchema } from '@schematic/schema';
@@ -480,10 +481,11 @@ async function main() {
   const shared = await call(`/share/${share.body.token}`);
   check('a share link reads without a session', shared.body.title === 'Smoke plan');
 
+  const otherEmail = `smoke-other-${Date.now()}@example.invalid`;
   const other = await call('/auth/register', {
     method: 'POST',
     body: {
-      email: `smoke-other-${Date.now()}@example.invalid`,
+      email: otherEmail,
       name: 'Other',
       password: 'correct-horse-battery',
       inviteCode: INVITE_CODE,
@@ -700,6 +702,38 @@ async function main() {
 
   a.provider.destroy();
   b.provider.destroy();
+
+  section('clearing up after itself');
+  // A check that leaves two accounts and their workspaces behind every run turns
+  // whatever instance it is pointed at into a junk drawer — and the accounts it
+  // leaves are real ones, with keys and share links. It made the mess; it takes
+  // it away. The tokens it already holds are used rather than signing in again,
+  // because the section above deliberately spent the sign-in allowance.
+  const tidy = async (label, sessionToken, password) => {
+    if (typeof sessionToken !== 'string') {
+      check(`${label} could be cleared up`, false, 'no session');
+      return;
+    }
+    const mine = await call('/workspaces', { token: sessionToken });
+    for (const workspace of Array.isArray(mine.body) ? mine.body : []) {
+      // Its own name, typed back, is what the API asks for — and the name may
+      // have been changed during the run.
+      await call(`/workspaces/${workspace.id}`, {
+        method: 'DELETE',
+        token: sessionToken,
+        body: { confirm: workspace.name },
+      });
+    }
+    const gone = await call('/auth/me', {
+      method: 'DELETE',
+      token: sessionToken,
+      body: { password, confirm: 'delete my account' },
+    });
+    check(`${label} is gone`, gone.status === 200, `status ${gone.status}`);
+  };
+
+  await tidy('the throwaway account', reLogin.body.accessToken, 'a-new-long-password');
+  await tidy('and the second one', other.body.accessToken, 'correct-horse-battery');
 
   console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) failed`}`);
   process.exit(failures === 0 ? 0 : 1);

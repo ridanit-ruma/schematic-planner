@@ -437,9 +437,14 @@ pnpm --filter @schematic/api smoke                      # against localhost:3001
 SMOKE_API_URL=https://your-instance.example pnpm --filter @schematic/api smoke
 ```
 
-It registers a throwaway account and leaves it behind, so point it at a
-development instance. Run it after anything that touches collaboration,
-authentication, or the MCP surface.
+It registers two throwaway accounts and removes them, and the workspaces they
+own, at the end — a check that left them behind turned the instance it was
+pointed at into a junk drawer of real accounts holding real keys. Point it at a
+development instance anyway: it spends the sign-in allowance on purpose. Run it
+after anything that touches collaboration, authentication, or the MCP surface.
+
+`SMOKE_INVITE_CODE` lets it register against an instance holding sign-up behind
+`REGISTRATION_CODE`, and it checks that signing up without one is refused.
 
 ### The canvas check
 
@@ -481,7 +486,7 @@ one) and a seeded plan to look at.
 
 `pnpm check` runs 137 tests across 25 tasks. Beyond that the stack runs against a
 real Postgres instance and is driven end to end by `pnpm --filter @schematic/api
-smoke`, whose 80 assertions cover registration, the access-token guard, projects,
+smoke`, whose 83 assertions cover registration, the access-token guard, projects,
 batched operations, rejection of an invalid batch, layout, the export zip, the
 MCP surface behind a real key, the trash and what comes back out of it, share
 links, the permission boundary, workspace and account management, throttling, and
