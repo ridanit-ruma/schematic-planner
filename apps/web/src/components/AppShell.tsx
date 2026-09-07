@@ -228,7 +228,7 @@ function TopBar({ current }: { current: Workspace | undefined }) {
 
   const crumbs: { label: string; to?: string }[] = pathname.startsWith('/settings')
     ? [{ label: 'Account' }]
-    : pathname === '/'
+    : pathname === '/recent'
       ? [{ label: 'Recent' }]
       : current === undefined
         ? []

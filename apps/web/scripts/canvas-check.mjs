@@ -79,7 +79,9 @@ try {
     .catch(() => null);
   const railRows = await page.evaluate(() => {
     const rows = [
-      ...document.querySelectorAll('aside nav a[href="/"], aside nav a[href^="/workspace/"]'),
+      ...document.querySelectorAll(
+        'aside nav a[href="/recent"], aside nav a[href^="/workspace/"]',
+      ),
     ];
     return {
       rows: rows.length,

@@ -26,6 +26,17 @@ import type { PlanFlowNode } from './types';
 const nodeTypes: NodeTypes = { plan: PlanNodeCard };
 const edgeTypes: EdgeTypes = { plan: PlanEdgeLine };
 
+/**
+ * On a phone, fitting a thirty-node plan into 390px puts it at the zoom floor,
+ * where a card is a smudge and the whole drawing reads as broken. Landing part
+ * way in and panning is the lesser of the two: the floor here is what the
+ * writing on a card stays legible at.
+ */
+const FIT_VIEW =
+  typeof window !== 'undefined' && window.innerWidth < 768
+    ? { padding: 0.15, maxZoom: 1, minZoom: 0.4 }
+    : { padding: 0.25, maxZoom: 1 };
+
 export function PlanCanvas({
   connection,
   readOnly,
@@ -198,7 +209,7 @@ export function PlanCanvas({
         minZoom={0.15}
         maxZoom={2}
         fitView
-        fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
+        fitViewOptions={FIT_VIEW}
       >
         {/* A drafting grid: a fine division inside a coarse one. */}
         <Background

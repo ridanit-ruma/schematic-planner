@@ -72,7 +72,7 @@ export function RecentPage() {
           <THead>
             <TH>Plan</TH>
             <TH className="w-44">Where</TH>
-            <TH className="hidden w-56 md:table-cell">Last change</TH>
+            <TH className="hidden w-40 md:table-cell">Last touched by</TH>
             <TH className="w-28" align="right">
               Updated
             </TH>
@@ -95,20 +95,23 @@ export function RecentPage() {
                     {plan.workspace.name} / {plan.project.name}
                   </Link>
                 </TD>
+                {/* Who, not what: the label on a change is usually the name of
+                    the thing changed, which this row already says. */}
                 <TD className="hidden md:table-cell">
-                  {plan.lastChange === null ? (
+                  {plan.lastChange?.by == null ? (
                     <span className="text-xs text-ink-faint">—</span>
                   ) : (
                     <span className="flex min-w-0 items-center gap-1.5">
-                      {plan.lastChange.by === null ? null : (
-                        <Avatar
-                          src={plan.lastChange.by.avatarUrl}
-                          name={plan.lastChange.by.name}
-                          className="size-4"
-                        />
-                      )}
+                      <Avatar
+                        src={plan.lastChange.by.avatarUrl}
+                        name={plan.lastChange.by.name}
+                        className="size-4"
+                      />
                       <span className="min-w-0 flex-1 truncate text-xs text-ink-muted">
-                        {plan.lastChange.label}
+                        {plan.lastChange.by.name}
+                        {plan.lastChange.by.agent ? (
+                          <span className="text-collab"> · agent</span>
+                        ) : null}
                       </span>
                     </span>
                   )}

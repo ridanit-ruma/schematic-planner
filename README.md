@@ -335,6 +335,14 @@ not from build-time Vite variables. One built bundle therefore runs anywhere: a
 deployment replaces that one small file instead of rebuilding the application. The
 dev server falls back to `VITE_API_URL` when the file leaves the values blank.
 
+A build copies the blank `public/config.js` over `dist/config.js`, so **rebuilding
+the application resets it** and the deployment's values have to be written back.
+Behind the one-origin proxy that file is:
+
+```js
+window.__SCHEMATIC_CONFIG__ = { apiUrl: '/api', collabUrl: '/api/collab' };
+```
+
 ## How it is drawn
 
 One design system across the application and the marketing site, defined once in
