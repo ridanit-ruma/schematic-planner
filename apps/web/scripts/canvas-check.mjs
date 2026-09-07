@@ -87,7 +87,10 @@ try {
       rows: rows.length,
       tallEnough: rows.filter((row) => row.getBoundingClientRect().height >= 28).length,
       active: rows.filter((row) => row.classList.contains('active')).length,
-      switcher: document.querySelector('aside nav button[aria-label$="switch workspace"]') !== null,
+      // The workspace is switched from its name at the head of the trail, not
+      // from a second control in the rail.
+      switcher: document.querySelector('header button[aria-label$="switch workspace"]') !== null,
+      railSwitcher: document.querySelector('aside button[aria-label$="switch workspace"]') !== null,
       account: document.querySelector('aside button[aria-label="Account"]') !== null,
     };
   });
@@ -99,7 +102,8 @@ try {
   check('and marks exactly one of them', railRows.active === 1, `${railRows.active} active`);
   // The workspace is switched from its own name; the logo above it is the
   // product, and the account keeps its own menu at the foot of the rail.
-  check('the workspace name is the switcher', railRows.switcher);
+  check('the workspace name in the trail is the switcher', railRows.switcher);
+  check('and there is not a second one in the rail', !railRows.railSwitcher);
   check('and the account has its own menu', railRows.account);
 
   check(

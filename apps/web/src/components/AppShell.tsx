@@ -1,4 +1,5 @@
 import {
+  ChevronDown,
   ChevronRight,
   ChevronsUpDown,
   Clock,
@@ -91,11 +92,11 @@ function Rail({ current }: { current: Workspace | undefined }) {
 
         {current === undefined ? null : (
           // Narrow, the heading that separates the two bands is gone, so a
-          // hairline does its job: without it the workspace badge reads as one
-          // more row of navigation.
+          // hairline does its job: without it the workspace rows read as more
+          // of the account's own.
           <div className="mt-3 border-t border-rule pt-3 lg:mt-5 lg:border-t-0 lg:pt-0">
-            <WorkspaceSwitcher current={current} />
-            <div className="mt-1">
+            <p className="rail-heading hidden truncate px-2 pb-1 lg:block">{current.name}</p>
+            <div>
               <RailLink to={`/workspace/${current.slug}`} icon={FolderKanban} label="Projects" end>
                 Projects
               </RailLink>
@@ -222,35 +223,48 @@ const SECTION_LABEL: { suffix: string; label: string }[] = [
 ];
 
 /**
- * Where you are, as a path.
+ * Where you are, as a path — and the workspace you are in, as the control that
+ * changes it.
  *
- * The workspace on its own would only repeat the rail, so the trail always ends
- * on the thing you are actually looking at. Account screens are not inside a
- * workspace and do not pretend to be.
+ * The name at the head of the trail is the switcher: that is where a reader
+ * looks to find out which workspace they are in, so it is where they reach for
+ * when they want another. Screens that belong to the account rather than to a
+ * workspace keep it, separated by a rule instead of a chevron, because the
+ * chevron would claim they sit inside it.
  */
 function TopBar({ current }: { current: Workspace | undefined }) {
   const { projectSlug } = useParams();
   const { pathname } = useLocation();
 
-  const crumbs: { label: string; to?: string }[] = pathname.startsWith('/settings')
-    ? [{ label: 'Account' }]
-    : pathname === '/recent'
-      ? [{ label: 'Recent' }]
-      : current === undefined
-        ? []
-        : [
-            { label: current.name, to: `/workspace/${current.slug}` },
-            projectSlug !== undefined
-              ? { label: projectSlug, to: `/workspace/${current.slug}/project/${projectSlug}` }
-              : {
-                  label:
-                    SECTION_LABEL.find((section) => pathname.endsWith(section.suffix))?.label ??
-                    'Projects',
-                },
-          ];
+  const inWorkspace = !pathname.startsWith('/settings') && pathname !== '/recent';
+
+  const crumbs: { label: string; to?: string }[] = !inWorkspace
+    ? [{ label: pathname === '/recent' ? 'Recent' : 'Account' }]
+    : current === undefined
+      ? []
+      : [
+          projectSlug !== undefined
+            ? { label: projectSlug, to: `/workspace/${current.slug}/project/${projectSlug}` }
+            : {
+                label:
+                  SECTION_LABEL.find((section) => pathname.endsWith(section.suffix))?.label ??
+                  'Projects',
+              },
+        ];
 
   return (
-    <header className="flex h-11 shrink-0 items-center gap-1 border-b border-rule bg-surface px-3">
+    <header className="flex h-11 shrink-0 items-center gap-1 border-b border-rule bg-surface px-2 sm:px-3">
+      {current === undefined ? null : (
+        <>
+          <WorkspaceSwitcher current={current} />
+          {inWorkspace ? (
+            <ChevronRight aria-hidden className="size-3.5 shrink-0 text-ink-faint" />
+          ) : (
+            <span aria-hidden className="mx-1.5 h-4 w-px shrink-0 bg-rule-strong" />
+          )}
+        </>
+      )}
+
       {crumbs.map((crumb, index) => (
         <span key={crumb.label} className="flex min-w-0 items-center gap-1">
           {index > 0 ? <ChevronRight className="size-3.5 shrink-0 text-ink-faint" /> : null}
@@ -277,13 +291,6 @@ function TopBar({ current }: { current: Workspace | undefined }) {
   );
 }
 
-/**
- * The workspace you are in, and the way to another one.
- *
- * The name is the control, not the logo beside it: a logo means the product,
- * and a product does not have a menu of other products. Narrow, the name gives
- * way to the workspace's initial — still the workspace, still not the mark.
- */
 function WorkspaceSwitcher({ current }: { current: Workspace }) {
   const { all, reload } = useWorkspaces();
   const navigate = useNavigate();
@@ -293,30 +300,19 @@ function WorkspaceSwitcher({ current }: { current: Workspace }) {
 
   return (
     <>
-      <p className="rail-heading hidden px-2 pb-1 lg:block">Workspace</p>
       {/* A menu rather than a field: switching workspace and making one are two
           different acts, and a select made "New workspace…" read as a place you
-          could already be. */}
+          could already be. The chevron is not decoration — without it the name
+          reads as a label, and nobody presses a label. */}
       <DropdownMenu
         trigger={
           <button
             type="button"
-            className="flex h-8 w-full items-center gap-2 rounded-md text-left transition-colors hover:bg-surface-2 focus:outline-none justify-center lg:justify-start lg:px-2"
+            className="flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-surface-2 focus:outline-none"
             aria-label={`${current.name} — switch workspace`}
           >
-            <span
-              aria-hidden
-              className="grid size-5 shrink-0 place-items-center rounded-sm bg-accent-soft text-2xs font-semibold text-ink lg:hidden"
-            >
-              {current.name.slice(0, 1).toUpperCase()}
-            </span>
-            <span className="hidden min-w-0 flex-1 truncate text-sm font-medium text-ink lg:block">
-              {current.name}
-            </span>
-            <ChevronsUpDown
-              aria-hidden
-              className="hidden size-3.5 shrink-0 text-ink-faint lg:block"
-            />
+            <span className="min-w-0 truncate text-sm font-medium text-ink">{current.name}</span>
+            <ChevronDown aria-hidden className="size-3.5 shrink-0 text-ink-faint" />
           </button>
         }
       >
