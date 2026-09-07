@@ -479,16 +479,17 @@ one) and a seeded plan to look at.
 
 **Pre-alpha, and specific about what has been exercised.**
 
-`pnpm check` runs 106 tests across 25 tasks. Beyond that the stack runs against a
+`pnpm check` runs 137 tests across 25 tasks. Beyond that the stack runs against a
 real Postgres instance and is driven end to end by `pnpm --filter @schematic/api
-smoke`, whose 42 assertions cover registration, the access-token guard, projects,
+smoke`, whose 80 assertions cover registration, the access-token guard, projects,
 batched operations, rejection of an invalid batch, layout, the export zip, the
-MCP surface behind a real key, share links, the permission boundary, workspace
-and account management, throttling, and two live clients converging on one
-document with their edits merging.
+MCP surface behind a real key, the trash and what comes back out of it, share
+links, the permission boundary, workspace and account management, throttling, and
+two live clients converging on one document with their edits merging.
 
 A browser check (`pnpm --filter @schematic/web canvas-check`) drives the canvas
-itself, and every screen has been rendered and reviewed.
+itself in 44 assertions, at a desktop width and again at 390px, and every screen
+has been rendered and reviewed.
 
 Running it for the first time is what found the real defects — the collaboration
 socket was never fed frames so every client sat connected and silent; the canvas
