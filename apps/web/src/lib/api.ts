@@ -221,7 +221,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 const json = (body: unknown): RequestInit => ({ body: JSON.stringify(body) });
 
 export const auth = {
-  register: (input: { email: string; name: string; password: string }) =>
+  register: (input: { email: string; name: string; password: string; inviteCode?: string }) =>
     api<{ user: AuthUser; accessToken: string }>('/auth/register', {
       method: 'POST',
       ...json(input),
@@ -231,9 +231,14 @@ export const auth = {
   logout: () => api<{ ok: true }>('/auth/logout', { method: 'POST' }),
   me: () => api<{ user: AuthUser }>('/auth/me'),
   providers: () =>
-    api<{ password: boolean; registration: boolean; github: boolean; google: boolean }>(
-      '/auth/providers',
-    ),
+    api<{
+      password: boolean;
+      registration: boolean;
+      /** This instance is holding sign-up behind a code. */
+      inviteCode: boolean;
+      github: boolean;
+      google: boolean;
+    }>('/auth/providers'),
   refresh: refreshAccessToken,
 };
 

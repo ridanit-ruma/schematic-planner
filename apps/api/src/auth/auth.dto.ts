@@ -4,6 +4,8 @@ export const registerSchema = z.object({
   email: z.string().email().max(320),
   name: z.string().min(1).max(80),
   password: z.string().min(10).max(200),
+  /** Only looked at when the instance is holding registration behind a code. */
+  inviteCode: z.string().max(200).optional(),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 

@@ -10,7 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { customAlphabet } from 'nanoid';
 
-import { hashToken, randomToken } from '../common/crypto.js';
+import { hashToken, randomToken, tokensMatch } from '../common/crypto.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import type { AuthUser } from './auth.types.js';
@@ -47,6 +47,13 @@ export class AuthService {
   async register(input: RegisterInput, userAgent?: string): Promise<AuthResult> {
     if (!this.config.allowRegistration) {
       throw new ForbiddenException('Registration is closed on this instance');
+    }
+    // A shared code rather than per-person invitations: it closes an instance to
+    // the open internet without needing email, which is not built. Compared in
+    // constant time, because it is a secret people type.
+    const required = this.config.registrationCode;
+    if (required !== '' && !tokensMatch(input.inviteCode ?? '', required)) {
+      throw new ForbiddenException('That invite code is not right');
     }
 
     const email = input.email.toLowerCase();

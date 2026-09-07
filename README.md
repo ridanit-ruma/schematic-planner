@@ -504,6 +504,10 @@ Still missing:
   written. Email and password work.
 - **No email is ever sent.** An invitation produces a link you send yourself, and
   an email address cannot be changed because there is nothing to verify it with.
+  For the same reason an instance on a public address is held behind a shared
+  code rather than per-person invitations: set `REGISTRATION_CODE` and a new
+  account must type it. Blank means anyone may sign up; `ALLOW_REGISTRATION=false`
+  means nobody may.
 - **The containers have never been built.** Neither machine available here has a
   working container runtime. The Caddy arrangement itself is verified against a
   real Caddy — every route, and a sign-in whose cookie survives the proxy — but

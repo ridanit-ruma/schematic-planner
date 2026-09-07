@@ -19,6 +19,8 @@ import * as Y from 'yjs';
 
 const API = (process.env.SMOKE_API_URL ?? 'http://127.0.0.1:3001').replace(/\/+$/, '');
 const COLLAB = process.env.SMOKE_COLLAB_URL ?? `${API.replace(/^http/, 'ws')}/collab`;
+// An instance holding sign-up behind a code still has to be checkable.
+const INVITE_CODE = process.env.SMOKE_INVITE_CODE;
 
 let failures = 0;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -51,7 +53,7 @@ async function main() {
   const email = `smoke-${Date.now()}@example.invalid`;
   let registered = await call('/auth/register', {
     method: 'POST',
-    body: { email, name: 'Smoke', password: 'correct-horse-battery' },
+    body: { email, name: 'Smoke', password: 'correct-horse-battery', inviteCode: INVITE_CODE },
   });
 
   if (registered.status === 429) {
@@ -62,7 +64,7 @@ async function main() {
     await wait(62_000);
     registered = await call('/auth/register', {
       method: 'POST',
-      body: { email, name: 'Smoke', password: 'correct-horse-battery' },
+      body: { email, name: 'Smoke', password: 'correct-horse-battery', inviteCode: INVITE_CODE },
     });
   }
   check(
@@ -72,6 +74,22 @@ async function main() {
   );
   const token = registered.body.accessToken;
   check('access token issued', typeof token === 'string' && token.length > 20);
+
+  if (INVITE_CODE !== undefined) {
+    const uninvited = await call('/auth/register', {
+      method: 'POST',
+      body: {
+        email: `smoke-uninvited-${Date.now()}@example.invalid`,
+        name: 'Uninvited',
+        password: 'correct-horse-battery',
+      },
+    });
+    check(
+      'sign-up without the invite code is refused',
+      uninvited.status === 403,
+      `status ${uninvited.status}`,
+    );
+  }
 
   const me = await call('/auth/me', { token });
   check('GET /auth/me', me.body.user?.email === email);
@@ -468,6 +486,7 @@ async function main() {
       email: `smoke-other-${Date.now()}@example.invalid`,
       name: 'Other',
       password: 'correct-horse-battery',
+      inviteCode: INVITE_CODE,
     },
   });
   const denied = await call(`/plans/${planId}`, { token: other.body.accessToken });

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 
 import { Wordmark } from '@/components/Mark';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Problem } from '@/components/ui/feedback';
+import { auth as authApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 
 /**
@@ -31,8 +32,26 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
+  const [codeRequired, setCodeRequired] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+
+  // Asked for up front rather than after the form is filled in: being turned
+  // away at the end for a field that was never shown is the worst version of
+  // this. A failure to reach the server leaves the field hidden — the sign-up
+  // itself will say what is wrong.
+  useEffect(() => {
+    if (mode !== 'sign-up') return;
+    let live = true;
+    authApi
+      .providers()
+      .then((providers) => live && setCodeRequired(providers.inviteCode))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [mode]);
 
   if (status === 'signed-in') return <Navigate to="/recent" replace />;
 
@@ -42,7 +61,7 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     setError(null);
     try {
       if (mode === 'sign-in') await signIn(email, password);
-      else await signUp(name, email, password);
+      else await signUp(name, email, password, inviteCode.trim() || undefined);
       void navigate(landing(location.state), { replace: true });
     } catch (cause) {
       setError(cause);
@@ -114,6 +133,20 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
               />
             )}
           </Field>
+
+          {mode === 'sign-up' && codeRequired ? (
+            <Field label="Invite code" hint="This instance is not open to sign up yet.">
+              {(id) => (
+                <Input
+                  id={id}
+                  value={inviteCode}
+                  onChange={(event) => setInviteCode(event.target.value)}
+                  required
+                  autoComplete="off"
+                />
+              )}
+            </Field>
+          ) : null}
 
           {error !== null ? <Problem error={error} /> : null}
 

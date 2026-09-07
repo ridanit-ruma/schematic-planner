@@ -44,8 +44,11 @@ type Workspace = ReturnType<typeof useWorkspaces>['all'][number];
  */
 export function AppShell() {
   const { workspaceSlug } = useParams();
-  const { all } = useWorkspaces();
-  const current = all.find((workspace) => workspace.slug === workspaceSlug) ?? all[0];
+  const { all, resting } = useWorkspaces();
+  // The account screens and the recent list name no workspace. Showing the
+  // first in the list there moved people somewhere they had not asked to be.
+  const current =
+    all.find((workspace) => workspace.slug === workspaceSlug) ?? resting;
 
   return (
     <div className="flex h-dvh min-h-0 bg-ground">

@@ -52,6 +52,7 @@ const envSchema = z.object({
   COOKIE_DOMAIN: text(''),
   COOKIE_SECURE: boolish(false),
   ALLOW_REGISTRATION: boolish(true),
+  REGISTRATION_CODE: text(''),
 
   GITHUB_CLIENT_ID: text(''),
   GITHUB_CLIENT_SECRET: text(''),
@@ -89,6 +90,8 @@ export interface AppConfig {
   readonly cookieDomain: string | undefined;
   readonly cookieSecure: boolean;
   readonly allowRegistration: boolean;
+  /** Empty means anyone may sign up. Set, and a new account must type it. */
+  readonly registrationCode: string;
   readonly oauth: {
     readonly github: { id: string; secret: string } | null;
     readonly google: { id: string; secret: string } | null;
@@ -160,6 +163,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     cookieDomain: env.COOKIE_DOMAIN === '' ? undefined : env.COOKIE_DOMAIN,
     cookieSecure: env.COOKIE_SECURE,
     allowRegistration: env.ALLOW_REGISTRATION,
+    registrationCode: env.REGISTRATION_CODE,
     oauth: {
       github: oauthPair(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET),
       google: oauthPair(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET),

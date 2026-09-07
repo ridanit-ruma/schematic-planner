@@ -186,6 +186,9 @@ export class AuthController {
     return {
       password: true,
       registration: this.config.allowRegistration,
+      // So the sign-up form can ask for the code rather than letting somebody
+      // fill in a whole form and then be turned away.
+      inviteCode: this.config.registrationCode !== '',
       github: this.config.oauth.github !== null,
       google: this.config.oauth.google !== null,
     };

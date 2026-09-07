@@ -9,7 +9,7 @@ interface AuthState {
   user: AuthUser | null;
   bootstrap: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (name: string, email: string, password: string) => Promise<void>;
+  signUp: (name: string, email: string, password: string, inviteCode?: string) => Promise<void>;
   signOut: () => Promise<void>;
   /** Applies a change made to the signed-in account, without another round trip. */
   patchUser: (patch: Partial<AuthUser>) => void;
@@ -39,8 +39,8 @@ export const useAuth = create<AuthState>((set) => ({
     set({ status: 'signed-in', user });
   },
 
-  signUp: async (name, email, password) => {
-    const { user, accessToken } = await auth.register({ name, email, password });
+  signUp: async (name, email, password, inviteCode) => {
+    const { user, accessToken } = await auth.register({ name, email, password, inviteCode });
     setAccessToken(accessToken);
     set({ status: 'signed-in', user });
   },
