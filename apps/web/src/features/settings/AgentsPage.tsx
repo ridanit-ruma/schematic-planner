@@ -97,27 +97,40 @@ export function AgentsPage() {
             <Table>
               <THead>
                 <TH>Name</TH>
-                <TH className="w-32">Key</TH>
-                <TH className="w-28" align="right">
+                <TH className="w-32" hide="md">
+                  Key
+                </TH>
+                <TH className="w-24 sm:w-28" align="right" hide="sm">
                   Last used
                 </TH>
-                <TH className="w-24" align="right">
+                <TH className="w-20 sm:w-24" align="right">
                   <span className="sr-only">Actions</span>
                 </TH>
               </THead>
               <tbody>
                 {keys.map((key) => (
                   <TR key={key.id}>
-                    <TD className="truncate text-ink">
-                      {key.name}
+                    <TD className="text-ink">
+                      <span className="block truncate">{key.name}</span>
+                      {/* The prefix and the last use, under the name, where the
+                          columns for them have been dropped. */}
+                      <span className="slug block truncate text-ink-faint md:hidden">
+                        {key.prefix}…
+                        <span className="sm:hidden">
+                          {' · '}
+                          {key.lastUsedAt === null ? 'never used' : formatWhen(key.lastUsedAt)}
+                        </span>
+                      </span>
                       {key.restrictedTo != null ? (
                         <span className="ml-2 text-xs text-ink-faint">
                           limited to {key.restrictedTo}
                         </span>
                       ) : null}
                     </TD>
-                    <TD className="slug text-ink-faint">{key.prefix}…</TD>
-                    <TD align="right" className="text-xs text-ink-muted">
+                    <TD className="slug text-ink-faint" hide="md">
+                      {key.prefix}…
+                    </TD>
+                    <TD align="right" className="text-xs text-ink-muted" hide="sm">
                       {key.lastUsedAt === null ? 'Never' : formatWhen(key.lastUsedAt)}
                     </TD>
                     <TD align="right">

@@ -87,8 +87,8 @@ export function MembersPage() {
         <Table>
           <THead>
             <TH>Person</TH>
-            <TH className="w-36">Role</TH>
-            <TH className="w-24" align="right">
+            <TH className="w-28 sm:w-36">Role</TH>
+            <TH className="w-10 sm:w-24" align="right">
               <span className="sr-only">Actions</span>
             </TH>
           </THead>
@@ -120,7 +120,7 @@ export function MembersPage() {
                       <Select
                         value={member.role}
                         options={ROLE_OPTIONS}
-                        className="w-32"
+                        className="w-full"
                         onChange={(role) =>
                           void act(workspaces.updateMember(current.id, member.user.id, role))
                         }

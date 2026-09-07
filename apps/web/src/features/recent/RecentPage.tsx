@@ -71,9 +71,13 @@ export function RecentPage() {
         <Table>
           <THead>
             <TH>Plan</TH>
-            <TH className="w-44">Where</TH>
-            <TH className="hidden w-40 md:table-cell">Last touched by</TH>
-            <TH className="w-28" align="right">
+            <TH className="w-44" hide="md">
+              Where
+            </TH>
+            <TH className="w-40" hide="md">
+              Last touched by
+            </TH>
+            <TH className="w-20 sm:w-28" align="right">
               Updated
             </TH>
           </THead>
@@ -85,9 +89,16 @@ export function RecentPage() {
                     <span className="block truncate font-medium text-ink">
                       {plan.title === '' ? 'Untitled plan' : plan.title}
                     </span>
+                    {/* What the dropped columns were carrying, under the title
+                        rather than beside it. */}
+                    <span className="block truncate text-xs text-ink-muted md:hidden">
+                      {all.length > 1 ? `${plan.workspace.name} / ` : ''}
+                      {plan.project.name}
+                      {plan.lastChange?.by == null ? '' : ` · ${plan.lastChange.by.name}`}
+                    </span>
                   </Link>
                 </TD>
-                <TD className="min-w-0">
+                <TD className="min-w-0" hide="md">
                   <Link
                     to={`/workspace/${plan.workspace.slug}/project/${plan.project.slug}`}
                     className="block truncate text-xs text-ink-muted hover:text-ink"
@@ -101,7 +112,7 @@ export function RecentPage() {
                 </TD>
                 {/* Who, not what: the label on a change is usually the name of
                     the thing changed, which this row already says. */}
-                <TD className="hidden md:table-cell">
+                <TD hide="md">
                   {plan.lastChange?.by == null ? (
                     <span className="text-xs text-ink-faint">—</span>
                   ) : (

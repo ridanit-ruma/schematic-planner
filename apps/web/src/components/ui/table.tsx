@@ -8,6 +8,12 @@ import { cn } from '@/lib/utils';
  * Rows are clamped short and separated by the faintest line the palette has:
  * what should catch the eye in a list of thirty is the one row you are pointing
  * at, not the grid it sits in.
+ *
+ * The layout is fixed, so a table never scrolls sideways — it divides whatever
+ * width it is given. That is also its one trap: fixed widths that add up to
+ * more than a phone has leave the flexible first column a single letter and an
+ * ellipsis. Columns that are not the subject of the row carry `hide`, and what
+ * they held moves under the title on a narrow screen.
  */
 export function Table({ children, className }: { children: ReactNode; className?: string }) {
   return (
@@ -29,22 +35,32 @@ export function TH({
   children,
   className,
   align,
+  hide,
 }: {
   children?: ReactNode;
   className?: string;
   align?: 'right';
+  /** Drop the column below this width. Pair it with the same `hide` on every cell. */
+  hide?: 'sm' | 'md';
 }) {
   return (
     <th
       className={cn(
-        'rail-heading px-3 py-2 font-medium',
+        'rail-heading px-2 py-2 font-medium sm:px-3',
         align === 'right' && 'text-right',
+        hidden(hide),
         className,
       )}
     >
       {children}
     </th>
   );
+}
+
+function hidden(hide: 'sm' | 'md' | undefined): string | false {
+  if (hide === 'sm') return 'hidden sm:table-cell';
+  if (hide === 'md') return 'hidden md:table-cell';
+  return false;
 }
 
 export function TR({ children }: { children: ReactNode }) {
@@ -59,12 +75,16 @@ export function TD({
   children,
   className,
   align,
+  hide,
 }: {
   children?: ReactNode;
   className?: string;
   align?: 'right';
+  hide?: 'sm' | 'md';
 }) {
   return (
-    <td className={cn('px-3 py-2', align === 'right' && 'text-right', className)}>{children}</td>
+    <td className={cn('px-2 py-2 sm:px-3', align === 'right' && 'text-right', hidden(hide), className)}>
+      {children}
+    </td>
   );
 }

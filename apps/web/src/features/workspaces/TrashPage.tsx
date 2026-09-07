@@ -1,10 +1,12 @@
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
+import { DropdownAction } from '@/components/ui/dropdown-menu';
 import { Modal } from '@/components/ui/modal';
 import { Page } from '@/components/ui/page';
+import { RowMenu } from '@/components/ui/row-menu';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { trash, type TrashItem } from '@/lib/api';
 import { formatWhen, plural } from '@/lib/utils';
@@ -96,11 +98,13 @@ export function TrashPage() {
         <Table>
           <THead>
             <TH>Item</TH>
-            <TH className="hidden w-44 md:table-cell">Was in</TH>
-            <TH className="w-32" align="right">
+            <TH className="w-44" hide="md">
+              Was in
+            </TH>
+            <TH className="w-24 sm:w-32" align="right">
               Deleted
             </TH>
-            <TH className="w-44" align="right">
+            <TH className="w-10 md:w-44" align="right">
               <span className="sr-only">Actions</span>
             </TH>
           </THead>
@@ -129,7 +133,9 @@ export function TrashPage() {
                   )}
                 </TD>
                 <TD align="right">
-                  <span className="flex justify-end gap-1">
+                  {/* Two labelled buttons need room this row does not have on a
+                      phone; the same two acts go behind the row's own menu. */}
+                  <span className="hidden justify-end gap-1 md:flex">
                     <Button size="sm" variant="ghost" onClick={() => void restore(item)}>
                       <RotateCcw className="size-3.5" />
                       Restore
@@ -137,6 +143,18 @@ export function TrashPage() {
                     <Button size="sm" variant="ghost" onClick={() => setPurging(item)}>
                       Delete
                     </Button>
+                  </span>
+                  <span className="flex justify-end md:hidden">
+                    <RowMenu label={item.name}>
+                      <DropdownAction onSelect={() => void restore(item)}>
+                        <RotateCcw className="size-3.5 text-ink-faint" />
+                        Restore
+                      </DropdownAction>
+                      <DropdownAction tone="danger" onSelect={() => setPurging(item)}>
+                        <Trash2 className="size-3.5" />
+                        Delete for good
+                      </DropdownAction>
+                    </RowMenu>
                   </span>
                 </TD>
               </TR>

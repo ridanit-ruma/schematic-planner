@@ -24,7 +24,7 @@ export function Page({
   children: ReactNode;
 }) {
   return (
-    <div className={cn('mx-auto px-6 py-7', width === 'wide' ? 'max-w-5xl' : 'max-w-2xl')}>
+    <div className={cn('mx-auto px-4 py-6 sm:px-6 sm:py-7', width === 'wide' ? 'max-w-5xl' : 'max-w-2xl')}>
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0">
           <h1 className="text-lg font-semibold tracking-tight text-ink">{title}</h1>

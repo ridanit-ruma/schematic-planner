@@ -576,6 +576,25 @@ try {
       panel === null ? 'no panel' : `${Math.round(panel.width)}px`,
     );
 
+    // A fixed-layout table divides the width it is given, so widths that add up
+    // to more than a phone has leave the subject of the row a single letter.
+    await page.goto(`${BASE}/recent`, { waitUntil: 'domcontentloaded' });
+    await wait(3000);
+    const list = await page.evaluate(() => {
+      const table = document.querySelector('table');
+      const cell = table?.querySelector('tbody td');
+      if (table == null || cell == null) return null;
+      return {
+        share: cell.getBoundingClientRect().width / table.getBoundingClientRect().width,
+        text: (cell.textContent ?? '').trim(),
+      };
+    });
+    check(
+      'a list gives the row its subject, not one letter and an ellipsis',
+      list !== null && list.share > 0.45 && list.text.replace(/…/g, '').length > 3,
+      list === null ? 'no rows' : `${Math.round(list.share * 100)}% — "${list.text.slice(0, 30)}"`,
+    );
+
     await page.setViewport({ width: 1600, height: 1000 });
   } finally {
     // Deleting only moves it to the trash now, so the fixture would pile up

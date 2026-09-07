@@ -94,10 +94,10 @@ export function ProjectIndexPage() {
         <Table>
           <THead>
             <TH>Project</TH>
-            <TH className="w-24" align="right">
+            <TH className="w-24" align="right" hide="md">
               Plans
             </TH>
-            <TH className="w-32" align="right">
+            <TH className="w-20 sm:w-32" align="right">
               Updated
             </TH>
             {mayDelete ? (
@@ -115,10 +115,13 @@ export function ProjectIndexPage() {
                     className="block min-w-0"
                   >
                     <span className="block truncate font-medium text-ink">{project.name}</span>
-                    <span className="slug block truncate text-ink-faint">{project.slug}</span>
+                    <span className="slug block truncate text-ink-faint">
+                      {project.slug}
+                      <span className="md:hidden"> · {plural(project.planCount, 'plan')}</span>
+                    </span>
                   </Link>
                 </TD>
-                <TD align="right" className="slug text-ink-muted">
+                <TD align="right" className="slug text-ink-muted" hide="md">
                   {project.planCount}
                 </TD>
                 <TD align="right" className="text-xs text-ink-muted">

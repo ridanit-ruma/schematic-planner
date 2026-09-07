@@ -107,10 +107,10 @@ export function PlanIndexPage() {
         <Table>
           <THead>
             <TH>Plan</TH>
-            <TH className="w-24" align="right">
+            <TH className="w-24" align="right" hide="md">
               Nodes
             </TH>
-            <TH className="w-32" align="right">
+            <TH className="w-20 sm:w-32" align="right">
               Updated
             </TH>
             {mayDelete ? (
@@ -130,9 +130,12 @@ export function PlanIndexPage() {
                         {plan.description}
                       </span>
                     ) : null}
+                    <span className="block truncate text-xs text-ink-faint md:hidden">
+                      {plural(plan.nodeCount, 'node')}
+                    </span>
                   </Link>
                 </TD>
-                <TD align="right" className="slug text-ink-muted">
+                <TD align="right" className="slug text-ink-muted" hide="md">
                   {plan.nodeCount}
                 </TD>
                 <TD align="right" className="text-xs text-ink-muted">
