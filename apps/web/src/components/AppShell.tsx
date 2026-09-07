@@ -87,7 +87,10 @@ function Rail({ current }: { current: Workspace | undefined }) {
         </RailLink>
 
         {current === undefined ? null : (
-          <div className="mt-5">
+          // Narrow, the heading that separates the two bands is gone, so a
+          // hairline does its job: without it the workspace badge reads as one
+          // more row of navigation.
+          <div className="mt-3 border-t border-rule pt-3 lg:mt-5 lg:border-t-0 lg:pt-0">
             <WorkspaceSwitcher current={current} />
             <div className="mt-1">
               <RailLink to={`/workspace/${current.slug}`} icon={FolderKanban} label="Projects" end>

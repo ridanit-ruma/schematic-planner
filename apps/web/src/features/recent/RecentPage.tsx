@@ -92,7 +92,11 @@ export function RecentPage() {
                     to={`/workspace/${plan.workspace.slug}/project/${plan.project.slug}`}
                     className="block truncate text-xs text-ink-muted hover:text-ink"
                   >
-                    {plan.workspace.name} / {plan.project.name}
+                    {/* The workspace only when there is more than one: repeated
+                        down every row it is noise, and it takes the room the
+                        project name needs. */}
+                    {all.length > 1 ? `${plan.workspace.name} / ` : ''}
+                    {plan.project.name}
                   </Link>
                 </TD>
                 {/* Who, not what: the label on a change is usually the name of
