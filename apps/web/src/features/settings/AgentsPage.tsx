@@ -59,15 +59,18 @@ export function AgentsPage() {
       </section>
 
       <section>
-        <div className="flex items-end justify-between gap-4">
-          <div>
+        {/* Stacked until there is room for both: a flex item without `min-w-0`
+            refuses to shrink past its content, and the button ended up sitting
+            on top of the sentence. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+          <div className="min-w-0">
             <h2 className="text-sm font-medium text-ink">Keys</h2>
             <p className="mt-1 text-xs text-ink-muted">
               A key acts as you, everywhere you are a member. Revoke one and it stops working
               immediately.
             </p>
           </div>
-          <Button variant="primary" onClick={() => setNaming(true)}>
+          <Button className="self-start sm:self-auto" variant="primary" onClick={() => setNaming(true)}>
             New key
           </Button>
         </div>

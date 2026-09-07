@@ -23,7 +23,9 @@ export function Modal({
         <Dialog.Overlay className="fixed inset-0 bg-[rgb(5_6_9/0.75)] backdrop-blur-[8px]" />
         <Dialog.Content className="fixed top-1/2 left-1/2 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-surface-2 p-5 elevated">
           <div className="mb-4 flex items-start justify-between gap-4">
-            <div>
+            {/* min-w-0 or a long title refuses to wrap and pushes the close
+                button off the dialog. */}
+            <div className="min-w-0">
               <Dialog.Title className="text-base font-medium text-ink">{title}</Dialog.Title>
               {description !== undefined ? (
                 <Dialog.Description className="mt-1 text-sm text-ink-muted">

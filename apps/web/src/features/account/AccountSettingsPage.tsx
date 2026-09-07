@@ -232,7 +232,7 @@ export function AccountSettingsPage() {
 
       <section className="rounded-lg border border-rule bg-surface-2 p-4">
         <div className="flex items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <h2 className="text-sm font-medium text-ink">Where you are signed in</h2>
             <p className="mt-1 text-xs text-ink-muted">
               End a session you do not recognise. This one stays.
