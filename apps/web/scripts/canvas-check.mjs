@@ -545,10 +545,15 @@ try {
     const card = await page.$('.react-flow__node');
     await card?.hover();
     await wait(500);
-    const during = await page.evaluate(() => ({
-      dimmed: document.querySelectorAll('.plan-dim').length,
-      total: document.querySelectorAll('.react-flow__node, .react-flow__edge').length,
-    }));
+    // Counted over nodes alone: lines and the writing on them are dimmed too,
+    // so a raw count of the class is not comparable with a count of nodes.
+    const during = await page.evaluate(() => {
+      const nodes = [...document.querySelectorAll('.react-flow__node')];
+      return {
+        dimmed: nodes.filter((node) => node.querySelector('.plan-dim') !== null).length,
+        total: nodes.length,
+      };
+    });
     await page.mouse.move(5, 5);
     await wait(500);
     const after = await page.evaluate(() => document.querySelectorAll('.plan-dim').length);
