@@ -83,6 +83,12 @@ export function usePlanDocument(
           remoteDrag[slug] = position;
         }
       }
+      console.log(
+        '[awareness]',
+        awareness.getStates().size,
+        JSON.stringify([...awareness.getStates().keys()]),
+        'reading=' + (reading === null ? 'null' : reading.hops.length + ' hops'),
+      );
       bound.store.setState({ peers, remoteDrag, reading });
     };
 
