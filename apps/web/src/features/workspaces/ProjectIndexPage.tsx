@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { Button } from '@/components/ui/button';
-import { Field, Input } from '@/components/ui/field';
+import { Field, Input, Textarea } from '@/components/ui/field';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
 import { DropdownAction } from '@/components/ui/dropdown-menu';
 import { Modal } from '@/components/ui/modal';
@@ -21,6 +21,7 @@ export function ProjectIndexPage() {
   const [error, setError] = useState<unknown>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
+  const [newDescription, setNewDescription] = useState('');
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
   const mayDelete = canAdminister(current.role);
   const navigate = useNavigate();
@@ -34,8 +35,9 @@ export function ProjectIndexPage() {
     const trimmed = name.trim();
     if (trimmed === '') return;
     try {
-      await api.create(current.id, trimmed);
+      await api.create(current.id, trimmed, newDescription.trim());
       setName('');
+      setNewDescription('');
       setCreating(false);
       reload();
     } catch (cause) {
@@ -114,9 +116,13 @@ export function ProjectIndexPage() {
                     className="block min-w-0"
                   >
                     <span className="block truncate font-medium text-ink">{project.name}</span>
-                    <span className="slug block truncate text-ink-faint">
-                      {project.slug}
-                      <span className="md:hidden"> · {plural(project.planCount, 'plan')}</span>
+                    {project.description === '' ? null : (
+                      <span className="block truncate text-xs text-ink-muted">
+                        {project.description}
+                      </span>
+                    )}
+                    <span className="slug block truncate text-ink-faint md:hidden">
+                      {plural(project.planCount, 'plan')}
                     </span>
                   </Link>
                 </TD>
@@ -188,6 +194,17 @@ export function ProjectIndexPage() {
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Billing rework"
+              />
+            )}
+          </Field>
+          <Field label="Description" hint="What this project is for. One line, shown in the list.">
+            {(id) => (
+              <Textarea
+                id={id}
+                rows={2}
+                value={newDescription}
+                onChange={(event) => setNewDescription(event.target.value)}
+                placeholder="Moving billing off the monolith."
               />
             )}
           </Field>

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { Button } from '@/components/ui/button';
-import { Field, Input } from '@/components/ui/field';
+import { Field, Input, Textarea } from '@/components/ui/field';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
 import { DropdownAction } from '@/components/ui/dropdown-menu';
 import { Modal } from '@/components/ui/modal';
@@ -28,6 +28,7 @@ export function PlanIndexPage() {
   const [error, setError] = useState<unknown>(null);
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
   const [deleting, setDeleting] = useState<PlanSummary | null>(null);
   const mayDelete = canAdminister(current.role);
 
@@ -48,7 +49,7 @@ export function PlanIndexPage() {
     const trimmed = title.trim();
     if (trimmed === '' || project === null) return;
     try {
-      const plan = await plans.create(project.id, trimmed);
+      const plan = await plans.create(project.id, trimmed, newDescription.trim());
       void navigate(`/plan/${plan.id}`);
     } catch (cause) {
       setError(cause);
@@ -197,6 +198,17 @@ export function PlanIndexPage() {
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="Ledger migration"
+              />
+            )}
+          </Field>
+          <Field label="Description" hint="What this plan draws. One line, shown in the list.">
+            {(id) => (
+              <Textarea
+                id={id}
+                rows={2}
+                value={newDescription}
+                onChange={(event) => setNewDescription(event.target.value)}
+                placeholder="How an invoice gets from the ledger to a PDF."
               />
             )}
           </Field>

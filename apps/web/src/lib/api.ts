@@ -272,10 +272,10 @@ export const projects = {
     api<{ id: string; slug: string; name: string }>(
       `/workspaces/${workspaceId}/projects?slug=${encodeURIComponent(slug)}`,
     ),
-  create: (workspaceId: string, name: string) =>
+  create: (workspaceId: string, name: string, description = '') =>
     api<{ id: string; slug: string; name: string }>(`/workspaces/${workspaceId}/projects`, {
       method: 'POST',
-      ...json({ name }),
+      ...json({ name, description }),
     }),
   read: (id: string) =>
     api<{
@@ -330,8 +330,11 @@ export const account = {
 export const plans = {
   list: (projectId: string) => api<PlanSummary[]>(`/projects/${projectId}/plans`),
   recent: () => api<RecentPlan[]>('/recent'),
-  create: (projectId: string, title: string) =>
-    api<PlanDoc>(`/projects/${projectId}/plans`, { method: 'POST', ...json({ title }) }),
+  create: (projectId: string, title: string, description = '') =>
+    api<PlanDoc>(`/projects/${projectId}/plans`, {
+      method: 'POST',
+      ...json({ title, description }),
+    }),
   read: (planId: string) => api<PlanDoc>(`/plans/${planId}`),
   update: (planId: string, body: { title?: string; description?: string }) =>
     api<PlanDoc>(`/plans/${planId}`, { method: 'PATCH', ...json(body) }),

@@ -32,6 +32,15 @@ const STYLE: Record<string, { dash?: string; marker: boolean }> = {
 const NOTE_ZOOM = 0.55;
 const NOTE_ROOM = 130;
 
+/**
+ * The note sits above the line rather than on it.
+ *
+ * Centred on the path, an opaque chip cuts the wire in two and the reader has
+ * to reassemble it; a drawing annotates a wire beside it, not across it. Half
+ * the chip's height plus a hair is enough to clear it.
+ */
+const NOTE_LIFT = 13;
+
 function Line({
   id,
   sourceX,
@@ -88,8 +97,16 @@ function Line({
       {!show ? null : (
         <EdgeLabelRenderer>
           <div
-            className="pointer-events-none absolute max-w-52 truncate rounded-sm border border-rule-strong bg-surface-3 px-1.5 py-px text-2xs text-ink-muted"
-            style={{ transform: `translate(-50%, -50%) translate(${at.x}px, ${at.y}px)` }}
+            className={
+              'pointer-events-none absolute max-w-52 truncate rounded-sm border border-rule-strong ' +
+              // Level 4 rather than 3, and with a ground-coloured shadow: the
+              // chip has to read as a plate laid over the drawing even where a
+              // line runs directly behind it.
+              'bg-surface-4 px-1.5 py-px text-2xs text-ink shadow-[0_0_0_2px_var(--ground)]'
+            }
+            style={{
+              transform: `translate(-50%, -50%) translate(${at.x}px, ${at.y - NOTE_LIFT}px)`,
+            }}
           >
             {note}
           </div>
