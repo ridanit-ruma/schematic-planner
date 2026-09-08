@@ -512,7 +512,12 @@ async function main() {
   section('sharing');
   const share = await call(`/plans/${planId}/share`, { method: 'POST', token, body: {} });
   const shared = await call(`/share/${share.body.token}`);
-  check('a share link reads without a session', shared.body.title === 'Smoke plan');
+  // Whatever it is called by now: the settings section renames it on the way past.
+  check(
+    'a share link reads without a session',
+    shared.body.title === 'Smoke plan, renamed',
+    shared.body.title ?? `status ${shared.status}`,
+  );
 
   const otherEmail = `smoke-other-${Date.now()}@example.invalid`;
   const other = await call('/auth/register', {
