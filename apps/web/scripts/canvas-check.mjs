@@ -535,7 +535,32 @@ try {
       topmost.includes('handle'),
       topmost.slice(0, 60),
     );
-    console.log('\na phone');
+    console.log('\nfollowing one thread');
+    // Pointing at a node is asking what it connects to. The answer is that the
+    // rest of the drawing steps back — and that nothing steps back when the
+    // pointer is somewhere else.
+    const before = await page.evaluate(
+      () => document.querySelectorAll('.plan-dim').length,
+    );
+    const card = await page.$('.react-flow__node');
+    await card?.hover();
+    await wait(500);
+    const during = await page.evaluate(() => ({
+      dimmed: document.querySelectorAll('.plan-dim').length,
+      total: document.querySelectorAll('.react-flow__node, .react-flow__edge').length,
+    }));
+    await page.mouse.move(5, 5);
+    await wait(500);
+    const after = await page.evaluate(() => document.querySelectorAll('.plan-dim').length);
+    check('nothing is dimmed until the pointer is on something', before === 0, String(before));
+    check(
+      'pointing at a node steps the rest of the drawing back',
+      during.dimmed > 0 && during.dimmed < during.total,
+      `${during.dimmed} of ${during.total}`,
+    );
+    check('and it comes back when the pointer leaves', after === 0, String(after));
+
+  console.log('\na phone');
     // Nothing on this page may push the page sideways: a canvas you have to
     // scroll the chrome of is a canvas you cannot pan.
     await page.setViewport({ width: 390, height: 844 });

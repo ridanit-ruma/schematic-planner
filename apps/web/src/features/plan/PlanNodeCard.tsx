@@ -3,6 +3,7 @@ import { memo } from 'react';
 
 import { STATUS_COLOR } from '@/components/ui/status';
 import { cn } from '@/lib/utils';
+import { usePlanStore } from './store-context';
 import type { PlanFlowNode } from './types';
 
 /**
@@ -25,8 +26,14 @@ const KIND_BORDER: Record<string, string> = {
  * made the card react to the zoom, first dropping text below a threshold and
  * then regrowing it; both traded a drawing you can predict for a moving one.
  */
-function Card({ data, selected }: NodeProps<PlanFlowNode>) {
+function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
   const { node, childCount } = data;
+
+  // One boolean each. A node re-renders when its own answer changes and not
+  // when somebody else's does.
+  const arrived = usePlanStore((state) => state.arrivals.has(id));
+  const dimmed = usePlanStore((state) => state.related !== null && !state.related.has(id));
+  const attention = cn(arrived && 'plan-arrive', dimmed && 'plan-dim');
 
   // A node that holds others is drawn as the boundary around them, labelled at
   // the top edge where nothing else sits. Drawn as a card it would land on top
@@ -40,6 +47,7 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
         className={cn(
           'h-full w-full rounded-lg border border-rule-strong bg-surface/60',
           selected === true && 'border-accent',
+          attention,
         )}
       >
         <div className="flex items-center gap-2 px-3 py-2">
@@ -74,6 +82,7 @@ function Card({ data, selected }: NodeProps<PlanFlowNode>) {
         'relative flex min-h-[72px] w-[260px] overflow-hidden rounded-md bg-surface-2',
         KIND_BORDER[node.kind] ?? KIND_BORDER['task'],
         selected === true && 'border-accent ring-1 ring-accent',
+        attention,
       )}
     >
       <span aria-hidden className="w-1 shrink-0" style={{ background: STATUS_COLOR[node.status] }} />

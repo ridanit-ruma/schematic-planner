@@ -13,6 +13,7 @@ import { useCallback, useMemo } from 'react';
 import { useStore } from 'zustand';
 
 import { resolveDrop, type DropTarget } from './group-drop';
+import { PlanStoreProvider } from './store-context';
 import { EdgeMarkers, PlanEdgeLine } from './PlanEdgeLine';
 import { PlanNodeCard } from './PlanNodeCard';
 import type { PlanConnection } from './use-plan-document';
@@ -57,6 +58,7 @@ export function PlanCanvas({
   const parentOf = useStore(store, (state) => state.parentOf);
   const selectEdge = useStore(store, (state) => state.selectEdge);
   const connectKind = useStore(store, (state) => state.connectKind);
+  const highlight = useStore(store, (state) => state.highlight);
 
   /** Someone else's in-flight drag overrides the stored position for that node. */
   const rendered = useMemo(
@@ -184,6 +186,7 @@ export function PlanCanvas({
   );
 
   return (
+    <PlanStoreProvider store={store}>
     <div className="relative h-full w-full">
       <EdgeMarkers />
       <ReactFlow
@@ -199,6 +202,12 @@ export function PlanCanvas({
         onNodeClick={(_, node) => select(node.id)}
         onEdgeClick={(_, edge) => selectEdge(edge.id)}
         onPaneClick={() => select(null)}
+        // React Flow's own hover events rather than a handler on every node:
+        // one subscription instead of several hundred.
+        onNodeMouseEnter={(_, node) => highlight(node.id, 'node')}
+        onNodeMouseLeave={() => highlight(null)}
+        onEdgeMouseEnter={(_, edge) => highlight(edge.id, 'edge')}
+        onEdgeMouseLeave={() => highlight(null)}
         nodesDraggable={!readOnly}
         nodesConnectable={!readOnly}
         elementsSelectable
@@ -234,6 +243,7 @@ export function PlanCanvas({
         />
       </ReactFlow>
     </div>
+    </PlanStoreProvider>
   );
 }
 

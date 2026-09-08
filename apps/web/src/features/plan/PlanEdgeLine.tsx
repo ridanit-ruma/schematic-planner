@@ -2,6 +2,9 @@ import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useStore, type EdgeProp
 import { edgeNote } from '@schematic/schema';
 import { memo } from 'react';
 
+import { cn } from '@/lib/utils';
+
+import { usePlanStore } from './store-context';
 import type { PlanFlowEdge } from './types';
 
 /**
@@ -57,6 +60,9 @@ function Line({
   data,
 }: EdgeProps<PlanFlowEdge>) {
   const zoom = useStore((state) => state.transform[2]);
+  const arrived = usePlanStore((state) => state.arrivals.has(id));
+  const dimmed = usePlanStore((state) => state.related !== null && !state.related.has(id));
+  const lit = usePlanStore((state) => state.related !== null && state.related.has(id));
   const room = Math.abs(targetX - sourceX) + Math.abs(targetY - sourceY);
   const legible = zoom >= NOTE_ZOOM && room * zoom >= NOTE_ROOM;
   const [path, labelX, labelY] = getSmoothStepPath({
@@ -91,18 +97,38 @@ function Line({
       <BaseEdge
         id={id}
         path={path}
+        className={cn(dimmed && 'plan-dim')}
         style={{
-          stroke: selected === true ? 'var(--accent)' : 'var(--edge)',
-          strokeWidth: selected === true ? 2 : 1.5,
+          stroke: selected === true || lit ? 'var(--accent)' : 'var(--edge)',
+          strokeWidth: selected === true ? 2 : lit ? 2 : 1.5,
           ...(style.dash !== undefined && { strokeDasharray: style.dash }),
         }}
         markerEnd={style.marker ? 'url(#schematic-arrow)' : undefined}
       />
+      {/* Drawn over the line for as long as it takes to appear, then gone. The
+          line itself keeps its own colour and dash pattern underneath. */}
+      {arrived ? (
+        <path
+          d={path}
+          pathLength={1}
+          className="plan-line-arrive"
+          fill="none"
+          stroke="var(--accent)"
+          strokeWidth={2}
+        />
+      ) : null}
       {!show ? null : (
         <EdgeLabelRenderer>
           <div
             className={
-              'pointer-events-none absolute max-w-52 truncate rounded-sm border border-rule-strong ' +
+              cn(
+                'pointer-events-none absolute truncate rounded-sm border border-rule-strong',
+                dimmed && 'plan-dim',
+                // Pointing at a line is asking what it carries, so it stops
+                // being an excerpt.
+                lit ? 'max-w-none border-accent text-ink' : 'max-w-52',
+              ) +
+              ' ' +
               // Level 4 rather than 3, and with a ground-coloured shadow: the
               // chip has to read as a plate laid over the drawing even where a
               // line runs directly behind it.

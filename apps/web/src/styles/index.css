@@ -186,6 +186,59 @@
     0 0 12px rgb(94 106 210 / 0.25);
 }
 
+/*
+ * Something arriving on the canvas, and something being pointed at.
+ *
+ * Both are held here rather than in a component so the whole drawing shares one
+ * vocabulary of movement: a part appears by settling into place, a line appears
+ * by being drawn, and pointing at either steps the rest of the drawing back
+ * without hiding it. Every one of these is switched off wholesale by the
+ * reduced-motion rule at the foot of this file.
+ */
+@keyframes plan-arrive {
+  from {
+    opacity: 0;
+    transform: scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.plan-arrive {
+  animation: plan-arrive 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* The accent traces the path once and fades, over the line's own colour. */
+@keyframes plan-line-arrive {
+  from {
+    stroke-dashoffset: 1;
+    opacity: 0.9;
+  }
+  70% {
+    stroke-dashoffset: 0;
+    opacity: 0.9;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+.plan-line-arrive {
+  stroke-dasharray: 1;
+  animation: plan-line-arrive 620ms ease-out forwards;
+  pointer-events: none;
+}
+
+/* Stepped back, not hidden: the shape of the whole plan stays readable while
+   one thread of it is being followed. */
+.plan-dim {
+  opacity: 0.28;
+  transition: opacity 120ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

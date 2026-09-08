@@ -29,10 +29,27 @@ export interface PlanState {
   absolute: Record<string, Position>;
   /** The group each node belongs to, where that group is drawn as a boundary. */
   parentOf: Record<string, string>;
+  /**
+   * Slugs and edge ids that appeared in the document a moment ago, so the
+   * canvas can draw them arriving. Empty on the first read of a plan: opening
+   * one should not animate forty nodes at once, and a node scrolling back into
+   * view is not an arrival either — which is why this is derived from the
+   * document rather than from a component mounting.
+   */
+  arrivals: ReadonlySet<string>;
+  /**
+   * What stays lit while the pointer is on something, or null when it is on
+   * nothing. Reading a schematic is following one part's connections, so
+   * pointing at a node answers that question directly: its own lines and what
+   * they reach keep their colour and everything else steps back.
+   */
+  related: ReadonlySet<string> | null;
 
   onNodesChange: (changes: NodeChange<PlanFlowNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<PlanFlowEdge>[]) => void;
   select: (slug: string | null) => void;
+  /** Called as the pointer enters and leaves a node or a line. */
+  highlight: (id: string | null, kind?: 'node' | 'edge') => void;
   selectEdge: (id: string | null) => void;
   setConnectKind: (kind: PlanEdgeKind) => void;
 }
@@ -93,15 +110,80 @@ export function createPlanStore(doc: Y.Doc) {
     remoteDrag: {},
     absolute: {},
     parentOf: {},
+    arrivals: new Set<string>(),
+    related: null,
 
     onNodesChange: (changes) => set({ nodes: applyNodeChanges(changes, get().nodes) }),
     onEdgesChange: (changes) => set({ edges: applyEdgeChanges(changes, get().edges) }),
     select: (selected) => set({ selected, selectedEdge: null }),
+
+    highlight: (id, kind = 'node') => {
+      if (id === null) {
+        if (get().related !== null) set({ related: null });
+        return;
+      }
+      const { edges, parentOf } = get();
+      const related = new Set<string>([id]);
+
+      // The groups a node sits in stay lit with it: a bright card inside a
+      // dimmed box reads as a mistake rather than as an answer.
+      const withAncestors = (slug: string): void => {
+        related.add(slug);
+        let parent = parentOf[slug];
+        for (let depth = 0; parent !== undefined && depth < 20; depth += 1) {
+          related.add(parent);
+          parent = parentOf[parent];
+        }
+      };
+
+      if (kind === 'node') {
+        withAncestors(id);
+        for (const edge of edges) {
+          if (edge.source !== id && edge.target !== id) continue;
+          related.add(edge.id);
+          withAncestors(edge.source === id ? edge.target : edge.source);
+        }
+      } else {
+        const edge = edges.find((candidate) => candidate.id === id);
+        if (edge !== undefined) {
+          withAncestors(edge.source);
+          withAncestors(edge.target);
+        }
+      }
+      set({ related });
+    },
     selectEdge: (selectedEdge) => set({ selectedEdge, selected: null }),
     setConnectKind: (connectKind) => set({ connectKind }),
   }));
 
   const project = (): PlanDoc => readPlanDoc(doc).doc;
+
+  /** Everything the document has held since this store was built. */
+  let known: Set<string> | null = null;
+  let settle: ReturnType<typeof setTimeout> | undefined;
+
+  const ARRIVAL_MS = 900;
+
+  function noteArrivals(plan: PlanDoc): ReadonlySet<string> {
+    const present = new Set<string>([
+      ...plan.nodes.map((node) => node.slug),
+      ...plan.edges.map((edge) => edge.id),
+    ]);
+    if (known === null) {
+      known = present;
+      return new Set<string>();
+    }
+    const arrivals = new Set<string>();
+    for (const id of present) if (!known.has(id)) arrivals.add(id);
+    known = present;
+    if (arrivals.size === 0) return store.getState().arrivals;
+
+    // Cleared again so the same node arriving twice animates twice, and so the
+    // set does not grow for the life of the page.
+    clearTimeout(settle);
+    settle = setTimeout(() => store.setState({ arrivals: new Set<string>() }), ARRIVAL_MS);
+    return arrivals;
+  }
 
   /**
    * Rebuilds only the entries whose slugs changed and keeps every other node
@@ -181,6 +263,7 @@ export function createPlanStore(doc: Y.Doc) {
     });
 
     store.setState({
+      arrivals: noteArrivals(plan),
       nodes: nextNodes,
       edges: plan.edges
         .filter((edge) => !(edge.kind === 'contains' && drawnAsBoundary.has(edge.from)))
@@ -227,6 +310,7 @@ export function createPlanStore(doc: Y.Doc) {
     doc,
     refresh,
     destroy: () => {
+      clearTimeout(settle);
       nodes.unobserveDeep(onNodes);
       edges.unobserveDeep(onEdgesOrMeta);
       meta.unobserve(onEdgesOrMeta);
