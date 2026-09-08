@@ -31,10 +31,13 @@ const TOOLS = [
   ],
   [
     'create_plan',
-    'A whole structure in one call. Names which workspace and project when there is a choice, and answers with the address the plan can be looked at.',
+    'Opens a plan — with the structure you already know, or empty. The first call, not the last: it answers with an id and the address the plan can be looked at.',
   ],
   ['create_project', 'A new project to draw in.'],
-  ['apply_ops', 'The only write door. Batched, atomic, and keyed by slug so retries are safe.'],
+  [
+    'apply_ops',
+    'How a plan grows after that, and the only write door. Batched, atomic, keyed by slug so retries are safe — and each batch reaches every open canvas at once, so a person looking at the plan watches it change rather than being handed a finished picture.',
+  ],
   ['layout', 'Re-arrange. Nodes a person dragged are left where they are.'],
   ['export_plan', 'The Markdown bundle, plus a link to the zip.'],
   [

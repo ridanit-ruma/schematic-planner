@@ -74,8 +74,14 @@ export class McpFactory {
           'flow whether the parts are screens and endpoints, stages in a pipeline, or steps ' +
           'in a process — say what a part is in its title and body.\n\n' +
           'Declare structure only, never coordinates: the server lays the graph out. Refer ' +
-          'to nodes by slug. Build a plan with create_plan, change it with apply_ops, and ' +
-          'read one with trace rather than pulling the whole document.',
+          'to nodes by slug.\n\n' +
+          'A plan is a living drawing, not a document you hand over finished. create_plan ' +
+          'opens one; apply_ops keeps it growing, batch after batch, against the id — that is ' +
+          'the ordinary way to work here, and it is what lets a person watch the canvas ' +
+          'change. Before drawing something new, look for the plan that already covers it ' +
+          'with list_plans and carry on with that one: a second plan of the same system is ' +
+          'how a workspace turns into a pile. Read one with trace rather than pulling the ' +
+          'whole document.',
       },
     );
 
@@ -205,7 +211,11 @@ export class McpFactory {
       {
         title: 'Create a plan',
         description:
-          'Create a plan in one call: the nodes, and the flows between them.\n\n' +
+          'Start a plan: the nodes and flows you already know, or none at all.\n\n' +
+          'This is the first call, not the last one. A plan is a drawing somebody keeps, not ' +
+          'an artefact you produce once — go on adding to it with apply_ops and the id this ' +
+          'gives back, as often as you learn something new. Drawing it in pieces is also the ' +
+          'only way a person watching the canvas sees it take shape rather than appear.\n\n' +
           'Draw how the thing works, not a list of what to do. A node is a part of the ' +
           'system — a screen, a route, an endpoint, a function, a table, a job, an outside ' +
           'service. A flows_to edge is control or data moving from one to the next, in the ' +
@@ -243,7 +253,9 @@ export class McpFactory {
           });
           return text(
             `Created plan ${doc.id} with ${doc.nodes.length} nodes.\n` +
-              `Open it at ${this.planUrl(doc.id)}\n\n${renderPlan(doc, 'outline')}`,
+              `Open it at ${this.planUrl(doc.id)}\n` +
+              `Keep drawing into it with apply_ops and this id.\n\n` +
+              renderPlan(doc, 'outline'),
           );
         } catch (error) {
           return failure(reason(error));
@@ -306,8 +318,13 @@ export class McpFactory {
       {
         title: 'Change a plan',
         description:
-          'The only write door. The batch is applied in one transaction and appears at once ' +
-          'on every open canvas. Node upserts are keyed by slug, so retrying never duplicates.',
+          'How a plan grows once it exists, and the only write door. Takes the plan id from ' +
+          'create_plan or list_plans, so it changes a drawing that is already there — ' +
+          'including one somebody else made.\n\n' +
+          'Call it as often as you like. Each batch is applied in one transaction and reaches ' +
+          'every open canvas at once, so a person looking at the plan watches it change under ' +
+          'them rather than being handed a finished picture. Node upserts are keyed by slug, ' +
+          'so retrying never duplicates.',
         inputSchema: applyOpsShape,
       },
       async ({ planId, ops }) => {
