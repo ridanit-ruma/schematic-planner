@@ -5,6 +5,8 @@ import { PrismaService } from '../common/prisma.service.js';
 
 export interface McpIdentity {
   readonly userId: string;
+  /** Whose key it is. A key acts as its owner, so this is the name shown. */
+  readonly name: string;
   readonly keyId: string;
   /**
    * Set only on a key issued under the older model, which was tied to one
@@ -20,7 +22,10 @@ export class ApiKeyService {
 
   /** Resolves a Bearer credential, or null if it is unknown or revoked. */
   async resolve(secret: string): Promise<McpIdentity | null> {
-    const key = await this.prisma.apiKey.findUnique({ where: { hash: hashToken(secret) } });
+    const key = await this.prisma.apiKey.findUnique({
+      where: { hash: hashToken(secret) },
+      include: { user: { select: { name: true } } },
+    });
     if (key === null || key.revokedAt !== null) return null;
 
     await this.prisma.apiKey.update({
@@ -28,6 +33,11 @@ export class ApiKeyService {
       data: { lastUsedAt: new Date() },
     });
 
-    return { userId: key.userId, keyId: key.id, workspaceId: key.workspaceId };
+    return {
+      userId: key.userId,
+      name: key.user.name,
+      keyId: key.id,
+      workspaceId: key.workspaceId,
+    };
   }
 }

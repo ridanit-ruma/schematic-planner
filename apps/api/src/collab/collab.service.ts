@@ -2,6 +2,8 @@ import { Inject, Injectable, Logger, type OnModuleDestroy } from '@nestjs/common
 import { JwtService } from '@nestjs/jwt';
 import { Hocuspocus, type Document } from '@hocuspocus/server';
 
+import type { Reading } from '@schematic/ydoc';
+
 import type { AccessTokenPayload } from '../auth/auth.types.js';
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { PlanDocumentsService, type ChangeActor } from '../plans/plan-documents.service.js';
@@ -22,6 +24,8 @@ export interface CollabContext {
 export class CollabService implements OnModuleDestroy {
   private readonly logger = new Logger(CollabService.name);
   readonly hocuspocus: Hocuspocus<CollabContext>;
+  /** One per plan: a second trace on the same plan replaces the first. */
+  private readonly reading = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(
     private readonly documents: PlanDocumentsService,
@@ -73,6 +77,29 @@ export class CollabService implements OnModuleDestroy {
     });
   }
 
+  /**
+   * Says that somebody is walking this plan, on the channel that already
+   * carries cursors and selections.
+   *
+   * Nothing is written to the document — reading is not a change to it. If the
+   * plan is not open anywhere the document is not in memory and there is
+   * nobody to tell, which is the right answer rather than a failure.
+   */
+  announceReading(planId: string, reading: Reading, holdMs: number): void {
+    const document = this.loaded(planId);
+    if (document === undefined) return;
+
+    document.awareness.setLocalStateField('reading', reading);
+    clearTimeout(this.reading.get(planId));
+    this.reading.set(
+      planId,
+      setTimeout(() => {
+        this.reading.delete(planId);
+        this.loaded(planId)?.awareness.setLocalStateField('reading', null);
+      }, holdMs),
+    );
+  }
+
   /** The live document if this instance has it in memory. */
   loaded(planId: string): Document | undefined {
     return this.hocuspocus.documents.get(planId);
@@ -116,6 +143,7 @@ export class CollabService implements OnModuleDestroy {
   onModuleDestroy(): void {
     // Written before the process exits: without this, everything since the last
     // debounce window is lost on a restart or a rolling deploy.
+    for (const timer of this.reading.values()) clearTimeout(timer);
     this.logger.log('flushing collaborative documents');
     this.hocuspocus.flushPendingStores();
     this.hocuspocus.closeConnections();

@@ -426,6 +426,16 @@ async function main() {
   });
   check('trace walks the other way too', upstream.includes('login-page'));
 
+  // Reading is announced on the awareness channel, so a canvas that is open can
+  // watch the walk. Nothing is written to the document by it.
+  const beforeTrace = await call(`/plans/${flowPlanId}`, { token });
+  await callTool('trace', { planId: flowPlanId, from: 'login-page' });
+  const afterTrace = await call(`/plans/${flowPlanId}`, { token });
+  check(
+    'reading a plan changes nothing in it',
+    JSON.stringify(beforeTrace.body) === JSON.stringify(afterTrace.body),
+  );
+
   const missing = await callTool('trace', { planId: flowPlanId, from: 'nothing-like-this' });
   check(
     'and says so when the name is unknown',

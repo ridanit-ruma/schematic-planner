@@ -13,7 +13,9 @@ import { useCallback, useMemo } from 'react';
 import { useStore } from 'zustand';
 
 import { resolveDrop, type DropTarget } from './group-drop';
+import type { PlanStore } from './plan-store';
 import { PlanStoreProvider } from './store-context';
+import { useReadingWalk } from './use-reading-walk';
 import { EdgeMarkers, PlanEdgeLine } from './PlanEdgeLine';
 import { PlanNodeCard } from './PlanNodeCard';
 import type { PlanConnection } from './use-plan-document';
@@ -59,6 +61,7 @@ export function PlanCanvas({
   const selectEdge = useStore(store, (state) => state.selectEdge);
   const connectKind = useStore(store, (state) => state.connectKind);
   const highlight = useStore(store, (state) => state.highlight);
+  useReadingWalk(store);
 
   /** Someone else's in-flight drag overrides the stored position for that node. */
   const rendered = useMemo(
@@ -189,6 +192,7 @@ export function PlanCanvas({
     <PlanStoreProvider store={store}>
     <div className="relative h-full w-full">
       <EdgeMarkers />
+      <ReadingBanner store={store} />
       <ReactFlow
         nodes={rendered}
         edges={edges}
@@ -262,4 +266,25 @@ function descendantsOf(slug: string, parentOf: Record<string, string>): string[]
     }
   }
   return held;
+}
+
+/**
+ * Who is walking the plan, while they are.
+ *
+ * Without it the drawing lights up on its own and reads as a fault. It says
+ * what is happening and gets out of the way — no control, nothing to dismiss,
+ * gone when the walk is.
+ */
+function ReadingBanner({ store }: { store: PlanStore['store'] }) {
+  const reading = useStore(store, (state) => state.reading);
+  if (reading === null) return null;
+
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center">
+      <span className="flex items-center gap-2 rounded-md border border-collab/40 bg-surface-3 px-2.5 py-1 text-xs text-ink elevated">
+        <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-collab" />
+        {reading.by} is reading from {reading.from}
+      </span>
+    </div>
+  );
 }

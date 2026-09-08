@@ -9,6 +9,9 @@ import {
   tracePlan,
 } from '@schematic/schema';
 
+import { READING_STEP_MS } from '@schematic/ydoc';
+
+import { CollabService } from '../collab/collab.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { PlansService } from '../plans/plans.service.js';
 import { ProjectsService } from '../projects/projects.service.js';
@@ -42,6 +45,7 @@ export class McpFactory {
     private readonly plans: PlansService,
     private readonly projects: ProjectsService,
     private readonly workspaces: WorkspacesService,
+    private readonly collab: CollabService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -181,7 +185,34 @@ export class McpFactory {
                 'then tag. Use get_plan with view "outline" to see what is there.',
             );
           }
-          return text(renderTrace(tracePlan(doc, start, { direction, depth })));
+          const walk = tracePlan(doc, start, { direction, depth });
+
+          // Reading is made visible on the canvas the way a cursor is: an
+          // agent following a thread through the plan is something the people
+          // looking at it can watch happen. It goes on the ephemeral channel
+          // and nothing is written to the document.
+          const hops = walk.paths.flatMap((path) =>
+            path.steps.map((step) => ({
+              node: step.node.slug,
+              edge: step.along?.id ?? null,
+            })),
+          );
+          if (hops.length > 0) {
+            this.collab.announceReading(
+              planId,
+              {
+                by: identity.name,
+                agent: true,
+                from: start.slug,
+                hops,
+                at: Date.now(),
+              },
+              // Long enough for the walk plus a moment to read what it found.
+              Math.min(hops.length * READING_STEP_MS + 4000, 30_000),
+            );
+          }
+
+          return text(renderTrace(walk));
         } catch (error) {
           return failure(reason(error));
         }

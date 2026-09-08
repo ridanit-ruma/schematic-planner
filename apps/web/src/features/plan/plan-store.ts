@@ -1,7 +1,7 @@
 import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } from '@xyflow/react';
 import { buildPlanGraph, containmentDepth } from '@schematic/schema';
 import type { PlanDoc, PlanEdge, PlanEdgeKind, PlanNode, Position } from '@schematic/schema';
-import { edgesMap, nodesMap, readPlanDoc, type Presence } from '@schematic/ydoc';
+import { edgesMap, nodesMap, readPlanDoc, type Presence, type Reading } from '@schematic/ydoc';
 import { createStore } from 'zustand/vanilla';
 import type * as Y from 'yjs';
 
@@ -44,6 +44,12 @@ export interface PlanState {
    * they reach keep their colour and everything else steps back.
    */
   related: ReadonlySet<string> | null;
+  /**
+   * An agent walking this plan right now, or null. Published on the awareness
+   * channel by whoever is reading, so it arrives and leaves the way a cursor
+   * does and never touches the document.
+   */
+  reading: Reading | null;
 
   onNodesChange: (changes: NodeChange<PlanFlowNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<PlanFlowEdge>[]) => void;
@@ -112,6 +118,7 @@ export function createPlanStore(doc: Y.Doc) {
     parentOf: {},
     arrivals: new Set<string>(),
     related: null,
+    reading: null,
 
     onNodesChange: (changes) => set({ nodes: applyNodeChanges(changes, get().nodes) }),
     onEdgesChange: (changes) => set({ edges: applyEdgeChanges(changes, get().edges) }),

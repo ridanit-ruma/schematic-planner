@@ -19,6 +19,33 @@ export interface Presence {
   readonly dragging?: Readonly<Record<string, Position>>;
 }
 
+/**
+ * An agent walking a plan, published on the same ephemeral channel as cursors.
+ *
+ * Reading is not part of the document and leaves no history, so it belongs
+ * here: it appears on every open canvas while it happens and is gone
+ * afterwards, exactly like somebody else's pointer. A plan nobody is watching
+ * costs nothing — the server has no one to tell.
+ */
+export interface Reading {
+  /** Who is reading. An agent acts as its owner, so this is a person's name. */
+  readonly by: string;
+  readonly agent: boolean;
+  /** The node the walk started from. */
+  readonly from: string;
+  /** The walk in the order it was taken, each hop naming the line it came along. */
+  readonly hops: readonly { readonly node: string; readonly edge: string | null }[];
+  /** When it was published, so a stale entry can be ignored. */
+  readonly at: number;
+}
+
+/**
+ * How long one hop of a walk is held on screen. The server sizes its
+ * announcement from the same number, so what it says it is doing and what the
+ * canvas draws cannot drift apart.
+ */
+export const READING_STEP_MS = 420;
+
 const PRESENCE_COLORS = [
   '#e11d48',
   '#ea580c',

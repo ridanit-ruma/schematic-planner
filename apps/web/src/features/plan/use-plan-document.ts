@@ -1,5 +1,5 @@
 import { HocuspocusProvider } from '@hocuspocus/provider';
-import { presenceColor, type Presence } from '@schematic/ydoc';
+import { presenceColor, type Presence, type Reading } from '@schematic/ydoc';
 import type { Position } from '@schematic/schema';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Y from 'yjs';
@@ -67,9 +67,15 @@ export function usePlanDocument(
       if (awareness === null) return;
       const peers: Presence[] = [];
       const remoteDrag: Record<string, Position> = {};
+      let reading: Reading | null = null;
 
       for (const [clientId, state] of awareness.getStates()) {
         if (clientId === awareness.clientID) continue;
+        // The server publishes a walk on this channel and nothing else, so an
+        // entry with no presence is not a missing peer — it is the reading.
+        const announced = (state as { reading?: Reading | null }).reading;
+        if (announced != null) reading = announced;
+
         const presence = (state as { presence?: Presence }).presence;
         if (presence === undefined) continue;
         peers.push(presence);
@@ -77,7 +83,7 @@ export function usePlanDocument(
           remoteDrag[slug] = position;
         }
       }
-      bound.store.setState({ peers, remoteDrag });
+      bound.store.setState({ peers, remoteDrag, reading });
     };
 
     awareness?.setLocalStateField('presence', {
