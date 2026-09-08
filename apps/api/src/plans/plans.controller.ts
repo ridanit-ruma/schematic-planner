@@ -13,10 +13,12 @@ import {
   createPlanSchema,
   layoutSchema,
   shareSchema,
+  movePlanSchema,
   updatePlanSchema,
   type ApplyOpsInput,
   type CreatePlanInput,
   type LayoutInput,
+  type MovePlanInput,
   type ShareInput,
   type UpdatePlanInput,
 } from './plans.dto.js';
@@ -75,6 +77,16 @@ export class PlansController {
     @Body(new ZodPipe(updatePlanSchema)) body: UpdatePlanInput,
   ) {
     return this.plans.update(user.id, id, body);
+  }
+
+  /** To another project, possibly in another workspace. */
+  @Post('plans/:id/move')
+  move(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodPipe(movePlanSchema)) body: MovePlanInput,
+  ) {
+    return this.plans.move(user.id, id, body.projectId);
   }
 
   @Delete('plans/:id')

@@ -1,6 +1,6 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Settings, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
@@ -23,6 +23,7 @@ export function ProjectIndexPage() {
   const [name, setName] = useState('');
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
   const mayDelete = canAdminister(current.role);
+  const navigate = useNavigate();
 
   const reload = (): void => {
     api.list(current.id).then(setList).catch(setError);
@@ -100,11 +101,9 @@ export function ProjectIndexPage() {
             <TH className="w-20 sm:w-32" align="right">
               Updated
             </TH>
-            {mayDelete ? (
-              <TH className="w-10">
-                <span className="sr-only">Actions</span>
-              </TH>
-            ) : null}
+            <TH className="w-10">
+              <span className="sr-only">Actions</span>
+            </TH>
           </THead>
           <tbody>
             {list.map((project) => (
@@ -127,16 +126,24 @@ export function ProjectIndexPage() {
                 <TD align="right" className="text-xs text-ink-muted">
                   {formatWhen(project.updatedAt)}
                 </TD>
-                {mayDelete ? (
-                  <TD>
-                    <RowMenu label={project.name}>
+                <TD>
+                  <RowMenu label={project.name}>
+                    <DropdownAction
+                      onSelect={() =>
+                        void navigate(`/workspace/${current.slug}/project/${project.slug}/settings`)
+                      }
+                    >
+                      <Settings className="size-3.5 text-ink-faint" />
+                      Settings
+                    </DropdownAction>
+                    {mayDelete ? (
                       <DropdownAction tone="danger" onSelect={() => setDeleting(project)}>
                         <Trash2 className="size-3.5" />
                         Move to trash
                       </DropdownAction>
-                    </RowMenu>
-                  </TD>
-                ) : null}
+                    ) : null}
+                  </RowMenu>
+                </TD>
               </TR>
             ))}
           </tbody>

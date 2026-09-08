@@ -9,6 +9,7 @@ import { AccountSettingsPage } from '@/features/account/AccountSettingsPage';
 import { SettingsLayout } from '@/features/account/SettingsLayout';
 import { AuthPage } from '@/features/auth/AuthPage';
 import { PlanPage } from '@/features/plan/PlanPage';
+import { PlanSettingsPage } from '@/features/plan/PlanSettingsPage';
 import { SharedPlanPage } from '@/features/plan/SharedPlanPage';
 import { AgentsPage } from '@/features/settings/AgentsPage';
 import { RecentPage } from '@/features/recent/RecentPage';
@@ -16,6 +17,7 @@ import { InvitePage } from '@/features/workspaces/InvitePage';
 import { MembersPage } from '@/features/workspaces/MembersPage';
 import { PlanIndexPage } from '@/features/workspaces/PlanIndexPage';
 import { ProjectIndexPage } from '@/features/workspaces/ProjectIndexPage';
+import { ProjectSettingsPage } from '@/features/workspaces/ProjectSettingsPage';
 import { TrashPage } from '@/features/workspaces/TrashPage';
 import { WorkspaceSettingsPage } from '@/features/workspaces/WorkspaceSettingsPage';
 import { WorkspaceLayout, WorkspacesProvider } from '@/features/workspaces/workspace-context';
@@ -29,8 +31,10 @@ import { WorkspaceLayout, WorkspacesProvider } from '@/features/workspaces/works
  *   /settings/agents                     the keys your agents hold
  *   /workspace/:slug                     projects
  *   /workspace/:slug/project/:slug       plans in a project
+ *   /workspace/:slug/project/:slug/settings
  *   /workspace/:slug/members  /settings  /trash
  *   /plan/:planId                        the canvas
+ *   /plan/:planId/settings               its name, where it lives, deleting it
  *   /share/:token                        read only, no session
  *
  * A workspace and a project are addressed by a readable slug; a plan is not,
@@ -74,6 +78,9 @@ export function App() {
               the first screen has an address of its own. */}
           <Route index element={<Navigate to="/recent" replace />} />
           <Route path="/recent" element={<RecentPage />} />
+          {/* The canvas is its own full-screen shell; everything else about a
+              plan is an ordinary screen in this one. */}
+          <Route path="/plan/:planId/settings" element={<PlanSettingsPage />} />
           <Route path="/settings" element={<SettingsLayout />}>
             <Route index element={<AccountSettingsPage />} />
             <Route path="agents" element={<AgentsPage />} />
@@ -83,6 +90,7 @@ export function App() {
           <Route path="/workspace/:workspaceSlug" element={<WorkspaceLayout />}>
             <Route index element={<ProjectIndexPage />} />
             <Route path="project/:projectSlug" element={<PlanIndexPage />} />
+            <Route path="project/:projectSlug/settings" element={<ProjectSettingsPage />} />
             <Route path="members" element={<MembersPage />} />
             <Route path="settings" element={<WorkspaceSettingsPage />} />
             <Route path="trash" element={<TrashPage />} />

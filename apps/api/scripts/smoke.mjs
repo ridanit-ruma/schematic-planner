@@ -434,6 +434,39 @@ async function main() {
 
   await callTool('delete_plan', { planId: flowPlanId, confirmTitle: 'Sign-in flow' });
 
+  section('settings and moving');
+  const renamedPlan = await call(`/plans/${planId}`, {
+    method: 'PATCH',
+    token,
+    body: { title: 'Smoke plan, renamed', description: 'From the settings screen.' },
+  });
+  check('a plan can be renamed', renamedPlan.body.title === 'Smoke plan, renamed');
+
+  const secondProject = await call(`/workspaces/${workspaceId}/projects`, {
+    method: 'POST',
+    token,
+    body: { name: 'Somewhere else' },
+  });
+  const moved = await call(`/plans/${planId}/move`, {
+    method: 'POST',
+    token,
+    body: { projectId: secondProject.body.id },
+  });
+  check('and moved to another project', moved.status === 200 || moved.status === 201, `status ${moved.status}`);
+  const here = await call(`/projects/${secondProject.body.id}/plans`, { token });
+  check(
+    'where it is now listed',
+    here.body.some?.((plan) => plan.id === planId),
+    `${here.body.length ?? 0} plans`,
+  );
+  const whereItWas = await call(`/projects/${projectId}/plans`, { token });
+  check(
+    'and no longer where it was',
+    !whereItWas.body.some?.((plan) => plan.id === planId),
+  );
+  // Put it back, so the sections after this still find it where they expect.
+  await call(`/plans/${planId}/move`, { method: 'POST', token, body: { projectId } });
+
   section('trash');
   // Deleting is the one action that can lose somebody's work, so the whole
   // point is that it did not: the plan is still there, and reachable.

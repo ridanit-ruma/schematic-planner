@@ -242,6 +242,30 @@ export class PlansService {
     return this.applyOps(userId, planId, ops, actor);
   }
 
+  /**
+   * Moves a plan to another project, which may be in another workspace.
+   *
+   * Taking it out of a workspace removes it from everyone there, so that end
+   * needs an admin; putting it into one is an ordinary act of authorship, so
+   * that end needs an editor. A share link is dropped when the plan crosses a
+   * workspace boundary: it was handed out on the understanding of who could
+   * reach the plan, and that has just changed.
+   */
+  async move(userId: string, planId: string, projectId: string): Promise<{ ok: true }> {
+    const from = await this.access.requirePlan(userId, planId, 'ADMIN');
+    const to = await this.access.requireProject(userId, projectId, 'EDITOR');
+    if (from.projectId === projectId) return { ok: true };
+
+    const crossesWorkspace = from.workspaceId !== to.workspaceId;
+    await this.prisma.$transaction([
+      this.prisma.plan.update({ where: { id: planId }, data: { projectId } }),
+      ...(crossesWorkspace
+        ? [this.prisma.planShare.deleteMany({ where: { planId } })]
+        : []),
+    ]);
+    return { ok: true };
+  }
+
   /** The plan's history, newest first. */
   async changes(userId: string, planId: string, limit: number): Promise<PlanChangeRecord[]> {
     await this.access.requirePlan(userId, planId, 'VIEWER');

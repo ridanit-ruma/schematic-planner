@@ -236,10 +236,20 @@ function TopBar({ current }: { current: Workspace | undefined }) {
   const { projectSlug } = useParams();
   const { pathname } = useLocation();
 
-  const inWorkspace = !pathname.startsWith('/settings') && pathname !== '/recent';
+  // A plan is addressed on its own, so its settings screen is not under a
+  // workspace path even though the plan is in one.
+  const inWorkspace = pathname.startsWith('/workspace/');
 
   const crumbs: { label: string; to?: string }[] = !inWorkspace
-    ? [{ label: pathname === '/recent' ? 'Recent' : 'Account' }]
+    ? [
+        {
+          label: pathname.startsWith('/plan/')
+            ? 'Plan settings'
+            : pathname === '/recent'
+              ? 'Recent'
+              : 'Account',
+        },
+      ]
     : current === undefined
       ? []
       : [
@@ -250,6 +260,10 @@ function TopBar({ current }: { current: Workspace | undefined }) {
                   SECTION_LABEL.find((section) => pathname.endsWith(section.suffix))?.label ??
                   'Projects',
               },
+          // A project's own settings sit one further along the same trail.
+          ...(projectSlug !== undefined && pathname.endsWith('/settings')
+            ? [{ label: 'Settings' }]
+            : []),
         ];
 
   return (

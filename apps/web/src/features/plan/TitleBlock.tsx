@@ -1,6 +1,7 @@
 import { planEdgeKinds, type PlanEdgeKind, type PlanNodeStatus } from '@schematic/schema';
 import type { Presence } from '@schematic/ydoc';
-import { Clock, Download, Link2, MoreHorizontal, Plus, Wand2 } from 'lucide-react';
+import { Clock, Download, Link2, MoreHorizontal, Plus, Settings, Wand2 } from 'lucide-react';
+import { Link } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import { DropdownAction, DropdownMenu } from '@/components/ui/dropdown-menu';
@@ -28,6 +29,7 @@ export function TitleBlock({
   onShare,
   historyOpen,
   onHistory,
+  settingsHref,
 }: {
   title: string;
   counts: Partial<Record<PlanNodeStatus, number>>;
@@ -42,12 +44,29 @@ export function TitleBlock({
   onShare: () => void;
   historyOpen: boolean;
   onHistory: () => void;
+  /** Where the plan's own settings live. The title is the way in. */
+  settingsHref?: string;
 }) {
   return (
     <header className="flex h-11 shrink-0 items-center gap-2 border-b border-rule bg-surface px-2 sm:gap-4 sm:px-3">
       <ConnectionLight status={status} />
 
-      <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{title}</h1>
+      {/* The name is the control for the thing it names, the way the workspace
+          name in the trail is. */}
+      {settingsHref === undefined ? (
+        <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{title}</h1>
+      ) : (
+        <h1 className="min-w-0 flex-1 truncate">
+          <Tooltip content="Plan settings">
+            <Link
+              to={settingsHref}
+              className="rounded-md px-1.5 py-1 text-sm font-medium text-ink transition-colors hover:bg-surface-2"
+            >
+              {title}
+            </Link>
+          </Tooltip>
+        </h1>
+      )}
 
       {/* The tally is a second reading of the canvas, not a control: on a narrow
           screen the canvas itself is the thing worth the room. */}
@@ -155,6 +174,12 @@ export function TitleBlock({
             <Download className="size-3.5 text-ink-faint" />
             Export
           </DropdownAction>
+          {settingsHref === undefined ? null : (
+            <DropdownAction onSelect={() => window.location.assign(settingsHref)}>
+              <Settings className="size-3.5 text-ink-faint" />
+              Plan settings
+            </DropdownAction>
+          )}
         </DropdownMenu>
       </div>
     </header>

@@ -277,6 +277,15 @@ export const projects = {
       method: 'POST',
       ...json({ name }),
     }),
+  read: (id: string) =>
+    api<{
+      id: string;
+      slug: string;
+      name: string;
+      description: string;
+      workspace: { id: string; slug: string; name: string };
+      role: Role;
+    }>(`/projects/${id}`),
   update: (id: string, body: { name?: string; description?: string }) =>
     api<{ id: string; slug: string; name: string }>(`/projects/${id}`, {
       method: 'PATCH',
@@ -324,6 +333,11 @@ export const plans = {
   create: (projectId: string, title: string) =>
     api<PlanDoc>(`/projects/${projectId}/plans`, { method: 'POST', ...json({ title }) }),
   read: (planId: string) => api<PlanDoc>(`/plans/${planId}`),
+  update: (planId: string, body: { title?: string; description?: string }) =>
+    api<PlanDoc>(`/plans/${planId}`, { method: 'PATCH', ...json(body) }),
+  /** To another project, which may be in another workspace. */
+  move: (planId: string, projectId: string) =>
+    api<{ ok: true }>(`/plans/${planId}/move`, { method: 'POST', ...json({ projectId }) }),
   navigation: (planId: string) => api<PlanNavigation>(`/plans/${planId}/navigation`),
   changes: (planId: string) => api<PlanChangeRecord[]>(`/plans/${planId}/changes`),
   remove: (planId: string) => api<{ ok: true }>(`/plans/${planId}`, { method: 'DELETE' }),

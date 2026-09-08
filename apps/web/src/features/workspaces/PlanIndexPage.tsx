@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Settings, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
@@ -113,11 +113,9 @@ export function PlanIndexPage() {
             <TH className="w-20 sm:w-32" align="right">
               Updated
             </TH>
-            {mayDelete ? (
-              <TH className="w-10">
-                <span className="sr-only">Actions</span>
-              </TH>
-            ) : null}
+            <TH className="w-10">
+              <span className="sr-only">Actions</span>
+            </TH>
           </THead>
           <tbody>
             {list.map((plan) => (
@@ -141,16 +139,20 @@ export function PlanIndexPage() {
                 <TD align="right" className="text-xs text-ink-muted">
                   {formatWhen(plan.updatedAt)}
                 </TD>
-                {mayDelete ? (
-                  <TD>
-                    <RowMenu label={plan.title}>
+                <TD>
+                  <RowMenu label={plan.title}>
+                    <DropdownAction onSelect={() => void navigate(`/plan/${plan.id}/settings`)}>
+                      <Settings className="size-3.5 text-ink-faint" />
+                      Settings
+                    </DropdownAction>
+                    {mayDelete ? (
                       <DropdownAction tone="danger" onSelect={() => setDeleting(plan)}>
                         <Trash2 className="size-3.5" />
                         Move to trash
                       </DropdownAction>
-                    </RowMenu>
-                  </TD>
-                ) : null}
+                    ) : null}
+                  </RowMenu>
+                </TD>
               </TR>
             ))}
           </tbody>

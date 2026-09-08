@@ -177,6 +177,7 @@ function PlanWorkspace({
         onArrange={() => void arrange()}
         onExport={() => void exportZip()}
         onShare={() => void share()}
+        settingsHref={`/plan/${planId}/settings`}
         historyOpen={historyOpen}
         onHistory={() => {
           setHistoryOpen((open) => !open);

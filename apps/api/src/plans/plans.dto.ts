@@ -13,6 +13,12 @@ export const updatePlanSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional(),
 });
+
+export const movePlanSchema = z.object({
+  /** Where it should live. May be a project in another workspace. */
+  projectId: z.string().min(1),
+});
+export type MovePlanInput = z.infer<typeof movePlanSchema>;
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
 
 export const applyOpsSchema = z.object({ ops: planOpsSchema });
