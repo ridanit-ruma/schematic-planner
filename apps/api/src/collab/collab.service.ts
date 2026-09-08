@@ -87,19 +87,20 @@ export class CollabService implements OnModuleDestroy {
    */
   announceReading(planId: string, reading: Reading, holdMs: number): void {
     const document = this.loaded(planId);
-    this.logger.log(
-      `announceReading ${planId}: document=${document !== undefined} ` +
-        `connections=${document?.getConnectionsCount() ?? 0} hops=${reading.hops.length}`,
-    );
     if (document === undefined) return;
 
-    document.awareness.setLocalStateField('reading', reading);
+    // setLocalState, not setLocalStateField: the field setter reads the current
+    // local state first and does nothing at all when it is null, which on the
+    // server it always is — nobody had ever given this end a state to add to.
+    document.awareness.setLocalState({ reading });
     clearTimeout(this.reading.get(planId));
     this.reading.set(
       planId,
       setTimeout(() => {
         this.reading.delete(planId);
-        this.loaded(planId)?.awareness.setLocalStateField('reading', null);
+        // Removed rather than emptied, so the server stops being a client of
+        // its own awareness the moment it has nothing to say.
+        this.loaded(planId)?.awareness.setLocalState(null);
       }, holdMs),
     );
   }
