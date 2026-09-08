@@ -490,33 +490,34 @@ try {
       `${piled.notes} notes, ${piled.overlapping} overlapping`,
     );
 
+    console.log('\nthe title block');
+    // The row carries what is done to the drawing over and over, and nothing
+    // else: choosing what a line means before drawing it asked the question at
+    // the moment the person knew least about the answer, so it went away and
+    // the line is named on the line instead.
+    const bar = await page.evaluate(() => {
+      const header = document.querySelector('header');
+      if (header === null) return null;
+      const labels = [...header.querySelectorAll('button')].map(
+        (button) => button.getAttribute('aria-label') ?? button.textContent?.trim() ?? '',
+      );
+      return {
+        labels,
+        actions: header.querySelector('button[aria-label="Plan actions"]') !== null,
+        size: [...header.querySelectorAll('span')]
+          .map((span) => span.textContent?.trim() ?? '')
+          .find((text) => /^\d+ nodes?$/.test(text)) ?? '',
+      };
+    });
+    check(
+      'nothing on the row chooses what a line will mean',
+      bar !== null && !bar.labels.some((label) => /Depends on|Contains|Relates to|Flows to/.test(label)),
+      (bar?.labels ?? []).join(' | ').slice(0, 80),
+    );
+    check('the actions are behind one button at every width', bar?.actions === true);
+    check('and the size of the plan reads as one line', /^\d+ nodes?$/.test(bar?.size ?? ''), bar?.size);
+
     console.log('\ndrawing a connection');
-    // The control is a toggle group now. It marks the chosen one itself rather
-    // than through Radix's data-state, which a tooltip wrapping it overwrites.
-    await page.click('button[aria-label="Contains"]');
-    await wait(300);
-    check(
-      'the connection control selects Contains',
-      (await page.$eval('button[aria-label="Contains"]', (b) =>
-        b.getAttribute('data-selected'),
-      )) === 'true',
-    );
-
-    // SVG elements carry an object for `className`, so the class list is read
-    // through the attribute instead — an edge on top used to read as a pass.
-    // The hint moved off the native title attribute, which does not exist on a
-    // touch screen and cannot be styled. It has to actually appear.
-    await page.hover('button[aria-label="Depends on"]');
-    await wait(1200);
-    const hint = await page.evaluate(
-      () => document.querySelector('[role="tooltip"]')?.textContent ?? '',
-    );
-    check(
-      'a hint appears on the connection control',
-      hint.includes('Depends on'),
-      hint.slice(0, 60),
-    );
-
     const terminal = await page
       .$eval('.react-flow__node[data-id="alpha"] .react-flow__handle.source', (el) => {
         const r = el.getBoundingClientRect();

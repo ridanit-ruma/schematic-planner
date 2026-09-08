@@ -30,23 +30,3 @@ export function StatusDot({ status, className }: { status: PlanNodeStatus; class
     />
   );
 }
-
-export function StatusTally({ counts }: { counts: Partial<Record<PlanNodeStatus, number>> }) {
-  const entries = (Object.keys(STATUS_LABEL) as PlanNodeStatus[])
-    .map((status) => [status, counts[status] ?? 0] as const)
-    .filter(([, count]) => count > 0);
-
-  if (entries.length === 0) return null;
-
-  return (
-    <div className="flex items-center gap-3">
-      {entries.map(([status, count]) => (
-        <span key={status} className="flex items-center gap-1.5 text-xs text-ink-muted">
-          <StatusDot status={status} />
-          {count}
-          <span className="sr-only">{STATUS_LABEL[status]}</span>
-        </span>
-      ))}
-    </div>
-  );
-}

@@ -8,10 +8,10 @@ import { useStore } from 'zustand';
 
 import { Button } from '@/components/ui/button';
 import { Problem, Spinner } from '@/components/ui/feedback';
-import { StatusTally } from '@/components/ui/status';
 import { config } from '@/lib/config';
 import { plans } from '@/lib/api';
 import { PlanCanvas } from './PlanCanvas';
+import { PlanSize } from './TitleBlock';
 import { createPlanStore } from './plan-store';
 import type { PlanConnection } from './use-plan-document';
 
@@ -61,20 +61,13 @@ function SharedCanvas({ plan, token }: { plan: PlanDoc; token: string }) {
   useEffect(() => () => connection.bound.destroy(), [connection]);
 
   const nodes = useStore(connection.bound.store, (state) => state.nodes);
-  const counts = nodes.reduce<Record<string, number>>((tally, node) => {
-    const status = node.data.node.status;
-    tally[status] = (tally[status] ?? 0) + 1;
-    return tally;
-  }, {});
 
   return (
     <ReactFlowProvider>
       <div className="flex h-dvh min-h-0 flex-col">
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-rule bg-surface px-2 sm:gap-4 sm:px-3">
           <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{plan.title}</h1>
-          <div className="hidden md:flex">
-            <StatusTally counts={counts} />
-          </div>
+          <PlanSize count={nodes.length} />
           <span className="hidden text-xs text-ink-muted sm:inline">Read only</span>
           <Button
             size="sm"

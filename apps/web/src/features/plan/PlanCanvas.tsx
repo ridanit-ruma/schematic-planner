@@ -59,7 +59,6 @@ export function PlanCanvas({
   const absolute = useStore(store, (state) => state.absolute);
   const parentOf = useStore(store, (state) => state.parentOf);
   const selectEdge = useStore(store, (state) => state.selectEdge);
-  const connectKind = useStore(store, (state) => state.connectKind);
   const highlight = useStore(store, (state) => state.highlight);
   useReadingWalk(store);
 
@@ -172,20 +171,24 @@ export function PlanCanvas({
     (params: Connection) => {
       if (params.source === null || params.target === null) return;
 
-      // Direction depends on what the line means. Dragging left to right draws
-      // "this needs that", which is stored pointing the other way — the
-      // direction the export orders files in. Containment and association read
-      // in the direction they were drawn.
-      const [from, to] =
-        connectKind === 'depends_on'
-          ? [params.target, params.source]
-          : [params.source, params.target];
-
+      // A new line is always a flow, drawn the way it was dragged. What it
+      // means is named afterwards, on the line itself: choosing between four
+      // kinds before drawing anything asks the question at the moment the
+      // person knows least about the answer.
       onApplyOps([
-        { op: 'upsert_edge', edge: normalizeEdge(planEdgeInputSchema.parse({ kind: connectKind, from, to })) },
+        {
+          op: 'upsert_edge',
+          edge: normalizeEdge(
+            planEdgeInputSchema.parse({
+              kind: 'flows_to',
+              from: params.source,
+              to: params.target,
+            }),
+          ),
+        },
       ]);
     },
-    [connectKind, onApplyOps],
+    [onApplyOps],
   );
 
   return (

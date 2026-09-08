@@ -1,4 +1,4 @@
-import { uniqueSlug, type PlanNodeStatus, type PlanOp } from '@schematic/schema';
+import { uniqueSlug, type PlanOp } from '@schematic/schema';
 import { ORIGIN_LAYOUT, ORIGIN_LOCAL, applyOps, commitLayout, readPlanDoc } from '@schematic/ydoc';
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import { useCallback, useMemo, useState } from 'react';
@@ -63,8 +63,6 @@ function PlanWorkspace({
   const selectedEdge = useStore(store, (state) => state.selectedEdge);
   const selectEdge = useStore(store, (state) => state.selectEdge);
   const edges = useStore(store, (state) => state.edges);
-  const connectKind = useStore(store, (state) => state.connectKind);
-  const setConnectKind = useStore(store, (state) => state.setConnectKind);
 
   const { screenToFlowPosition } = useReactFlow();
   const [adding, setAdding] = useState(false);
@@ -74,15 +72,6 @@ function PlanWorkspace({
   // was selected, and selecting something puts the history away.
   const [historyOpen, setHistoryOpen] = useState(false);
   const [error, setError] = useState<unknown>(null);
-
-  const counts = useMemo(() => {
-    const tally: Partial<Record<PlanNodeStatus, number>> = {};
-    for (const node of nodes) {
-      const status_ = node.data.node.status;
-      tally[status_] = (tally[status_] ?? 0) + 1;
-    }
-    return tally;
-  }, [nodes]);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selected)?.data.node ?? null,
@@ -167,12 +156,10 @@ function PlanWorkspace({
     <div className="flex min-h-0 flex-1 flex-col">
       <TitleBlock
         title={title === '' ? 'Untitled plan' : title}
-        counts={counts}
+        nodeCount={nodes.length}
         peers={peers}
         status={status}
         readOnly={false}
-        connectKind={connectKind}
-        onConnectKindChange={setConnectKind}
         onAddNode={() => setAdding(true)}
         onArrange={() => void arrange()}
         onExport={() => void exportZip()}

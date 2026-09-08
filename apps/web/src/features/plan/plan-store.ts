@@ -1,6 +1,6 @@
 import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } from '@xyflow/react';
 import { buildPlanGraph, containmentDepth } from '@schematic/schema';
-import type { PlanDoc, PlanEdge, PlanEdgeKind, PlanNode, Position } from '@schematic/schema';
+import type { PlanDoc, PlanEdge, PlanNode, Position } from '@schematic/schema';
 import { edgesMap, nodesMap, readPlanDoc, type Presence, type Reading } from '@schematic/ydoc';
 import { createStore } from 'zustand/vanilla';
 import type * as Y from 'yjs';
@@ -16,8 +16,6 @@ export interface PlanState {
   selected: string | null;
   /** Id of the selected edge, or null. A node and an edge are never both selected. */
   selectedEdge: string | null;
-  /** What the next connection drawn on the canvas will mean. */
-  connectKind: PlanEdgeKind;
   peers: Presence[];
   /** Positions other people are dragging right now. Ephemeral, never stored. */
   remoteDrag: Record<string, Position>;
@@ -57,7 +55,6 @@ export interface PlanState {
   /** Called as the pointer enters and leaves a node or a line. */
   highlight: (id: string | null, kind?: 'node' | 'edge') => void;
   selectEdge: (id: string | null) => void;
-  setConnectKind: (kind: PlanEdgeKind) => void;
 }
 
 export type PlanStore = ReturnType<typeof createPlanStore>;
@@ -111,7 +108,6 @@ export function createPlanStore(doc: Y.Doc) {
     description: '',
     selected: null,
     selectedEdge: null,
-    connectKind: 'flows_to',
     peers: [],
     remoteDrag: {},
     absolute: {},
@@ -160,7 +156,6 @@ export function createPlanStore(doc: Y.Doc) {
       set({ related });
     },
     selectEdge: (selectedEdge) => set({ selectedEdge, selected: null }),
-    setConnectKind: (connectKind) => set({ connectKind }),
   }));
 
   const project = (): PlanDoc => readPlanDoc(doc).doc;
