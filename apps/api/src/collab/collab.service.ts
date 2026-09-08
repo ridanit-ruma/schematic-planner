@@ -87,6 +87,10 @@ export class CollabService implements OnModuleDestroy {
    */
   announceReading(planId: string, reading: Reading, holdMs: number): void {
     const document = this.loaded(planId);
+    this.logger.log(
+      `announceReading ${planId}: document=${document !== undefined} ` +
+        `connections=${document?.getConnectionsCount() ?? 0} hops=${reading.hops.length}`,
+    );
     if (document === undefined) return;
 
     document.awareness.setLocalStateField('reading', reading);
