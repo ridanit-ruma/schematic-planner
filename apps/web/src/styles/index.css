@@ -205,8 +205,3 @@
   --xy-selection-border-default: 1px dashed var(--accent);
 }
 
-.react-flow__attribution {
-  background: transparent;
-  color: var(--ink-faint);
-  font-size: 10px;
-}

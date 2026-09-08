@@ -550,10 +550,12 @@ try {
       railWidth: document.querySelector('aside')?.getBoundingClientRect().width ?? 0,
       actions: document.querySelector('button[aria-label="Plan actions"]') !== null,
       canvasWidth: document.querySelector('.react-flow')?.getBoundingClientRect().width ?? 0,
+      attribution: document.querySelector('.react-flow__attribution') !== null,
     }));
     check('the page does not scroll sideways', narrow.overflow <= 0, `${narrow.overflow}px over`);
     check('nor does the plan header', narrow.header <= 0, `${narrow.header}px over`);
     check('the plan rail starts folded', narrow.railWidth <= 40, `${narrow.railWidth}px`);
+    check('and nothing else is signing the drawing', !narrow.attribution);
     check('and the actions are behind one button', narrow.actions);
     check(
       'which leaves the canvas nearly the whole width',

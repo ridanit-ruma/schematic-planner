@@ -205,7 +205,9 @@ export function PlanCanvas({
         // Culls off-screen nodes. A plan of a few hundred nodes is ordinary.
         onlyRenderVisibleElements
         elevateNodesOnSelect={false}
-        proOptions={{ hideAttribution: false }}
+        // React Flow is MIT, so the badge is a request rather than a condition.
+        // The canvas is the product's own surface and carries its own name.
+        proOptions={{ hideAttribution: true }}
         minZoom={0.15}
         maxZoom={2}
         fitView
