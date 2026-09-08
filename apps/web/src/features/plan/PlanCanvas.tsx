@@ -35,10 +35,7 @@ const edgeTypes: EdgeTypes = { plan: PlanEdgeLine };
 const FIT_VIEW =
   typeof window !== 'undefined' && window.innerWidth < 768
     ? { padding: 0.15, maxZoom: 1, minZoom: 0.4 }
-    : // Not below the zoom at which the writing on the lines is drawn. Fitting a
-      // large plan into the window put it under that floor, and what opened was
-      // a diagram of unlabelled boxes — which is the half of it that says least.
-      { padding: 0.25, maxZoom: 1, minZoom: 0.55 };
+    : { padding: 0.25, maxZoom: 1 };
 
 export function PlanCanvas({
   connection,

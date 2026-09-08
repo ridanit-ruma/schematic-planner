@@ -24,10 +24,14 @@ const STYLE: Record<string, { dash?: string; marker: boolean }> = {
 /**
  * When the note on a line is drawn, and when it is not.
  *
- * Below this zoom it is smaller than the line is thick. And a line too short to
- * hold it puts it over its own endpoints and over its neighbours' notes — in a
- * dense part of a graph that is where they all pile up, so a short line keeps
- * quiet and says what it carries in the inspector instead.
+ * Once layout has given a note a place of its own it is always drawn: a card
+ * looks the same at every zoom and so does the writing on a line, and hiding it
+ * when the view pulled back meant a plan large enough to need pulling back was
+ * a plan that opened as unlabelled boxes.
+ *
+ * A note with nowhere of its own is the exception. It falls back to the
+ * midpoint, which is exactly where parallel lines pile theirs up, so a line too
+ * short to hold one keeps quiet and says what it carries in the inspector.
  */
 const NOTE_ZOOM = 0.55;
 const NOTE_ROOM = 130;
@@ -80,7 +84,7 @@ function Line({
   // too short to hold one keeps quiet until it has somewhere of its own.
   const placed = edge?.labelPosition ?? null;
   const at = placed ?? { x: labelX, y: labelY };
-  const show = note !== '' && (placed !== null ? zoom >= NOTE_ZOOM : legible);
+  const show = note !== '' && (placed !== null || legible);
 
   return (
     <>
