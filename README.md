@@ -461,8 +461,9 @@ CANVAS_CHECK_URL=http://127.0.0.1:8443 pnpm --filter @schematic/web canvas-check
 It signs in, walks workspace to project to plan, and checks the things that
 actually broke: that the canvas has height, that containers are drawn at their
 own bounds, and that a container's handle can be reached rather than buried
-behind the edges. Needs a Chromium on the machine (`CHROME_PATH` to point at
-one) and a seeded plan to look at.
+behind the edges. It finds a browser itself — Chromium, Chrome or Firefox,
+whichever the machine has — and `CHROME_PATH` names one if you would rather
+choose. Needs a seeded plan to look at.
 
 ## Conventions
 

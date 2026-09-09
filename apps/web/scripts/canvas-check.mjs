@@ -11,13 +11,65 @@
  *   CANVAS_CHECK_EMAIL=… CANVAS_CHECK_PASSWORD=… \
  *   pnpm --filter @schematic/web canvas-check
  *
- * Needs puppeteer-core and a Chromium on the machine; both are optional, so the
- * script says what is missing rather than failing obscurely.
+ * Needs puppeteer-core and a browser. Both are optional, so the script says
+ * what is missing rather than failing obscurely, and it finds the browser
+ * itself rather than naming one path that has to be true everywhere.
  */
+import { accessSync, constants } from 'node:fs';
+
 const BASE = (process.env['CANVAS_CHECK_URL'] ?? 'http://127.0.0.1:8443').replace(/\/+$/, '');
 const EMAIL = process.env['CANVAS_CHECK_EMAIL'] ?? 'demo@schematic.local';
 const PASSWORD = process.env['CANVAS_CHECK_PASSWORD'] ?? 'schematic-demo-2026';
-const CHROME = process.env['CHROME_PATH'] ?? '/usr/bin/chromium';
+/**
+ * A browser to drive, from CHROME_PATH or from whatever the machine has.
+ *
+ * There is no one path worth hard-coding: this has already run against a
+ * distribution Chromium, the one bundled inside Burp Suite, and a NixOS
+ * Firefox, and a default naming any of those is wrong on the other two. Chrome
+ * comes first because the check was written against it and its remote protocol
+ * is the better supported of the two; Firefox is driven over WebDriver BiDi,
+ * takes none of Chrome's flags, and refuses a pointer outside the window where
+ * Chrome clamps it — hence the differences guarded further down.
+ */
+function findBrowser() {
+  const named = process.env['CHROME_PATH'];
+  if (named !== undefined && named.trim() !== '') return named;
+
+  const names = [
+    'chromium',
+    'chromium-browser',
+    'google-chrome-stable',
+    'google-chrome',
+    'brave',
+    'firefox',
+  ];
+  const directories = (process.env['PATH'] ?? '').split(':').filter((entry) => entry !== '');
+
+  for (const name of names) {
+    for (const directory of directories) {
+      const candidate = `${directory}/${name}`;
+      try {
+        accessSync(candidate, constants.X_OK);
+        return candidate;
+      } catch {
+        // Not here; try the next place on the path.
+      }
+    }
+  }
+  return null;
+}
+
+const CHROME = findBrowser();
+
+if (CHROME === null) {
+  console.error(
+    'No browser to drive. Install one of chromium, google-chrome or firefox,\n' +
+      'or point CHROME_PATH at the executable of one you already have.',
+  );
+  process.exit(1);
+}
+
+console.log(`driving ${CHROME}`);
 
 let puppeteer;
 try {
