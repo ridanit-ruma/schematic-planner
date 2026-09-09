@@ -322,7 +322,17 @@ try {
         Number(el.textContent?.trim() ?? '0'),
       )
       .catch(() => 0);
-  const drag = async (from, to) => {
+  // A pointer outside the window is refused outright by Firefox where Chrome
+  // clamps it, and a drag that leaves by a pixel is not what any of these
+  // checks are about. Both ends are kept just inside.
+  const VIEW = { width: 1600, height: 1000 };
+  const onScreen = (point) => ({
+    x: Math.min(Math.max(point.x, 2), VIEW.width - 2),
+    y: Math.min(Math.max(point.y, 2), VIEW.height - 2),
+  });
+  const drag = async (rawFrom, rawTo) => {
+    const from = onScreen(rawFrom);
+    const to = onScreen(rawTo);
     await page.mouse.move(from.x, from.y);
     await page.mouse.down();
     await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 10 });
@@ -546,6 +556,10 @@ try {
     // Pointing at a node is asking what it connects to. The answer is that the
     // rest of the drawing steps back — and that nothing steps back when the
     // pointer is somewhere else.
+    // The section above ends mid-drag, and a pointer left resting on a card is
+    // a pointer on something — park it first or this reads its own leftovers.
+    await page.mouse.move(5, 5);
+    await wait(500);
     const before = await page.evaluate(
       () => document.querySelectorAll('.plan-dim').length,
     );
@@ -581,14 +595,17 @@ try {
     waitUntil: 'domcontentloaded',
   });
   await wait(2500);
-  const rowsBefore = await page.$eval('tbody tr', (r) => r.length);
+  // Looked for by name rather than by counting rows: an empty project draws no
+  // table at all, and a count of nothing is not zero, it is nothing.
+  const madeName = `Made elsewhere ${Date.now()}`;
+  const listed = () =>
+    page.evaluate((name) => document.body.textContent?.includes(name) ?? false, madeName);
   const elsewhere = await call(`/projects/${projectList[0].id}/plans`, {
     method: 'POST',
-    body: { title: `Made elsewhere ${Date.now()}`, description: '' },
+    body: { title: madeName, description: '' },
   });
-  await wait(1200);
-  const rowsStill = await page.$eval('tbody tr', (r) => r.length);
-  check('nothing is polled while you are looking', rowsStill === rowsBefore, `${rowsStill} rows`);
+  await wait(1500);
+  check('nothing is polled while you are looking', (await listed()) === false);
 
   // A real away-and-back: another tab takes the front, then this one takes it
   // again, which is what fires focus and visibilitychange for real.
@@ -597,12 +614,7 @@ try {
   await wait(600);
   await page.bringToFront();
   await wait(2500);
-  const rowsAfter = await page.$eval('tbody tr', (r) => r.length);
-  check(
-    'and coming back to the window finds it',
-    rowsAfter > rowsBefore,
-    `${rowsBefore} -> ${rowsAfter} rows`,
-  );
+  check('and coming back to the window finds it', await listed(), madeName);
   await elsewhereTab.close();
   await call(`/plans/${elsewhere.id}`, { method: 'DELETE' });
   await call(`/trash/plans/${elsewhere.id}`, { method: 'DELETE' });
