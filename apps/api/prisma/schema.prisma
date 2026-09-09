@@ -168,6 +168,10 @@ model PlanChange {
   userId String?
   /// Set when the change arrived over MCP, so the log can say an agent made it.
   apiKeyId String?
+  /// The one act these entries came from. A single call can add forty nodes;
+  /// without this the history has no way to tell that from forty separate
+  /// decisions, and the screen cannot fold them back into the act.
+  batchId  String?
   kind     String
   subject  String
   label    String

@@ -18,6 +18,8 @@ import {
   commitLayout,
 } from '@schematic/ydoc';
 
+import { randomUUID } from 'node:crypto';
+
 import { randomToken } from '../common/crypto.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { CollabService } from '../collab/collab.service.js';
@@ -45,8 +47,25 @@ export interface PlanChangeRecord {
   label: string;
   detail: string | null;
   at: Date;
+  /** The act this entry arrived with. Null for anything recorded before batches. */
+  batchId: string | null;
   /** Null when the account that made the change has since been deleted. */
-  by: { id: string; name: string; avatarUrl: string | null; agent: boolean } | null;
+  by: ChangeAuthor | null;
+}
+
+/**
+ * Who a change is attributed to.
+ *
+ * A key acts for the person who issued it, so both names matter and neither is
+ * the whole answer: `루마` alone reads as somebody at a keyboard, and `claude`
+ * alone hides whose permission it was working under.
+ */
+export interface ChangeAuthor {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  /** The key's name when an agent made the change, null when a person did. */
+  agent: string | null;
 }
 
 /** One line on the screen the application opens on. */
@@ -59,7 +78,7 @@ export interface RecentPlan {
   lastChange: {
     label: string;
     at: Date;
-    by: { name: string; avatarUrl: string | null; agent: boolean } | null;
+    by: Omit<ChangeAuthor, 'id'> | null;
   } | null;
 }
 
@@ -144,6 +163,8 @@ export class PlansService {
       },
     });
 
+    const agents = await this.agentNames(rows.map((row) => row.changes[0]));
+
     return rows.map((row) => {
       const change = row.changes[0];
       return {
@@ -159,10 +180,36 @@ export class PlansService {
                 label: change.label,
                 at: change.createdAt,
                 by:
-                  change.user === null ? null : { ...change.user, agent: change.apiKeyId !== null },
+                  change.user === null
+                    ? null
+                    : { ...change.user, agent: agents.get(change.apiKeyId ?? '') ?? null },
               },
       };
     });
+  }
+
+  /**
+   * The name of every key behind these entries, by id.
+   *
+   * Read in one query rather than joined onto each row: a page of history is
+   * usually one or two agents working, and the key is what says which.
+   */
+  private async agentNames(
+    rows: readonly ({ apiKeyId: string | null } | undefined)[],
+  ): Promise<Map<string, string>> {
+    const ids = [...new Set(rows.map((row) => row?.apiKeyId).filter((id) => id !== null && id !== undefined))];
+    if (ids.length === 0) return new Map();
+
+    const keys = await this.prisma.apiKey.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true },
+    });
+    // A key that has since been deleted still leaves entries behind, and they
+    // are still not the person's own work.
+    return new Map([
+      ...ids.map((id) => [id, 'an agent'] as const),
+      ...keys.map((key) => [key.id, key.name] as const),
+    ]);
   }
 
   async navigation(userId: string, planId: string): Promise<PlanNavigation> {
@@ -194,7 +241,12 @@ export class PlansService {
     return { workspace, projectId: access.projectId, projects };
   }
 
-  async create(userId: string, projectId: string, input: CreatePlanInput): Promise<PlanDoc> {
+  async create(
+    userId: string,
+    projectId: string,
+    input: CreatePlanInput,
+    actor: ChangeActor = { userId },
+  ): Promise<PlanDoc> {
     await this.access.requireProject(userId, projectId, 'EDITOR');
 
     const created = await this.prisma.plan.create({
@@ -211,6 +263,25 @@ export class PlansService {
       where: { id: created.id },
       data: { snapshot: seeded, title: seeded.title, description: seeded.description },
     });
+
+    // The plan's own first line. Creating it does not go through the document,
+    // so nothing else would ever record that it began — a plan drawn by an
+    // agent used to open with whatever it was edited into next.
+    await this.prisma.planChange.create({
+      data: {
+        planId: created.id,
+        userId: actor.userId,
+        apiKeyId: actor.apiKeyId ?? null,
+        batchId: actor.batchId ?? randomUUID(),
+        kind: 'plan.created',
+        subject: created.id,
+        label: seeded.title,
+        // Empty everywhere a person or an agent makes a plan; set only when one
+        // arrives whole from a spec, so that import is not a silent first line.
+        detail: seeded.nodes.length === 0 ? null : String(seeded.nodes.length),
+      },
+    });
+
     return seeded;
   }
 
@@ -280,10 +351,13 @@ export class PlansService {
         label: true,
         detail: true,
         apiKeyId: true,
+        batchId: true,
         createdAt: true,
         user: { select: { id: true, name: true, avatarUrl: true } },
       },
     });
+
+    const agents = await this.agentNames(rows);
 
     return rows.map((row) => ({
       id: row.id,
@@ -292,7 +366,8 @@ export class PlansService {
       label: row.label,
       detail: row.detail,
       at: row.createdAt,
-      by: row.user === null ? null : { ...row.user, agent: row.apiKeyId !== null },
+      batchId: row.batchId,
+      by: row.user === null ? null : { ...row.user, agent: agents.get(row.apiKeyId ?? '') ?? null },
     }));
   }
 
@@ -314,13 +389,18 @@ export class PlansService {
   ): Promise<PlanDoc> {
     await this.access.requirePlan(userId, planId, 'EDITOR');
 
+    // Both writes below are one act, so they carry one batch: placing what was
+    // just added is the tail of the same call, not a second thing that
+    // happened, and the history should not report it as one.
+    const batched: ChangeActor = { ...actor, batchId: actor.batchId ?? randomUUID() };
+
     const applied = await this.collab.withDocument(
       planId,
       (document) => {
         applyOpsToDoc(document, ops, ORIGIN_AGENT);
         return this.documents.project(planId, document).doc;
       },
-      actor,
+      batched,
     );
 
     // Agents declare structure and never coordinates, so everything they add
@@ -335,7 +415,7 @@ export class PlansService {
         commitLayout(document, positions, ORIGIN_LAYOUT, sizes, labels);
         return this.documents.project(planId, document).doc;
       },
-      actor,
+      batched,
     );
   }
 

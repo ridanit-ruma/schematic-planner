@@ -8,15 +8,6 @@ import { z } from 'zod';
  * server runs layout; asking a language model for coordinates produces bad
  * diagrams and spends tokens on numbers it has no way to reason about.
  */
-export const agentNodeSchema = z.object({
-  slug: slugSchema.describe('Stable lowercase-hyphenated id, e.g. "auth-service"'),
-  title: z.string().min(1).max(200).describe('Short human-readable name'),
-  kind: z.enum(planNodeKinds).default('task').describe('What sort of thing this node is'),
-  body: z.string().max(100_000).default('').describe('Markdown detail'),
-  status: z.enum(planNodeStatuses).default('idea'),
-  tags: z.array(z.string().min(1).max(40)).max(20).default([]),
-});
-
 export const agentEdgeSchema = z.object({
   kind: z
     .enum(planEdgeKinds)
@@ -66,6 +57,14 @@ const workspaceArg = z
 export const listProjectsShape = { workspace: workspaceArg };
 export const listPlansShape = { workspace: workspaceArg };
 
+/**
+ * Making a plan and drawing in it are two acts, and this is only the first.
+ *
+ * There are no nodes or edges here on purpose. A plan that arrived complete in
+ * one call left nothing in its own history to say where forty nodes came from,
+ * and nobody watching the canvas saw it drawn — it appeared. What goes in it
+ * comes from apply_ops, which is also how it goes on growing afterwards.
+ */
 export const createPlanShape = {
   title: z.string().min(1).max(200),
   workspace: workspaceArg,
@@ -76,8 +75,6 @@ export const createPlanShape = {
     .optional()
     .describe('Which project to draw in. Omitted, the workspace default is used'),
   description: z.string().max(2000).default(''),
-  nodes: z.array(agentNodeSchema).max(2000).default([]),
-  edges: z.array(agentEdgeSchema).max(5000).default([]),
 };
 
 export const traceShape = {

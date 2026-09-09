@@ -212,6 +212,11 @@ async function main() {
     history.body?.[0]?.by?.name ?? 'nobody',
   );
   check(
+    'and does not call a person an agent',
+    (history.body ?? []).every((entry) => entry.by?.agent === null),
+  );
+  check('a plan remembers being made', kinds.includes('plan.created'));
+  check(
     'moving is one entry, not one per node',
     kinds.filter((kind) => kind === 'plan.arranged').length <= 1,
     `${kinds.filter((kind) => kind === 'plan.arranged').length} arrange entries`,
@@ -307,13 +312,15 @@ async function main() {
     jsonrpc: '2.0',
     id: 4,
     method: 'tools/call',
-    params: { name: 'create_plan', arguments: { title: 'Which one?', nodes: [], edges: [] } },
+    params: { name: 'create_plan', arguments: { title: 'Which one?' } },
   });
   check(
     'with several workspaces it asks which, and names them',
     (ambiguous.result?.content?.[0]?.text ?? '').includes('name one with the workspace argument'),
   );
 
+  // Making a plan and drawing in it are two acts. The first one hands back an
+  // empty sheet, and the second is what puts anything on it.
   const drawn = await mcp({
     jsonrpc: '2.0',
     id: 5,
@@ -324,20 +331,53 @@ async function main() {
         title: 'Drawn by an agent',
         workspace: workspaces.body[0]?.slug,
         projectSlug: 'billing-rework',
-        nodes: [
-          { slug: 'ingest', title: 'Ingest' },
-          { slug: 'serve', title: 'Serve' },
-        ],
-        edges: [{ kind: 'depends_on', from: 'serve', to: 'ingest' }],
       },
     },
   });
   const drawnText = drawn.result?.content?.[0]?.text ?? '';
-  check('create_plan', drawnText.includes('with 2 nodes'));
+  check('create_plan hands back an empty plan', drawnText.includes('empty'));
   // An agent has to be able to say where the thing it drew can be looked at.
   check('and it says where to look', drawnText.includes('/plan/'), drawnText.split('\n')[1] ?? '');
 
-  const drawnId = /Created plan (\S+) with/.exec(drawnText)?.[1] ?? '';
+  const drawnId = /Created plan (\S+),/.exec(drawnText)?.[1] ?? '';
+  const grew = await callTool('apply_ops', {
+    planId: drawnId,
+    ops: [
+      { op: 'upsert_node', node: { slug: 'ingest', title: 'Ingest' } },
+      { op: 'upsert_node', node: { slug: 'serve', title: 'Serve' } },
+      { op: 'upsert_edge', edge: { kind: 'depends_on', from: 'serve', to: 'ingest' } },
+    ],
+  });
+  check('and apply_ops is what draws in it', grew.includes('Ingest'), grew.split('\n')[0] ?? '');
+
+  // The whole point of recording the act: a plan an agent drew has to say so,
+  // under the key's own name rather than the name of whoever issued it.
+  const agentHistory = await call(`/plans/${drawnId}/changes`, { token });
+  const agentKinds = (agentHistory.body ?? []).map((entry) => entry.kind);
+  check(
+    'the plan remembers being started',
+    agentKinds.includes('plan.created'),
+    agentKinds.join(', '),
+  );
+  check(
+    'and what the agent drew into it',
+    agentKinds.includes('node.added') && agentKinds.includes('edge.added'),
+  );
+  check(
+    'and names the key rather than its owner',
+    (agentHistory.body ?? []).some((entry) => entry.by?.agent === 'smoke'),
+    (agentHistory.body ?? []).map((entry) => entry.by?.agent ?? '-').join(', '),
+  );
+  const drawnBatches = new Set(
+    (agentHistory.body ?? [])
+      .filter((entry) => entry.kind !== 'plan.created')
+      .map((entry) => entry.batchId),
+  );
+  check(
+    'one call is one batch, tidying up included',
+    drawnBatches.size === 1 && !drawnBatches.has(null),
+    `${drawnBatches.size} batches`,
+  );
   const wrongTitle = await mcp({
     jsonrpc: '2.0',
     id: 6,
@@ -384,25 +424,38 @@ async function main() {
   const flowPlan = await callTool('create_plan', {
     title: 'Sign-in flow',
     workspace: workspaces.body[0]?.slug,
-    nodes: [
-      { slug: 'login-page', title: 'Login page' },
-      { slug: 'login-api', title: 'POST /api/login' },
-      { slug: 'users', title: 'users table' },
-    ],
-    edges: [
-      {
-        kind: 'flows_to',
-        from: 'login-page',
-        to: 'login-api',
-        via: 'click Sign in',
-        carries: '{ email, password }',
-      },
-      { kind: 'flows_to', from: 'login-api', to: 'users', via: 'select by email' },
-      { kind: 'flows_to', from: 'users', to: 'login-api', carries: '{ id, hash }' },
-      { kind: 'flows_to', from: 'login-api', to: 'login-page', carries: '{ token }' },
-    ],
   });
   const flowPlanId = (flowPlan.match(/\/plan\/([a-z0-9]+)/) ?? [])[1];
+  await callTool('apply_ops', {
+    planId: flowPlanId,
+    ops: [
+      { op: 'upsert_node', node: { slug: 'login-page', title: 'Login page' } },
+      { op: 'upsert_node', node: { slug: 'login-api', title: 'POST /api/login' } },
+      { op: 'upsert_node', node: { slug: 'users', title: 'users table' } },
+      {
+        op: 'upsert_edge',
+        edge: {
+          kind: 'flows_to',
+          from: 'login-page',
+          to: 'login-api',
+          via: 'click Sign in',
+          carries: '{ email, password }',
+        },
+      },
+      {
+        op: 'upsert_edge',
+        edge: { kind: 'flows_to', from: 'login-api', to: 'users', via: 'select by email' },
+      },
+      {
+        op: 'upsert_edge',
+        edge: { kind: 'flows_to', from: 'users', to: 'login-api', carries: '{ id, hash }' },
+      },
+      {
+        op: 'upsert_edge',
+        edge: { kind: 'flows_to', from: 'login-api', to: 'login-page', carries: '{ token }' },
+      },
+    ],
+  });
   check(
     'a plan of flows is accepted',
     typeof flowPlanId === 'string',

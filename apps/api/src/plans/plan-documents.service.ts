@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { initializePlan, readPlanDoc } from '@schematic/ydoc';
 import { diffPlans, emptyPlanDoc, planDocSchema, type PlanDoc } from '@schematic/schema';
 import * as Y from 'yjs';
@@ -10,6 +11,12 @@ export interface ChangeActor {
   readonly userId: string;
   /** Set when the change arrived over MCP, so the log can say an agent made it. */
   readonly apiKeyId?: string | null;
+  /**
+   * The act these entries belong to. Given by a caller that writes twice for
+   * one act — applying operations and then placing what they added — so the
+   * history does not report the tidying up as a second thing that happened.
+   */
+  readonly batchId?: string | null;
 }
 
 /**
@@ -80,11 +87,16 @@ export class PlanDocumentsService {
     const entries = diffPlans(before, after);
     if (entries.length === 0) return;
 
+    // One id for everything this act produced. Written per call rather than per
+    // entry: what makes forty rows one line is that they arrived together.
+    const batchId = actor.batchId ?? randomUUID();
+
     await this.prisma.planChange.createMany({
       data: entries.map((entry) => ({
         planId,
         userId: actor.userId,
         apiKeyId: actor.apiKeyId ?? null,
+        batchId,
         kind: entry.kind,
         subject: entry.subject,
         label: entry.label,

@@ -77,7 +77,7 @@ export interface RecentPlan {
   lastChange: {
     label: string;
     at: string;
-    by: { name: string; avatarUrl: string | null; agent: boolean } | null;
+    by: Omit<ChangeAuthor, 'id'> | null;
   } | null;
 }
 
@@ -97,7 +97,22 @@ export interface PlanChangeRecord {
   label: string;
   detail: string | null;
   at: string;
-  by: { id: string; name: string; avatarUrl: string | null; agent: boolean } | null;
+  /** The act this entry arrived with. Null for anything recorded before batches. */
+  batchId: string | null;
+  by: ChangeAuthor | null;
+}
+
+/**
+ * A key acts for the person who issued it, so both names matter: the person
+ * alone reads as somebody at a keyboard, the key alone hides whose permission
+ * it was working under.
+ */
+export interface ChangeAuthor {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  /** The key's name when an agent made the change, null when a person did. */
+  agent: string | null;
 }
 
 export interface ApiKeySummary {

@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
+import { Author } from '@/components/ui/author';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
@@ -119,15 +120,13 @@ export function RecentPage() {
                     <span className="flex min-w-0 items-center gap-1.5">
                       <Avatar
                         src={plan.lastChange.by.avatarUrl}
-                        name={plan.lastChange.by.name}
+                        name={plan.lastChange.by.agent ?? plan.lastChange.by.name}
                         className="size-4"
                       />
-                      <span className="min-w-0 flex-1 truncate text-xs text-ink-muted">
-                        {plan.lastChange.by.name}
-                        {plan.lastChange.by.agent ? (
-                          <span className="text-collab"> · agent</span>
-                        ) : null}
-                      </span>
+                      <Author
+                        by={plan.lastChange.by}
+                        className="min-w-0 flex-1 truncate text-xs text-ink-muted"
+                      />
                     </span>
                   )}
                 </TD>

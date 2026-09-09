@@ -3,8 +3,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { exportPlan } from '@schematic/exporter';
 import {
   findNode,
-  normalizeEdge,
-  planEdgeInputSchema,
   planOpsSchema,
   tracePlan,
 } from '@schematic/schema';
@@ -242,11 +240,13 @@ export class McpFactory {
       {
         title: 'Create a plan',
         description:
-          'Start a plan: the nodes and flows you already know, or none at all.\n\n' +
+          'Open an empty plan. Nothing is drawn here — apply_ops does that, with the id this ' +
+          'gives back.\n\n' +
           'This is the first call, not the last one. A plan is a drawing somebody keeps, not ' +
-          'an artefact you produce once — go on adding to it with apply_ops and the id this ' +
-          'gives back, as often as you learn something new. Drawing it in pieces is also the ' +
-          'only way a person watching the canvas sees it take shape rather than appear.\n\n' +
+          'an artefact you produce once, so go on adding to it as often as you learn ' +
+          'something new. Drawing it in pieces is also the only way a person watching the ' +
+          'canvas sees it take shape rather than appear, and the only way its own history can ' +
+          'say where each part came from.\n\n' +
           'Draw how the thing works, not a list of what to do. A node is a part of the ' +
           'system — a screen, a route, an endpoint, a function, a table, a job, an outside ' +
           'service. A flows_to edge is control or data moving from one to the next, in the ' +
@@ -258,7 +258,7 @@ export class McpFactory {
           'draw that.',
         inputSchema: createPlanShape,
       },
-      async ({ title, description, workspace, projectSlug, nodes, edges }) => {
+      async ({ title, description, workspace, projectSlug }) => {
         try {
           const target = await resolveWorkspace(this.workspaces, identity, workspace);
           const projectId =
@@ -266,27 +266,16 @@ export class McpFactory {
               ? await this.projects.defaultFor(target.id)
               : (await this.projects.bySlug(identity.userId, target.id, projectSlug)).id;
 
-          const doc = await this.plans.create(identity.userId, projectId, {
-            title,
-            description,
-            spec: {
-              version: 1,
-              title,
-              description,
-              nodes: nodes.map((node) => ({
-                ...node,
-                position: null,
-                pinned: false,
-                size: null,
-              })),
-              edges: edges.map((edge) => normalizeEdge(planEdgeInputSchema.parse(edge))),
-            },
-          });
+          const doc = await this.plans.create(
+            identity.userId,
+            projectId,
+            { title, description },
+            { userId: identity.userId, apiKeyId: identity.keyId },
+          );
           return text(
-            `Created plan ${doc.id} with ${doc.nodes.length} nodes.\n` +
+            `Created plan ${doc.id}, empty.\n` +
               `Open it at ${this.planUrl(doc.id)}\n` +
-              `Keep drawing into it with apply_ops and this id.\n\n` +
-              renderPlan(doc, 'outline'),
+              `Draw into it with apply_ops and this id, a few nodes at a time.`,
           );
         } catch (error) {
           return failure(reason(error));
