@@ -1,5 +1,5 @@
 import { Plus, Settings, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { RowMenu } from '@/components/ui/row-menu';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { canAdminister, projects as api, type ProjectSummary } from '@/lib/api';
 import { formatWhen, plural } from '@/lib/utils';
+import { useLiveList } from '@/lib/use-live-list';
 import { useWorkspace } from './workspace-context';
 
 /** A workspace holds projects; a project holds plans. This is the first level. */
@@ -29,7 +30,7 @@ export function ProjectIndexPage() {
   const reload = (): void => {
     api.list(current.id).then(setList).catch(setError);
   };
-  useEffect(reload, [current.id]);
+  useLiveList(reload, [current.id]);
 
   const create = async (): Promise<void> => {
     const trimmed = name.trim();

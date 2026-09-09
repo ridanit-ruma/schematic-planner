@@ -1,11 +1,12 @@
 import { ArrowLeft, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { Spinner } from '@/components/ui/feedback';
 import { Tooltip } from '@/components/ui/tooltip';
 import { plans, type PlanNavigation } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { useLiveList } from '@/lib/use-live-list';
 
 const COLLAPSED_KEY = 'plan-sidebar-collapsed';
 
@@ -33,7 +34,7 @@ export function PlanSidebar({ planId }: { planId: string }) {
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const navigate = useNavigate();
 
-  useEffect(() => {
+  useLiveList(() => {
     let live = true;
     plans
       .navigation(planId)

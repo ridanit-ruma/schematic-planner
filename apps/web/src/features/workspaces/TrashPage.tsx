@@ -1,5 +1,5 @@
 import { RotateCcw, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
@@ -10,6 +10,7 @@ import { RowMenu } from '@/components/ui/row-menu';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { trash, type TrashItem } from '@/lib/api';
 import { formatWhen, plural } from '@/lib/utils';
+import { useLiveList } from '@/lib/use-live-list';
 import { useWorkspace } from './workspace-context';
 
 /**
@@ -29,7 +30,7 @@ export function TrashPage() {
   const reload = (): void => {
     trash.list(current.id).then(setList).catch(setError);
   };
-  useEffect(reload, [current.id]);
+  useLiveList(reload, [current.id]);
 
   const restore = async (item: TrashItem): Promise<void> => {
     try {

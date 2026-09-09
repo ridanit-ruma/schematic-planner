@@ -36,10 +36,16 @@ const check = (label, ok, detail = '') => {
   console.log(`  ${ok ? '✓' : '✗'} ${label}${detail === '' ? '' : `  ${detail}`}`);
 };
 
+// Firefox is driven over WebDriver BiDi and takes none of Chrome's flags, so
+// the browser is chosen from the path rather than a second variable to keep in
+// step with it.
+const isFirefox = /firefox/i.test(CHROME);
 const browser = await puppeteer.launch({
   executablePath: CHROME,
   headless: true,
-  args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+  ...(isFirefox
+    ? { browser: 'firefox' }
+    : { args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] }),
   defaultViewport: { width: 1600, height: 1000 },
 });
 const page = await browser.newPage();
@@ -565,6 +571,41 @@ try {
       `${during.dimmed} of ${during.total}`,
     );
     check('and it comes back when the pointer leaves', after === 0, String(after));
+
+  console.log('\nsomething appearing from elsewhere');
+  // A plan's contents come over a socket, but the lists around it are plain
+  // reads. Coming back to the window is when a person looks, so it is when the
+  // lists read themselves again — otherwise somebody else's new plan is
+  // invisible until the screen is opened afresh.
+  await page.goto(`${BASE}/workspace/${workspaces[0].slug}/project/${projectList[0].slug}`, {
+    waitUntil: 'domcontentloaded',
+  });
+  await wait(2500);
+  const rowsBefore = await page.$eval('tbody tr', (r) => r.length);
+  const elsewhere = await call(`/projects/${projectList[0].id}/plans`, {
+    method: 'POST',
+    body: { title: `Made elsewhere ${Date.now()}`, description: '' },
+  });
+  await wait(1200);
+  const rowsStill = await page.$eval('tbody tr', (r) => r.length);
+  check('nothing is polled while you are looking', rowsStill === rowsBefore, `${rowsStill} rows`);
+
+  // A real away-and-back: another tab takes the front, then this one takes it
+  // again, which is what fires focus and visibilitychange for real.
+  const elsewhereTab = await browser.newPage();
+  await elsewhereTab.goto('about:blank');
+  await wait(600);
+  await page.bringToFront();
+  await wait(2500);
+  const rowsAfter = await page.$eval('tbody tr', (r) => r.length);
+  check(
+    'and coming back to the window finds it',
+    rowsAfter > rowsBefore,
+    `${rowsBefore} -> ${rowsAfter} rows`,
+  );
+  await elsewhereTab.close();
+  await call(`/plans/${elsewhere.id}`, { method: 'DELETE' });
+  await call(`/trash/plans/${elsewhere.id}`, { method: 'DELETE' });
 
   console.log('\na phone');
     // Nothing on this page may push the page sideways: a canvas you have to

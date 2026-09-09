@@ -1,5 +1,5 @@
 import { Check, Copy, UserPlus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Page } from '@/components/ui/page';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { workspaces, type Member, type Role } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
+import { useLiveList } from '@/lib/use-live-list';
 import { useWorkspace } from './workspace-context';
 
 const ROLES: Role[] = ['VIEWER', 'EDITOR', 'ADMIN', 'OWNER'];
@@ -43,7 +44,7 @@ export function MembersPage() {
   const reload = (): void => {
     workspaces.members(current.id).then(setMembers).catch(setError);
   };
-  useEffect(reload, [current.id]);
+  useLiveList(reload, [current.id]);
 
   const act = async (run: Promise<unknown>): Promise<void> => {
     try {

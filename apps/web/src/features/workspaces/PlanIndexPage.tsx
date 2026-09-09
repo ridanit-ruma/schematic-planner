@@ -1,5 +1,5 @@
 import { Plus, Settings, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { RowMenu } from '@/components/ui/row-menu';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { canAdminister, plans, projects, type PlanSummary } from '@/lib/api';
 import { formatWhen, plural } from '@/lib/utils';
+import { useLiveList, type LoadReason } from '@/lib/use-live-list';
 import { useWorkspace } from './workspace-context';
 
 /**
@@ -32,9 +33,15 @@ export function PlanIndexPage() {
   const [deleting, setDeleting] = useState<PlanSummary | null>(null);
   const mayDelete = canAdminister(current.role);
 
-  const reload = (): void => {
-    setList(null);
-    setProject(null);
+  const reload = (reason: LoadReason): void => {
+    // Cleared on the way in, so the previous project's plans are not shown
+    // under this one's name. Coming back to the window is not that: the list
+    // on screen is this project's, and blanking it would flash a spinner at
+    // somebody who only looked away.
+    if (reason === 'first') {
+      setList(null);
+      setProject(null);
+    }
     projects
       .bySlug(current.id, projectSlug)
       .then(async (found) => {
@@ -43,7 +50,7 @@ export function PlanIndexPage() {
       })
       .catch(setError);
   };
-  useEffect(reload, [current.id, projectSlug]);
+  useLiveList(reload, [current.id, projectSlug]);
 
   const create = async (): Promise<void> => {
     const trimmed = title.trim();
@@ -60,7 +67,7 @@ export function PlanIndexPage() {
     try {
       await plans.remove(plan.id);
       setDeleting(null);
-      reload();
+      reload('again');
     } catch (cause) {
       setError(cause);
     }

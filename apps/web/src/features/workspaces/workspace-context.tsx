@@ -3,6 +3,7 @@ import { Navigate, Outlet, useParams } from 'react-router';
 
 import { Problem, Spinner } from '@/components/ui/feedback';
 import { workspaces as api, type WorkspaceSummary } from '@/lib/api';
+import { useLiveList } from '@/lib/use-live-list';
 import { rememberWorkspace, rememberedWorkspace, resolveWorkspace } from './current-workspace';
 
 interface WorkspacesValue {
@@ -50,7 +51,7 @@ export function WorkspacesProvider({ children }: { children: ReactNode }) {
   const [nonce, setNonce] = useState(0);
   const [last, setLast] = useState(rememberedWorkspace);
 
-  useEffect(() => {
+  useLiveList(() => {
     api.list().then(setAll).catch(setError);
   }, [nonce]);
 

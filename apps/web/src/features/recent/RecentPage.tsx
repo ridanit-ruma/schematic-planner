@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { Author } from '@/components/ui/author';
@@ -13,6 +13,7 @@ import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { plans, workspaces, type RecentPlan } from '@/lib/api';
 import { formatWhen } from '@/lib/utils';
 import { useWorkspaces } from '@/features/workspaces/workspace-context';
+import { useLiveList } from '@/lib/use-live-list';
 
 /**
  * Where the application opens.
@@ -28,7 +29,7 @@ export function RecentPage() {
   const [list, setList] = useState<RecentPlan[] | null>(null);
   const [error, setError] = useState<unknown>(null);
 
-  useEffect(() => {
+  useLiveList(() => {
     plans.recent().then(setList).catch(setError);
   }, []);
 
