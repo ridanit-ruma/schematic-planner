@@ -7,6 +7,23 @@ const QUIET_MS = 1500;
 export type LoadReason = 'first' | 'again';
 
 /**
+ * Whether a wake-up is worth a request.
+ *
+ * Raising a tab fires focus and visibilitychange together, and clicking back
+ * into a window fires focus on its own, so the same return arrives two or three
+ * times. Separated from the effect because this is the only rule here, and a
+ * rule that cannot be run on its own is a rule nobody checks.
+ */
+export function shouldReread(
+  visibility: DocumentVisibilityState,
+  since: number,
+  now: number,
+): boolean {
+  if (visibility !== 'visible') return false;
+  return now - since >= QUIET_MS;
+}
+
+/**
  * Reads a list now, and again when the window comes back to the front.
  *
  * A plan's contents are a shared document and arrive over a socket, but the
@@ -34,8 +51,7 @@ export function useLiveList(
     const again = (): void => {
       // Focus and visibility both fire when a tab is raised, and a click back
       // into the window fires focus on its own. One read is enough.
-      if (document.visibilityState !== 'visible') return;
-      if (Date.now() - at < QUIET_MS) return;
+      if (!shouldReread(document.visibilityState, at, Date.now())) return;
       at = Date.now();
       done?.();
       done = latest.current('again');
