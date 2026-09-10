@@ -1,0 +1,80 @@
+# The database. A StatefulSet rather than a Deployment: the volume is the point,
+# and a rolling update that briefly ran two Postgres processes over one data
+# directory would corrupt it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: schematic-planner-db
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: schematic-planner
+    app.kubernetes.io/component: db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: schematic-planner-db
+spec:
+  serviceName: schematic-planner-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: schematic-planner
+      app.kubernetes.io/component: db
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: schematic-planner
+        app.kubernetes.io/component: db
+    spec:
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: schematic
+            - name: POSTGRES_DB
+              value: schematic
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: schematic-planner
+                  key: POSTGRES_PASSWORD
+            # The image only initialises a fresh cluster in an empty directory,
+            # and a mounted volume is not empty — it has lost+found.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ['pg_isready', '-U', 'schematic']
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ['pg_isready', '-U', 'schematic']
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 1Gi }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ['ReadWriteOnce']
+        resources:
+          requests:
+            storage: 8Gi

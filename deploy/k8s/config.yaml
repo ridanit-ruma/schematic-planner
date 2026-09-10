@@ -1,0 +1,29 @@
+# Everything that is not secret. An installation patches the three addresses;
+# the rest is the same wherever this runs.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: schematic-planner
+data:
+  NODE_ENV: production
+  API_HOST: 0.0.0.0
+  API_PORT: '3001'
+
+  # Replaced by the overlay. The proxy strips /api before forwarding, so the
+  # server's own public address is the site address plus that prefix.
+  API_PUBLIC_URL: http://localhost:8080/api
+  APP_PUBLIC_URL: http://localhost:8080
+  # One origin, so nothing is cross-site and this stays the same one address.
+  CORS_ORIGINS: http://localhost:8080
+
+  # Caddy and the tunnel are both in front of this, and the client address the
+  # rate limiter counts by arrives in a header.
+  TRUST_PROXY: 'true'
+  COOKIE_SECURE: 'true'
+
+  ALLOW_REGISTRATION: 'true'
+  RATE_LIMIT_MAX: '300'
+  RATE_LIMIT_AUTH_MAX: '10'
+
+  # On the volume below, not in the image: an avatar has to survive a rollout.
+  UPLOAD_DIR: /data/uploads

@@ -1,0 +1,22 @@
+# The cluster-agnostic half. An installation adds a namespace, a storage class,
+# the Secret, the address and a way in — see README.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - config.yaml
+  - postgres.yaml
+  - api.yaml
+  - web.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: schematic-planner
+
+# Names with no registry in front of them, because there is none: the images are
+# built and loaded onto the node, and the tag an installation pins is what says
+# which commit is running. Never pulled, so the prefix is only a key.
+images:
+  - name: schematic-planner.local/api
+    newTag: latest
+  - name: schematic-planner.local/web
+    newTag: latest

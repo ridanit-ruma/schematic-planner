@@ -1,0 +1,54 @@
+# Caddy, holding both front ends and proxying /api to the server. This is the
+# one address the outside reaches: serving the site, the application and the API
+# from it is what keeps the session cookie same-site and CORS out of the
+# picture. See deploy/Caddyfile.
+apiVersion: v1
+kind: Service
+metadata:
+  name: schematic-planner-web
+spec:
+  selector:
+    app.kubernetes.io/name: schematic-planner
+    app.kubernetes.io/component: web
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: schematic-planner-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: schematic-planner
+      app.kubernetes.io/component: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: schematic-planner
+        app.kubernetes.io/component: web
+    spec:
+      containers:
+        - name: web
+          image: schematic-planner.local/web
+          # Never pulled: there is no registry behind that name. The image is
+          # on the node before the tag naming it reaches the cluster.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SITE_ADDRESS
+              value: ':8080'
+            - name: UPSTREAM_API
+              value: schematic-planner-api:3001
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 20m, memory: 48Mi }
+            limits: { memory: 256Mi }
