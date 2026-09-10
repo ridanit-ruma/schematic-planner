@@ -1,5 +1,5 @@
-import { Plus, Settings, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { FolderClosed, FolderPlus, Plus, Settings, Trash2 } from 'lucide-react';
+import { Fragment, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,14 @@ import { Modal } from '@/components/ui/modal';
 import { Page } from '@/components/ui/page';
 import { RowMenu } from '@/components/ui/row-menu';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
-import { canAdminister, plans, projects, type PlanSummary } from '@/lib/api';
+import {
+  canAdminister,
+  folders,
+  plans,
+  projects,
+  type FolderSummary,
+  type PlanSummary,
+} from '@/lib/api';
 import { formatWhen, plural } from '@/lib/utils';
 import { useLiveList, type LoadReason } from '@/lib/use-live-list';
 import { useWorkspace } from './workspace-context';
@@ -26,6 +33,9 @@ export function PlanIndexPage() {
 
   const [project, setProject] = useState<{ id: string; name: string } | null>(null);
   const [list, setList] = useState<PlanSummary[] | null>(null);
+  const [drawers, setDrawers] = useState<FolderSummary[]>([]);
+  const [addingFolder, setAddingFolder] = useState(false);
+  const [folderName, setFolderName] = useState('');
   const [error, setError] = useState<unknown>(null);
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState('');
@@ -46,7 +56,9 @@ export function PlanIndexPage() {
       .bySlug(current.id, projectSlug)
       .then(async (found) => {
         setProject(found);
-        setList(await plans.list(found.id));
+        const [inside, drawn] = await Promise.all([plans.list(found.id), folders.list(found.id)]);
+        setList(inside);
+        setDrawers(drawn);
       })
       .catch(setError);
   };
@@ -58,6 +70,19 @@ export function PlanIndexPage() {
     try {
       const plan = await plans.create(project.id, trimmed, newDescription.trim());
       void navigate(`/plan/${plan.id}`);
+    } catch (cause) {
+      setError(cause);
+    }
+  };
+
+  const addFolder = async (): Promise<void> => {
+    const trimmed = folderName.trim();
+    if (trimmed === '' || project === null) return;
+    try {
+      await folders.create(project.id, trimmed);
+      setAddingFolder(false);
+      setFolderName('');
+      reload('again');
     } catch (cause) {
       setError(cause);
     }
@@ -95,13 +120,19 @@ export function PlanIndexPage() {
         list.length === 0 ? 'Nothing drawn yet' : plural(list.length, 'plan')
       } in this project.`}
       actions={
-        <Button variant="primary" onClick={() => setCreating(true)}>
-          <Plus className="size-3.5" />
-          New plan
-        </Button>
+        <>
+          <Button variant="ghost" onClick={() => setAddingFolder(true)}>
+            <FolderPlus className="size-3.5" />
+            New folder
+          </Button>
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            <Plus className="size-3.5" />
+            New plan
+          </Button>
+        </>
       }
     >
-      {list.length === 0 ? (
+      {list.length === 0 && drawers.length === 0 ? (
         <Empty
           title="No plans yet"
           body="Draw one here, or point an AI agent at this workspace and let it create the first plan for you."
@@ -126,7 +157,19 @@ export function PlanIndexPage() {
             </TH>
           </THead>
           <tbody>
-            {list.map((plan) => (
+            {grouped(list, drawers).map(({ folder, held }) => (
+              <Fragment key={folder?.id ?? 'loose'}>
+                {folder === null ? null : (
+                  <tr>
+                    <td colSpan={4} className="border-t border-rule pt-4 pb-1">
+                      <span className="rail-heading flex items-center gap-1.5 text-ink-faint">
+                        <FolderClosed className="size-3" />
+                        {folder.name}
+                      </span>
+                    </td>
+                  </tr>
+                )}
+                {held.map((plan) => (
               <TR key={plan.id}>
                 <TD>
                   <Link to={`/plan/${plan.id}`} className="block min-w-0">
@@ -162,6 +205,8 @@ export function PlanIndexPage() {
                   </RowMenu>
                 </TD>
               </TR>
+                ))}
+              </Fragment>
             ))}
           </tbody>
         </Table>
@@ -187,6 +232,36 @@ export function PlanIndexPage() {
             Move to trash
           </Button>
         </div>
+      </Modal>
+
+      <Modal open={addingFolder} onOpenChange={setAddingFolder} title="New folder">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void addFolder();
+          }}
+        >
+          <Field label="Name" hint="A drawer inside this project. Folders do not nest.">
+            {(id) => (
+              <Input
+                id={id}
+                autoFocus
+                value={folderName}
+                onChange={(event) => setFolderName(event.target.value)}
+                placeholder="Architecture"
+              />
+            )}
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setAddingFolder(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              Create folder
+            </Button>
+          </div>
+        </form>
       </Modal>
 
       <Modal open={creating} onOpenChange={setCreating} title="New plan">
@@ -231,4 +306,23 @@ export function PlanIndexPage() {
       </Modal>
     </Page>
   );
+}
+
+/**
+ * Plans by the drawer they are filed in, top level first. An empty folder is
+ * still listed: it is a place somebody made, and a folder that vanishes when
+ * you leave the page reads as a folder that was never created.
+ */
+function grouped(
+  list: readonly PlanSummary[],
+  drawers: readonly FolderSummary[],
+): { folder: FolderSummary | null; held: PlanSummary[] }[] {
+  const loose = list.filter((plan) => plan.folderId === null);
+  return [
+    ...(loose.length === 0 ? [] : [{ folder: null, held: loose }]),
+    ...drawers.map((folder) => ({
+      folder,
+      held: list.filter((plan) => plan.folderId === folder.id),
+    })),
+  ];
 }

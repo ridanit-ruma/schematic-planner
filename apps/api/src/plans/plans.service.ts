@@ -33,6 +33,8 @@ export interface PlanSummary {
   description: string;
   nodeCount: number;
   updatedAt: Date;
+  /** Which drawer of the project, or null for its top level. */
+  folderId: string | null;
 }
 
 /**
@@ -89,7 +91,9 @@ export interface PlanNavigation {
     id: string;
     slug: string;
     name: string;
-    plans: { id: string; title: string; updatedAt: Date }[];
+    folders: { id: string; name: string }[];
+    /** `folderId` is null for a plan at the project's own top level. */
+    plans: { id: string; title: string; updatedAt: Date; folderId: string | null }[];
   }[];
 }
 
@@ -105,7 +109,11 @@ export class PlansService {
   async list(userId: string, projectId: string): Promise<PlanSummary[]> {
     await this.access.requireProject(userId, projectId, 'VIEWER');
     const plans = await this.prisma.plan.findMany({
-      where: { projectId, deletedAt: null },
+      where: {
+        projectId,
+        deletedAt: null,
+        OR: [{ folderId: null }, { folder: { deletedAt: null } }],
+      },
       orderBy: { updatedAt: 'desc' },
     });
 
@@ -115,6 +123,7 @@ export class PlansService {
       description: plan.description,
       nodeCount: planDocSchema.safeParse(plan.snapshot).data?.nodes.length ?? 0,
       updatedAt: plan.updatedAt,
+      folderId: plan.folderId,
     }));
   }
 
@@ -135,6 +144,7 @@ export class PlansService {
     const rows = await this.prisma.plan.findMany({
       where: {
         deletedAt: null,
+        OR: [{ folderId: null }, { folder: { deletedAt: null } }],
         project: { deletedAt: null, workspaceId: { in: workspaceIds } },
       },
       orderBy: { updatedAt: 'desc' },
@@ -229,10 +239,17 @@ export class PlansService {
           name: true,
           // No node counts here: the snapshot is the whole document, and
           // selecting it would load every plan in the workspace to list names.
-          plans: {
+          folders: {
             where: { deletedAt: null },
+            orderBy: { name: 'asc' },
+            select: { id: true, name: true },
+          },
+          // A plan in a trashed folder is in the trash with it and carries no
+          // mark of its own, so the folder has to be asked about here too.
+          plans: {
+            where: { deletedAt: null, OR: [{ folderId: null }, { folder: { deletedAt: null } }] },
             orderBy: { updatedAt: 'desc' },
-            select: { id: true, title: true, updatedAt: true },
+            select: { id: true, title: true, updatedAt: true, folderId: true },
           },
         },
       }),
@@ -248,10 +265,15 @@ export class PlansService {
     actor: ChangeActor = { userId },
   ): Promise<PlanDoc> {
     await this.access.requireProject(userId, projectId, 'EDITOR');
+    if (input.folderId != null) {
+      const drawer = await this.access.requireFolder(userId, input.folderId, 'EDITOR');
+      if (drawer.projectId !== projectId) throw new NotFoundException('Folder not found');
+    }
 
     const created = await this.prisma.plan.create({
       data: {
         projectId,
+        folderId: input.folderId ?? null,
         title: input.title,
         description: input.description,
         snapshot: emptyPlanDoc('pending', input.title),
@@ -322,14 +344,28 @@ export class PlansService {
    * workspace boundary: it was handed out on the understanding of who could
    * reach the plan, and that has just changed.
    */
-  async move(userId: string, planId: string, projectId: string): Promise<{ ok: true }> {
+  async move(
+    userId: string,
+    planId: string,
+    projectId: string,
+    folderId: string | null = null,
+  ): Promise<{ ok: true }> {
     const from = await this.access.requirePlan(userId, planId, 'ADMIN');
     const to = await this.access.requireProject(userId, projectId, 'EDITOR');
-    if (from.projectId === projectId) return { ok: true };
+
+    // A folder belongs to one project, so being told both is being told the
+    // same thing twice -- and disagreeing about it would file the plan
+    // somewhere it cannot be seen.
+    if (folderId !== null) {
+      const drawer = await this.access.requireFolder(userId, folderId, 'EDITOR');
+      if (drawer.projectId !== projectId) {
+        throw new NotFoundException('Folder not found');
+      }
+    }
 
     const crossesWorkspace = from.workspaceId !== to.workspaceId;
     await this.prisma.$transaction([
-      this.prisma.plan.update({ where: { id: planId }, data: { projectId } }),
+      this.prisma.plan.update({ where: { id: planId }, data: { projectId, folderId } }),
       ...(crossesWorkspace
         ? [this.prisma.planShare.deleteMany({ where: { planId } })]
         : []),

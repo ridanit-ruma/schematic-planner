@@ -86,7 +86,7 @@ export class PlansController {
     @Param('id') id: string,
     @Body(new ZodPipe(movePlanSchema)) body: MovePlanInput,
   ) {
-    return this.plans.move(user.id, id, body.projectId);
+    return this.plans.move(user.id, id, body.projectId, body.folderId ?? null);
   }
 
   @Delete('plans/:id')

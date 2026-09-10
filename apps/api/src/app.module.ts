@@ -9,6 +9,7 @@ import { PlanOpExceptionFilter } from './common/plan-op.filter.js';
 import { ApiThrottlerGuard, IS_STRICT_RATE_LIMIT } from './common/throttle.js';
 import { PrismaModule } from './common/prisma.module.js';
 import { ConfigModule } from './config/config.module.js';
+import { FoldersModule } from './folders/folders.module.js';
 import { APP_CONFIG, type AppConfig } from './config/env.js';
 import { HealthModule } from './health/health.module.js';
 import { McpModule } from './mcp/mcp.module.js';
@@ -51,6 +52,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module.js';
     AuthModule,
     WorkspacesModule,
     ProjectsModule,
+    FoldersModule,
     PlansModule,
     TrashModule,
     McpModule,

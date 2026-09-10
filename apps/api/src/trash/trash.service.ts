@@ -4,7 +4,7 @@ import { PrismaService } from '../common/prisma.service.js';
 import { AccessService } from '../workspaces/access.service.js';
 
 export interface TrashItem {
-  kind: 'plan' | 'project';
+  kind: 'plan' | 'project' | 'folder';
   id: string;
   name: string;
   /** Where it was: the project a plan sat in, or how much a project held. */
@@ -31,7 +31,7 @@ export class TrashService {
   async list(userId: string, workspaceId: string): Promise<TrashItem[]> {
     await this.access.requireWorkspace(userId, workspaceId, 'ADMIN');
 
-    const [projects, plans] = await Promise.all([
+    const [projects, folders, plans] = await Promise.all([
       this.prisma.project.findMany({
         where: { workspaceId, deletedAt: { not: null } },
         orderBy: { deletedAt: 'desc' },
@@ -40,6 +40,18 @@ export class TrashService {
           name: true,
           deletedAt: true,
           deletedBy: { select: { name: true, avatarUrl: true } },
+          _count: { select: { plans: true } },
+        },
+      }),
+      this.prisma.folder.findMany({
+        where: { deletedAt: { not: null }, project: { workspaceId } },
+        orderBy: { deletedAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          deletedAt: true,
+          deletedBy: { select: { name: true, avatarUrl: true } },
+          project: { select: { name: true } },
           _count: { select: { plans: true } },
         },
       }),
@@ -66,6 +78,17 @@ export class TrashService {
         deletedAt: project.deletedAt as Date,
         by: project.deletedBy,
       })),
+      ...folders.map((folder) => ({
+        kind: 'folder' as const,
+        id: folder.id,
+        name: folder.name,
+        where:
+          folder._count.plans === 1
+            ? `1 plan inside, in ${folder.project.name}`
+            : `${folder._count.plans} plans inside, in ${folder.project.name}`,
+        deletedAt: folder.deletedAt as Date,
+        by: folder.deletedBy,
+      })),
       ...plans.map((plan) => ({
         kind: 'plan' as const,
         id: plan.id,
@@ -81,16 +104,45 @@ export class TrashService {
 
   async restorePlan(userId: string, planId: string): Promise<{ ok: true }> {
     const access = await this.access.requirePlan(userId, planId, 'ADMIN', { includeTrashed: true });
+    const plan = await this.prisma.plan.findUniqueOrThrow({
+      where: { id: planId },
+      select: { folderId: true },
+    });
 
-    // Restoring into a project that is itself in the trash would put the plan
-    // somewhere nobody can reach, so the project comes back with it.
+    // Restoring into a project or folder that is itself in the trash would put
+    // the plan somewhere nobody can reach, so its containers come back with it.
     await this.prisma.$transaction([
       this.prisma.project.updateMany({
         where: { id: access.projectId, deletedAt: { not: null } },
         data: { deletedAt: null, deletedById: null },
       }),
+      ...(plan.folderId === null
+        ? []
+        : [
+            this.prisma.folder.updateMany({
+              where: { id: plan.folderId, deletedAt: { not: null } },
+              data: { deletedAt: null, deletedById: null },
+            }),
+          ]),
       this.prisma.plan.update({
         where: { id: planId },
+        data: { deletedAt: null, deletedById: null },
+      }),
+    ]);
+    return { ok: true };
+  }
+
+  async restoreFolder(userId: string, folderId: string): Promise<{ ok: true }> {
+    const access = await this.access.requireFolder(userId, folderId, 'ADMIN', {
+      includeTrashed: true,
+    });
+    await this.prisma.$transaction([
+      this.prisma.project.updateMany({
+        where: { id: access.projectId, deletedAt: { not: null } },
+        data: { deletedAt: null, deletedById: null },
+      }),
+      this.prisma.folder.update({
+        where: { id: folderId },
         data: { deletedAt: null, deletedById: null },
       }),
     ]);
@@ -112,6 +164,17 @@ export class TrashService {
     return { ok: true };
   }
 
+  /**
+   * The folder goes; the plans that were in it do not. `onDelete: SetNull` puts
+   * them back at the project's top level, which is the one place they are
+   * certain to be reachable.
+   */
+  async purgeFolder(userId: string, folderId: string): Promise<{ ok: true }> {
+    await this.access.requireFolder(userId, folderId, 'ADMIN', { includeTrashed: true });
+    await this.prisma.folder.delete({ where: { id: folderId } });
+    return { ok: true };
+  }
+
   async purgeProject(userId: string, projectId: string): Promise<{ ok: true }> {
     await this.access.requireProject(userId, projectId, 'ADMIN', { includeTrashed: true });
     await this.prisma.project.delete({ where: { id: projectId } });
@@ -122,8 +185,16 @@ export class TrashService {
   async empty(userId: string, workspaceId: string): Promise<{ removed: number }> {
     await this.access.requireWorkspace(userId, workspaceId, 'ADMIN');
 
-    const [plans, projects] = await this.prisma.$transaction([
+    const [plans, folders, projects] = await this.prisma.$transaction([
+      // Plans filed in a discarded folder go with it: they were thrown away
+      // when it was, and only the folder carries the mark.
       this.prisma.plan.deleteMany({
+        where: {
+          project: { workspaceId },
+          OR: [{ deletedAt: { not: null } }, { folder: { deletedAt: { not: null } } }],
+        },
+      }),
+      this.prisma.folder.deleteMany({
         where: { deletedAt: { not: null }, project: { workspaceId } },
       }),
       // After the plans, because a project takes its plans with it and the
@@ -131,6 +202,6 @@ export class TrashService {
       this.prisma.project.deleteMany({ where: { workspaceId, deletedAt: { not: null } } }),
     ]);
 
-    return { removed: plans.count + projects.count };
+    return { removed: plans.count + folders.count + projects.count };
   }
 }

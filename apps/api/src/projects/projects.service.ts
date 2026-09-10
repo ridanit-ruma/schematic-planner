@@ -22,7 +22,15 @@ export class ProjectsService {
     await this.access.requireWorkspace(userId, workspaceId, 'VIEWER');
     const projects = await this.prisma.project.findMany({
       where: { workspaceId, deletedAt: null },
-      include: { _count: { select: { plans: { where: { deletedAt: null } } } } },
+      include: {
+        _count: {
+          select: {
+            plans: {
+              where: { deletedAt: null, OR: [{ folderId: null }, { folder: { deletedAt: null } }] },
+            },
+          },
+        },
+      },
       orderBy: { createdAt: 'asc' },
     });
 

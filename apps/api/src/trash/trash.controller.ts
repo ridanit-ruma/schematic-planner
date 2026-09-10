@@ -23,6 +23,11 @@ export class TrashController {
     return this.trash.restorePlan(user.id, id);
   }
 
+  @Post('trash/folders/:id/restore')
+  restoreFolder(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.trash.restoreFolder(user.id, id);
+  }
+
   @Post('trash/projects/:id/restore')
   restoreProject(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.trash.restoreProject(user.id, id);
@@ -31,6 +36,11 @@ export class TrashController {
   @Delete('trash/plans/:id')
   purgePlan(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.trash.purgePlan(user.id, id);
+  }
+
+  @Delete('trash/folders/:id')
+  purgeFolder(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.trash.purgeFolder(user.id, id);
   }
 
   @Delete('trash/projects/:id')

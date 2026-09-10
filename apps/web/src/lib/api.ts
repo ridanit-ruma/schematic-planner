@@ -60,6 +60,15 @@ export interface PlanSummary {
   description: string;
   nodeCount: number;
   updatedAt: string;
+  /** Which drawer of the project, or null for its top level. */
+  folderId: string | null;
+}
+
+export interface FolderSummary {
+  id: string;
+  name: string;
+  planCount: number;
+  updatedAt: string;
 }
 
 /** The workspace tree around one plan, used by the switcher on the canvas. */
@@ -70,7 +79,9 @@ export interface PlanNavigation {
     id: string;
     slug: string;
     name: string;
-    plans: { id: string; title: string; updatedAt: string }[];
+    folders: { id: string; name: string }[];
+    /** `folderId` is null for a plan at the project's own top level. */
+    plans: { id: string; title: string; updatedAt: string; folderId: string | null }[];
   }[];
 }
 
@@ -89,7 +100,7 @@ export interface RecentPlan {
 }
 
 export interface TrashItem {
-  kind: 'plan' | 'project';
+  kind: 'plan' | 'project' | 'folder';
   id: string;
   name: string;
   where: string;
@@ -349,20 +360,39 @@ export const account = {
     }),
 };
 
+/** Drawers inside a project. They do not nest: project > folder > plan. */
+export const folders = {
+  list: (projectId: string) => api<FolderSummary[]>(`/projects/${projectId}/folders`),
+  create: (projectId: string, name: string) =>
+    api<{ id: string; name: string; projectId: string }>(`/projects/${projectId}/folders`, {
+      method: 'POST',
+      ...json({ name }),
+    }),
+  rename: (id: string, name: string) =>
+    api<{ id: string; name: string; projectId: string }>(`/folders/${id}`, {
+      method: 'PATCH',
+      ...json({ name }),
+    }),
+  remove: (id: string) => api<{ ok: true }>(`/folders/${id}`, { method: 'DELETE' }),
+};
+
 export const plans = {
   list: (projectId: string) => api<PlanSummary[]>(`/projects/${projectId}/plans`),
   recent: () => api<RecentPlan[]>('/recent'),
-  create: (projectId: string, title: string, description = '') =>
+  create: (projectId: string, title: string, description = '', folderId: string | null = null) =>
     api<PlanDoc>(`/projects/${projectId}/plans`, {
       method: 'POST',
-      ...json({ title, description }),
+      ...json({ title, description, folderId }),
     }),
   read: (planId: string) => api<PlanDoc>(`/plans/${planId}`),
   update: (planId: string, body: { title?: string; description?: string }) =>
     api<PlanDoc>(`/plans/${planId}`, { method: 'PATCH', ...json(body) }),
-  /** To another project, which may be in another workspace. */
-  move: (planId: string, projectId: string) =>
-    api<{ ok: true }>(`/plans/${planId}/move`, { method: 'POST', ...json({ projectId }) }),
+  /** To another project, which may be in another workspace, and to a drawer in it. */
+  move: (planId: string, projectId: string, folderId: string | null = null) =>
+    api<{ ok: true }>(`/plans/${planId}/move`, {
+      method: 'POST',
+      ...json({ projectId, folderId }),
+    }),
   navigation: (planId: string) => api<PlanNavigation>(`/plans/${planId}/navigation`),
   changes: (planId: string) => api<PlanChangeRecord[]>(`/plans/${planId}/changes`),
   remove: (planId: string) => api<{ ok: true }>(`/plans/${planId}`, { method: 'DELETE' }),
@@ -383,9 +413,9 @@ export const trash = {
   list: (workspaceId: string) => api<TrashItem[]>(`/workspaces/${workspaceId}/trash`),
   empty: (workspaceId: string) =>
     api<{ removed: number }>(`/workspaces/${workspaceId}/trash`, { method: 'DELETE' }),
-  restore: (kind: 'plan' | 'project', id: string) =>
+  restore: (kind: TrashItem['kind'], id: string) =>
     api<{ ok: true }>(`/trash/${kind}s/${id}/restore`, { method: 'POST' }),
-  purge: (kind: 'plan' | 'project', id: string) =>
+  purge: (kind: TrashItem['kind'], id: string) =>
     api<{ ok: true }>(`/trash/${kind}s/${id}`, { method: 'DELETE' }),
 };
 

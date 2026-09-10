@@ -4,6 +4,8 @@ import { z } from 'zod';
 export const createPlanSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).default(''),
+  /** Which drawer of the project to file it in. Omitted, the top level. */
+  folderId: z.string().min(1).nullish(),
   /** Optional initial structure, as an agent would submit it. */
   spec: planSpecSchema.optional(),
 });
@@ -17,6 +19,12 @@ export const updatePlanSchema = z.object({
 export const movePlanSchema = z.object({
   /** Where it should live. May be a project in another workspace. */
   projectId: z.string().min(1),
+  /**
+   * Which drawer of that project, or null for its top level. Left out
+   * altogether, a plan moving to another project lands at the top level,
+   * because the folder it was in does not exist over there.
+   */
+  folderId: z.string().min(1).nullish(),
 });
 export type MovePlanInput = z.infer<typeof movePlanSchema>;
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;

@@ -13,6 +13,10 @@ export interface PlanAccess extends ProjectAccess {
   readonly planId: string;
 }
 
+export interface FolderAccess extends ProjectAccess {
+  readonly folderId: string;
+}
+
 /**
  * Something in the trash is not there as far as every ordinary route is
  * concerned. Only the trash itself asks to see it, and it says so.
@@ -69,6 +73,40 @@ export class AccessService {
     return { projectId: project.id, workspaceId: project.workspaceId, role };
   }
 
+  async requireFolder(
+    userId: string,
+    folderId: string,
+    required: Role,
+    options: AccessOptions = {},
+  ): Promise<FolderAccess> {
+    const folder = await this.prisma.folder.findUnique({
+      where: { id: folderId },
+      select: {
+        id: true,
+        deletedAt: true,
+        project: { select: { id: true, workspaceId: true, deletedAt: true } },
+      },
+    });
+    if (folder === null) throw new NotFoundException('Folder not found');
+    // A folder under a trashed project is in the trash with it, even though
+    // only the project carries the mark.
+    const trashed = folder.deletedAt !== null || folder.project.deletedAt !== null;
+    if (trashed && options.includeTrashed !== true) throw new NotFoundException('Folder not found');
+
+    const role = await this.requireWorkspace(userId, folder.project.workspaceId, required).catch(
+      () => {
+        throw new NotFoundException('Folder not found');
+      },
+    );
+
+    return {
+      folderId: folder.id,
+      projectId: folder.project.id,
+      workspaceId: folder.project.workspaceId,
+      role,
+    };
+  }
+
   async requirePlan(
     userId: string,
     planId: string,
@@ -80,13 +118,17 @@ export class AccessService {
       select: {
         id: true,
         deletedAt: true,
+        folder: { select: { deletedAt: true } },
         project: { select: { id: true, workspaceId: true, deletedAt: true } },
       },
     });
     if (plan === null) throw new NotFoundException('Plan not found');
-    // A plan under a trashed project is in the trash with it, even though only
-    // the project carries the mark.
-    const trashed = plan.deletedAt !== null || plan.project.deletedAt !== null;
+    // A plan under a trashed folder or project is in the trash with it, even
+    // though only the container carries the mark.
+    const trashed =
+      plan.deletedAt !== null ||
+      plan.folder?.deletedAt != null ||
+      plan.project.deletedAt !== null;
     if (trashed && options.includeTrashed !== true) throw new NotFoundException('Plan not found');
 
     const role = await this.requireWorkspace(userId, plan.project.workspaceId, required).catch(

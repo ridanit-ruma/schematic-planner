@@ -174,7 +174,9 @@ export function TrashPage() {
         description={
           purging?.kind === 'project'
             ? 'The project and every plan inside it go with it. This cannot be undone.'
-            : 'The plan, its history and its share link go with it. This cannot be undone.'
+            : purging?.kind === 'folder'
+              ? 'The folder goes; the plans in it return to the top of the project. This cannot be undone.'
+              : 'The plan, its history and its share link go with it. This cannot be undone.'
         }
       >
         <div className="flex justify-end gap-2">

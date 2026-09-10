@@ -41,6 +41,7 @@ model User {
   invitesSent Invite[]        @relation("InviteCreator")
   plansTrashed    Plan[]    @relation("PlanTrasher")
   projectsTrashed Project[] @relation("ProjectTrasher")
+  foldersTrashed  Folder[]  @relation("FolderTrasher")
 
   signupsInvited SignupInvite[] @relation("SignupInviteCreator")
   /// Which link this account came in through, when it came in through one.
@@ -117,6 +118,7 @@ model Project {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   deletedBy User?     @relation("ProjectTrasher", fields: [deletedById], references: [id], onDelete: SetNull)
   plans     Plan[]
+  folders   Folder[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId])
@@ -154,9 +156,38 @@ model Invite {
   @@index([workspaceId])
 }
 
+/// A drawer inside a project. One project holds several related plans and a
+/// flat list of them stops being navigable at about a dozen, which is the same
+/// reason the project level exists above it.
+///
+/// Folders do not nest. `project > folder > plan` is the depth people asked for,
+/// and each level beyond that multiplies the places a plan can be hiding
+/// without adding a way to find it.
+model Folder {
+  id          String    @id @default(cuid())
+  projectId   String
+  name        String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  /// In the trash since. A folder in the trash takes its plans with it without
+  /// marking them, the same way a project does.
+  deletedAt   DateTime?
+  deletedById String?
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deletedBy User?   @relation("FolderTrasher", fields: [deletedById], references: [id], onDelete: SetNull)
+  plans     Plan[]
+
+  @@index([projectId])
+  @@index([projectId, deletedAt])
+}
+
 model Plan {
   id          String   @id @default(cuid())
   projectId   String
+  /// Which drawer of the project it sits in. Null is the project's own top
+  /// level, which is where every plan drawn before folders existed stays.
+  folderId    String?
   title       String
   description String   @default("")
   /// Yjs document state: the write model. Every human drag and every MCP call
@@ -173,12 +204,16 @@ model Plan {
   deletedById String?
 
   project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Emptied rather than cascaded: losing a folder must not lose the plans that
+  /// were in it, so they fall back to the project's top level.
+  folder    Folder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
   deletedBy User?      @relation("PlanTrasher", fields: [deletedById], references: [id], onDelete: SetNull)
   share     PlanShare?
   changes   PlanChange[]
 
   @@index([projectId])
   @@index([projectId, deletedAt])
+  @@index([folderId])
 }
 
 /// One entry in a plan's history. Written from the difference between two
