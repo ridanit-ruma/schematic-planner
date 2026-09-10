@@ -51,7 +51,10 @@ fi
 # ---------------------------------------------------------------- build
 
 built() { ssh "$NODE" "$BUILDER image exists schematic-planner.local/$1:$short" 2>/dev/null; }
-building() { [ "$(ssh "$NODE" "pgrep -fc 'release-build $1 $short' || true")" != "0" ]; }
+# The bracket keeps the pattern from matching the shell that carries it: the
+# command line asking the question contains the question, and pgrep -f reads
+# command lines.
+building() { [ "$(ssh "$NODE" "pgrep -fc 'release-buil[d] $1 $short' || true")" != "0" ]; }
 
 for image in api web; do
   if [ -z "$FORCE" ] && built "$image"; then
