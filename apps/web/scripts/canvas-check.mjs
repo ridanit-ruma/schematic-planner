@@ -532,6 +532,13 @@ try {
 
     // Three flows out of one node used to write their notes at three midpoints
     // in the same corridor, on top of each other and on the cards beneath.
+    //
+    // Asked of a plan as layout left it. The sections above drag nodes around
+    // by hand, and a note follows the line it is on, so after that they can
+    // land on one another — that is what arranging a plan is for, and it is
+    // not the promise being kept here.
+    await call(`/plans/${fixture.id}/layout`, { method: 'POST', body: { scope: 'all' } });
+    await reopen();
     const piled = await page.evaluate(() => {
       const rects = [...document.querySelectorAll('.react-flow__edgelabel-renderer div')]
         .filter((el) => (el.textContent ?? '').trim() !== '')
