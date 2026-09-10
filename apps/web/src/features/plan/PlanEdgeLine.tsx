@@ -124,7 +124,10 @@ function Line({
   const anchor = edge?.labelPosition ?? null;
   const placed = anchor !== null && nearTheLine(anchor, sourceX, sourceY, targetX, targetY);
   const at = placed ? (anchor as Position) : { x: labelX, y: labelY };
-  const show = note !== '' && (placed || legible);
+  // Having been given a place is what says this note is worth drawing, and
+  // moving the node it hangs off does not take that back. Only where it is
+  // drawn changes; whether it is drawn does not.
+  const show = note !== '' && (anchor !== null || legible);
 
   return (
     <>
