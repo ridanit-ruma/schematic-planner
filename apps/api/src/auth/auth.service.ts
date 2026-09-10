@@ -96,7 +96,10 @@ export class AuthService {
       });
     }
 
-    return this.issue({ id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl }, userAgent);
+    return this.issue(
+      { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl, instanceRole: user.instanceRole },
+      userAgent,
+    );
   }
 
   /**
@@ -176,7 +179,10 @@ export class AuthService {
       throw new UnauthorizedException('This account has been suspended');
     }
 
-    return this.issue({ id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl }, userAgent);
+    return this.issue(
+      { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl, instanceRole: user.instanceRole },
+      userAgent,
+    );
   }
 
   /**
@@ -195,8 +201,13 @@ export class AuthService {
     }
 
     await this.prisma.session.delete({ where: { id: session.id } });
-    const { id, email, name } = session.user;
-    return this.issue({ id, email, name }, userAgent);
+    // A refreshed session is also a fresh answer about standing: an account
+    // suspended a minute ago should not be handed another quarter of an hour.
+    if (session.user.suspendedAt !== null) {
+      throw new UnauthorizedException('This account has been suspended');
+    }
+    const { id, email, name, avatarUrl, instanceRole } = session.user;
+    return this.issue({ id, email, name, avatarUrl, instanceRole }, userAgent);
   }
 
   async logout(token: string | undefined): Promise<void> {
