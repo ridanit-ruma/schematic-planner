@@ -23,6 +23,9 @@ COPY apps/www/package.json ./apps/www/
 RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
+# Without this the prune below refuses to remove node_modules -- pnpm asks
+# before emptying a modules directory and there is no terminal here to ask.
+ENV CI=true
 COPY . .
 RUN pnpm turbo run build --filter=@schematic/api
 # Drop everything only the build needed. The generated Prisma client is already
