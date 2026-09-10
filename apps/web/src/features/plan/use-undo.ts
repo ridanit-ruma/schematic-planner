@@ -1,4 +1,4 @@
-import { EDGES_KEY, META_KEY, NODES_KEY, ORIGIN_LOCAL } from '@schematic/ydoc';
+import { COMMENTS_KEY, EDGES_KEY, META_KEY, NODES_KEY, ORIGIN_LOCAL } from '@schematic/ydoc';
 import { useEffect, useState } from 'react';
 import * as Y from 'yjs';
 
@@ -25,7 +25,12 @@ export function usePlanUndo(doc: Y.Doc): Undo {
 
   useEffect(() => {
     const tracked = new Y.UndoManager(
-      [doc.getMap(META_KEY), doc.getMap(NODES_KEY), doc.getMap(EDGES_KEY)],
+      [
+        doc.getMap(META_KEY),
+        doc.getMap(NODES_KEY),
+        doc.getMap(EDGES_KEY),
+        doc.getMap(COMMENTS_KEY),
+      ],
       { trackedOrigins: new Set([ORIGIN_LOCAL]) },
     );
     const report = (): void =>

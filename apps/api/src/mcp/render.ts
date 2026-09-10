@@ -29,6 +29,15 @@ export function renderPlan(doc: PlanDoc, view: PlanView): string {
           ...(edge.via !== null && { via: edge.via }),
           ...(edge.carries !== null && { carries: edge.carries }),
         })),
+        ...(doc.comments.length > 0 && {
+          comments: doc.comments.map((comment) => ({
+            id: comment.id,
+            author: comment.author,
+            body: comment.body,
+            ...(comment.anchor !== null && { anchor: comment.anchor }),
+            ...(comment.resolved && { resolved: true }),
+          })),
+        }),
       },
       null,
       2,
@@ -72,7 +81,28 @@ function outline(doc: PlanDoc): string {
   walk(graph.roots, 0);
 
   if (doc.nodes.length === 0) lines.push('_empty plan_');
+
+  // What people have said about the drawing, after the drawing. An open note is
+  // usually the most useful thing in a plan an agent is asked to carry on with:
+  // it is the one part that says what is wrong with what is already there.
+  const open = doc.comments.filter((comment) => !comment.resolved);
+  if (open.length > 0) {
+    lines.push('', '## Notes left on this plan', '');
+    for (const comment of open) {
+      const about = comment.anchor === null ? '' : ` on ${comment.anchor}`;
+      const who = comment.author === '' ? 'Someone' : comment.author;
+      lines.push(`- ${comment.id}${about} — ${who}: ${oneLine(comment.body)}`);
+    }
+  }
+
   return lines.join('\n');
+}
+
+/** A note may be several paragraphs; the list it appears in is one line each. */
+function oneLine(body: string): string {
+  const flat = body.replace(/\s+/g, ' ').trim();
+  if (flat === '') return '(empty)';
+  return flat.length > 240 ? `${flat.slice(0, 240)}…` : flat;
 }
 
 /**

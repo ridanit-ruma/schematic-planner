@@ -59,13 +59,16 @@ function PlanWorkspace({
   const nodes = useStore(store, (state) => state.nodes);
   const title = useStore(store, (state) => state.title);
   const peers = useStore(store, (state) => state.peers);
+  const self = useStore(store, (state) => state.self);
   const selected = useStore(store, (state) => state.selected);
   const select = useStore(store, (state) => state.select);
   const selectedEdge = useStore(store, (state) => state.selectedEdge);
   const selectEdge = useStore(store, (state) => state.selectEdge);
   const edges = useStore(store, (state) => state.edges);
+  const comments = useStore(store, (state) => state.comments);
+  const selectComment = useStore(store, (state) => state.selectComment);
 
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, setCenter } = useReactFlow();
   const undo = usePlanUndo(doc);
   useUndoKeys(undo);
   const [adding, setAdding] = useState(false);
@@ -77,7 +80,15 @@ function PlanWorkspace({
   // One panel at a time on the right: opening the history puts down whatever
   // was selected, and selecting something puts the history away.
   const [historyOpen, setHistoryOpen] = useState(false);
+  /** Where the last jump stopped, so the button walks the notes rather than
+      returning to the same one. */
+  const [atNote, setAtNote] = useState(0);
   const [error, setError] = useState<unknown>(null);
+
+  const openNotes = useMemo(
+    () => comments.filter((comment) => !comment.resolved),
+    [comments],
+  );
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selected)?.data.node ?? null,
@@ -100,6 +111,32 @@ function PlanWorkspace({
     },
     [doc],
   );
+
+  /**
+   * A note goes straight into the document with an empty body and opens for
+   * typing. Asking for the text in a dialog first would put the note where the
+   * dialog was dismissed rather than where it was asked for, and a note with
+   * nothing in it yet is a perfectly ordinary thing to have on a canvas.
+   */
+  const addComment = (at: Position, anchor: string | null): void => {
+    const id = uniqueSlug(
+      `note ${new Date().toISOString().slice(11, 19).replace(/:/g, '')}`,
+      comments.map((comment) => comment.id),
+    );
+    apply([
+      {
+        op: 'upsert_comment',
+        comment: {
+          id,
+          author: self?.name ?? 'Someone',
+          at: new Date().toISOString(),
+          position: { x: Math.round(at.x), y: Math.round(at.y) },
+          anchor,
+        },
+      },
+    ]);
+    selectComment(id);
+  };
 
   const addNode = (): void => {
     const trimmed = newTitle.trim();
@@ -167,7 +204,20 @@ function PlanWorkspace({
       <TitleBlock
         title={title === '' ? 'Untitled plan' : title}
         nodeCount={nodes.length}
+        openNotes={openNotes.length}
+        onNextNote={() => {
+          const next = openNotes[atNote % openNotes.length];
+          setAtNote((index) => index + 1);
+          if (next?.position == null) return;
+          selectComment(next.id);
+          void setCenter(next.position.x + 100, next.position.y + 40, { duration: 320 });
+        }}
         peers={peers}
+        self={self}
+        onFollow={(peer) => {
+          if (peer.cursor == null) return;
+          void setCenter(peer.cursor.x, peer.cursor.y, { duration: 320 });
+        }}
         status={status}
         readOnly={false}
         onAddNode={() => {
@@ -202,6 +252,7 @@ function PlanWorkspace({
               setPlacing(at);
               setAdding(true);
             }}
+            onAddComment={addComment}
           />
         </div>
         {selectedNode !== null ? (

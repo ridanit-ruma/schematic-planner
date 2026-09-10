@@ -1,5 +1,15 @@
 import type { Presence } from '@schematic/ydoc';
-import { Clock, Download, Link2, MoreHorizontal, Plus, Settings, Wand2 } from 'lucide-react';
+import {
+  Clock,
+  Crosshair,
+  Download,
+  Link2,
+  MessageSquare,
+  MoreHorizontal,
+  Plus,
+  Settings,
+  Wand2,
+} from 'lucide-react';
 import { Link } from 'react-router';
 
 import { Button } from '@/components/ui/button';
@@ -23,7 +33,11 @@ import type { ConnectionStatus } from './use-plan-document';
 export function TitleBlock({
   title,
   nodeCount,
+  openNotes,
+  onNextNote,
   peers,
+  self,
+  onFollow,
   status,
   readOnly,
   onAddNode,
@@ -36,7 +50,15 @@ export function TitleBlock({
 }: {
   title: string;
   nodeCount: number;
+  /** How many notes on this plan are still open. */
+  openNotes?: number;
+  /** Takes the viewport to the next open note, in the order they were left. */
+  onNextNote?: () => void;
   peers: Presence[];
+  /** Your own entry on the awareness channel, so the row can include you. */
+  self: Presence | null;
+  /** Takes the viewport to where that person is working. */
+  onFollow?: (peer: Presence) => void;
   status: ConnectionStatus;
   readOnly: boolean;
   onAddNode: () => void;
@@ -71,26 +93,20 @@ export function TitleBlock({
 
       <PlanSize count={nodeCount} />
 
-      {peers.length > 0 ? (
-        <div
-          className="hidden items-center -space-x-1 sm:flex"
-          aria-label={`${peers.length} other people here`}
-        >
-          {peers.slice(0, 4).map((peer) => (
-            <Tooltip key={peer.userId} content={peer.name}>
-              <span
-                className="grid size-5 place-items-center rounded-sm border border-surface text-2xs font-medium text-white"
-                style={{ background: peer.color }}
-              >
-                {peer.name.slice(0, 1).toUpperCase()}
-              </span>
-            </Tooltip>
-          ))}
-          {peers.length > 4 ? (
-            <span className="pl-2.5 text-xs text-ink-muted">+{peers.length - 4}</span>
-          ) : null}
-        </div>
-      ) : null}
+      {openNotes === undefined || openNotes === 0 || onNextNote === undefined ? null : (
+        <Tooltip content="Go to the next open note">
+          <button
+            type="button"
+            onClick={onNextNote}
+            className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-collab transition-colors hover:bg-surface-2"
+          >
+            <MessageSquare className="size-3.5" />
+            {openNotes}
+          </button>
+        </Tooltip>
+      )}
+
+      <Here peers={peers} self={self} onFollow={onFollow} />
 
       {readOnly ? null : (
         <div className="flex items-center gap-1">
@@ -143,6 +159,85 @@ export function TitleBlock({
         )}
       </DropdownMenu>
     </header>
+  );
+}
+
+/**
+ * Who is in the room, you included.
+ *
+ * Alone, this is one quiet tile rather than nothing: a collaborative canvas that
+ * shows no one until somebody else arrives gives no way to tell "nobody else is
+ * here" from "this is not connected". The list behind it is how you get to
+ * them — a name without a way to reach the work it is doing is decoration.
+ */
+function Here({
+  peers,
+  self,
+  onFollow,
+}: {
+  peers: Presence[];
+  self: Presence | null;
+  onFollow?: (peer: Presence) => void;
+}) {
+  const everyone = [...(self === null ? [] : [self]), ...peers];
+  if (everyone.length === 0) return null;
+
+  const label =
+    peers.length === 0 ? 'Only you are here' : `${plural(everyone.length, 'person', 'people')} here`;
+
+  return (
+    <DropdownMenu
+      align="end"
+      trigger={
+        <button
+          type="button"
+          aria-label={label}
+          className="hidden shrink-0 items-center -space-x-1 rounded-md px-0.5 py-1 transition-colors hover:bg-surface-2 sm:flex"
+        >
+          {everyone.slice(0, 4).map((peer) => (
+            <Face key={peer.userId} peer={peer} you={peer === self} />
+          ))}
+          {everyone.length > 4 ? (
+            <span className="pl-2.5 text-xs text-ink-muted">+{everyone.length - 4}</span>
+          ) : null}
+        </button>
+      }
+    >
+      {everyone.map((peer) => {
+        const you = peer === self;
+        const reachable = !you && peer.cursor != null && onFollow !== undefined;
+        return (
+          <DropdownAction
+            key={peer.userId}
+            disabled={!reachable}
+            onSelect={() => reachable && onFollow(peer)}
+          >
+            <Face peer={peer} you={you} />
+            <span className="flex-1 truncate">{peer.name}</span>
+            {you ? (
+              <span className="text-xs text-ink-faint">you</span>
+            ) : reachable ? (
+              <Crosshair className="size-3.5 text-ink-faint" />
+            ) : null}
+          </DropdownAction>
+        );
+      })}
+    </DropdownMenu>
+  );
+}
+
+function Face({ peer, you }: { peer: Presence; you: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'grid size-5 shrink-0 place-items-center rounded-sm border text-2xs font-medium text-white',
+        you ? 'border-accent' : 'border-surface',
+      )}
+      style={{ background: peer.color }}
+    >
+      {peer.name.slice(0, 1).toUpperCase()}
+    </span>
   );
 }
 

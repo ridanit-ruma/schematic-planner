@@ -565,6 +565,71 @@ try {
       `${piled.notes} notes, ${piled.overlapping} overlapping`,
     );
 
+    console.log('\nnotes on the drawing');
+    /*
+     * A note is not a node: it is not in the React Flow node layer, nothing
+     * connects to it, and layout must never move it. Each of those is a way it
+     * could quietly become one.
+     */
+    const note = await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          {
+            op: 'upsert_comment',
+            comment: {
+              id: 'check-note',
+              body: 'Left by the browser check.',
+              author: 'Check',
+              anchor: 'alpha',
+              position: { x: 40, y: 320 },
+            },
+          },
+        ],
+      },
+    });
+    check('a note can be left over the write door', note?.error === undefined, String(note?.error ?? ''));
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await wait(1400);
+
+    const left = await page.evaluate(() => {
+      const found = [...document.querySelectorAll('div')].find((el) =>
+        (el.textContent ?? '').includes('Left by the browser check.'),
+      );
+      if (found === undefined) return null;
+      const rect = found.getBoundingClientRect();
+      return {
+        onScreen: rect.width > 0 && rect.height > 0,
+        // A note drawn inside the node layer would be a node in all but name.
+        insideNodeLayer: found.closest('.react-flow__node') !== null,
+      };
+    });
+    check('it is drawn on the canvas', left?.onScreen === true, left === null ? 'not found' : '');
+    check('and is not a node', left?.insideNodeLayer === false);
+
+    const walked = await page.evaluate(() => {
+      const header = document.querySelector('header');
+      const button = [...(header?.querySelectorAll('button') ?? [])].find(
+        (el) => (el.getAttribute('aria-label') ?? '') === 'Go to the next open note',
+      );
+      return button !== undefined;
+    });
+    check('and the row offers a way to reach it', walked === true);
+
+    console.log('\nwho is here');
+    // Alone, the roster still shows you: a collaborative canvas that shows
+    // nobody until somebody arrives gives no way to tell "only me" from "not
+    // connected".
+    const roster = await page.evaluate(() => {
+      const header = document.querySelector('header');
+      const button = [...(header?.querySelectorAll('button') ?? [])].find((el) =>
+        /here$/.test(el.getAttribute('aria-label') ?? ''),
+      );
+      return button === undefined ? null : button.getAttribute('aria-label');
+    });
+    check('the row says who is on the plan', roster !== null, roster ?? 'no roster');
+
     console.log('\nthe title block');
     // The row carries what is done to the drawing over and over, and nothing
     // else: choosing what a line means before drawing it asked the question at

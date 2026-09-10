@@ -1,7 +1,14 @@
 import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } from '@xyflow/react';
 import { buildPlanGraph, containmentDepth } from '@schematic/schema';
-import type { PlanDoc, PlanEdge, PlanNode, Position } from '@schematic/schema';
-import { edgesMap, nodesMap, readPlanDoc, type Presence, type Reading } from '@schematic/ydoc';
+import type { PlanComment, PlanDoc, PlanEdge, PlanNode, Position } from '@schematic/schema';
+import {
+  commentsMap,
+  edgesMap,
+  nodesMap,
+  readPlanDoc,
+  type Presence,
+  type Reading,
+} from '@schematic/ydoc';
 import { createStore } from 'zustand/vanilla';
 import type * as Y from 'yjs';
 
@@ -16,7 +23,25 @@ export interface PlanState {
   selected: string | null;
   /** Id of the selected edge, or null. A node and an edge are never both selected. */
   selectedEdge: string | null;
+  /**
+   * Notes left on the drawing, in the order the document holds them.
+   *
+   * Not React Flow nodes: a note is not part of the graph, nothing connects to
+   * it, and layout must never move it. It is drawn on its own layer over the
+   * canvas, which is also what keeps it out of the export's Markdown tree.
+   */
+  comments: PlanComment[];
+  /** The note being read or written, or null. */
+  selectedComment: string | null;
   peers: Presence[];
+  /**
+   * Your own entry on the awareness channel, or null before it is published.
+   *
+   * The row shows you beside everybody else because a face you recognise is
+   * what makes the others legible as faces: four coloured initials with none of
+   * them yours reads as a list of strangers, not as who is in the room.
+   */
+  self: Presence | null;
   /** Positions other people are dragging right now. Ephemeral, never stored. */
   remoteDrag: Record<string, Position>;
   /**
@@ -66,6 +91,7 @@ export interface PlanState {
   /** Called as the pointer enters and leaves a node or a line. */
   highlight: (id: string | null, kind?: 'node' | 'edge') => void;
   selectEdge: (id: string | null) => void;
+  selectComment: (id: string | null) => void;
 }
 
 export type PlanStore = ReturnType<typeof createPlanStore>;
@@ -119,7 +145,10 @@ export function createPlanStore(doc: Y.Doc) {
     description: '',
     selected: null,
     selectedEdge: null,
+    comments: [],
+    selectedComment: null,
     peers: [],
+    self: null,
     remoteDrag: {},
     absolute: {},
     parentOf: {},
@@ -130,7 +159,9 @@ export function createPlanStore(doc: Y.Doc) {
 
     onNodesChange: (changes) => set({ nodes: applyNodeChanges(changes, get().nodes) }),
     onEdgesChange: (changes) => set({ edges: applyEdgeChanges(changes, get().edges) }),
-    select: (selected) => set({ selected, selectedEdge: null }),
+    select: (selected) => set({ selected, selectedEdge: null, selectedComment: null }),
+    selectComment: (selectedComment) =>
+      set({ selectedComment, selected: null, selectedEdge: null }),
 
     highlight: (id, kind = 'node') => {
       if (id === null) {
@@ -167,7 +198,7 @@ export function createPlanStore(doc: Y.Doc) {
       }
       set({ related, relatedTo: id });
     },
-    selectEdge: (selectedEdge) => set({ selectedEdge, selected: null }),
+    selectEdge: (selectedEdge) => set({ selectedEdge, selected: null, selectedComment: null }),
   }));
 
   const project = (): PlanDoc => readPlanDoc(doc).doc;
@@ -320,6 +351,7 @@ export function createPlanStore(doc: Y.Doc) {
       edges: plan.edges
         .filter((edge) => !(edge.kind === 'contains' && drawnAsBoundary.has(edge.from)))
         .map(toFlowEdge),
+      comments: plan.comments,
       title: plan.title,
       description: plan.description,
       absolute,
@@ -364,10 +396,12 @@ export function createPlanStore(doc: Y.Doc) {
 
   const nodes = nodesMap(doc);
   const edges = edgesMap(doc);
+  const comments = commentsMap(doc);
   const meta = doc.getMap('meta');
 
   nodes.observeDeep(onNodes);
   edges.observeDeep(onEdgesOrMeta);
+  comments.observeDeep(onEdgesOrMeta);
   meta.observe(onEdgesOrMeta);
   refresh();
 
@@ -379,6 +413,7 @@ export function createPlanStore(doc: Y.Doc) {
       clearTimeout(settle);
       nodes.unobserveDeep(onNodes);
       edges.unobserveDeep(onEdgesOrMeta);
+      comments.unobserveDeep(onEdgesOrMeta);
       meta.unobserve(onEdgesOrMeta);
     },
   };

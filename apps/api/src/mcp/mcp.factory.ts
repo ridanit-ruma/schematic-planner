@@ -344,7 +344,13 @@ export class McpFactory {
           'Call it as often as you like. Each batch is applied in one transaction and reaches ' +
           'every open canvas at once, so a person looking at the plan watches it change under ' +
           'them rather than being handed a finished picture. Node upserts are keyed by slug, ' +
-          'so retrying never duplicates.',
+          'so retrying never duplicates.\n\n' +
+          'upsert_comment leaves a note on the drawing rather than changing it: a question, ' +
+          'an objection, something you are unsure of. Use it when you would otherwise have to ' +
+          'guess — a note sits on the canvas where a person will see it and can answer, which ' +
+          'is better than a plan drawn confidently around an assumption. Notes somebody else ' +
+          'left are in get_plan; read them before carrying on, and resolve one when you have ' +
+          'acted on it.',
         inputSchema: applyOpsShape,
       },
       async ({ planId, ops }) => {

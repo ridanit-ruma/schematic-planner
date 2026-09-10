@@ -63,16 +63,19 @@ export function DropdownItem({
 /** An action rather than a choice: no room is kept for a tick. */
 export function DropdownAction({
   onSelect,
+  disabled,
   tone = 'default',
   children,
 }: {
   onSelect: () => void;
+  disabled?: boolean;
   tone?: 'default' | 'danger';
   children: ReactNode;
 }) {
   return (
     <Primitive.Item
       onSelect={onSelect}
+      disabled={disabled}
       className={cn(item, tone === 'danger' && 'text-danger data-[highlighted]:bg-danger/10')}
     >
       {children}

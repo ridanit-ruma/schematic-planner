@@ -55,7 +55,12 @@ function SharedCanvas({ plan, token }: { plan: PlanDoc; token: string }) {
   const connection = useMemo<PlanConnection>(() => {
     const ydoc = new Y.Doc();
     initializePlan(ydoc, plan);
-    return { doc: ydoc, bound: createPlanStore(ydoc), publishDrag: () => undefined };
+    return {
+      doc: ydoc,
+      bound: createPlanStore(ydoc),
+      publishDrag: () => undefined,
+      publishCursor: () => undefined,
+    };
   }, [plan]);
 
   useEffect(() => () => connection.bound.destroy(), [connection]);

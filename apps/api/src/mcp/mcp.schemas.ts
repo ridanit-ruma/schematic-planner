@@ -138,6 +138,25 @@ export const agentOpSchema = z.discriminatedUnion('op', [
       ),
   }),
   z.object({
+    op: z.literal('upsert_comment'),
+    comment: z.object({
+      id: slugSchema.describe(
+        'A readable id you choose, so leaving the same note twice leaves one note. ' +
+          'e.g. "why-postgres-here"',
+      ),
+      body: z.string().max(10_000).optional().describe('What you have to say, as Markdown'),
+      anchor: slugSchema
+        .nullable()
+        .optional()
+        .describe('The node this is about, or null for a note on the plan as a whole'),
+      resolved: z
+        .boolean()
+        .optional()
+        .describe('Settled. Use it to answer a note somebody left, not to tidy the canvas'),
+    }),
+  }),
+  z.object({ op: z.literal('delete_comment'), id: slugSchema }),
+  z.object({
     op: z.literal('set_plan'),
     title: z.string().min(1).max(200).optional(),
     description: z.string().max(2000).optional(),

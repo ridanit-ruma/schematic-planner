@@ -10,17 +10,20 @@ import {
 } from '@xyflow/react';
 import { normalizeEdge, planEdgeInputSchema, type PlanOp, type Position } from '@schematic/schema';
 import { ORIGIN_LOCAL, commitLayout, commitNodePosition, nudgeLabels } from '@schematic/ydoc';
-import { Plus, Redo2, Trash2, Undo2 } from 'lucide-react';
+import { MessageSquarePlus, Plus, Redo2, Trash2, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useStore } from 'zustand';
 import type * as Y from 'yjs';
 
 import { ContextAction, ContextMenu, ContextSeparator } from '@/components/ui/context-menu';
+import { plural } from '@/lib/utils';
 import { resolveDrop, type DropTarget } from './group-drop';
 import type { PlanStore } from './plan-store';
 import { PlanStoreProvider } from './store-context';
 import { useReadingWalk } from './use-reading-walk';
 import { EdgeMarkers, PlanEdgeLine } from './PlanEdgeLine';
+import { PeerCursors } from './PeerCursors';
+import { PlanComments } from './PlanComments';
 import { PlanNodeCard } from './PlanNodeCard';
 import type { PlanConnection } from './use-plan-document';
 import type { PlanFlowNode } from './types';
@@ -85,6 +88,7 @@ export function PlanCanvas({
   onApplyOps,
   undo,
   onAddNode,
+  onAddComment,
 }: {
   connection: PlanConnection;
   readOnly: boolean;
@@ -93,6 +97,8 @@ export function PlanCanvas({
   undo?: Undo;
   /** Asks for a name, and puts the node where it is told. */
   onAddNode?: (at: Position) => void;
+  /** Leaves a note at a place, about a node when one was right-clicked. */
+  onAddComment?: (at: Position, anchor: string | null) => void;
 }) {
   const { store, doc } = connection.bound;
   const nodes = useStore(store, (state) => state.nodes);
@@ -105,6 +111,12 @@ export function PlanCanvas({
   const parentOf = useStore(store, (state) => state.parentOf);
   const selectEdge = useStore(store, (state) => state.selectEdge);
   const highlight = useStore(store, (state) => state.highlight);
+  const selectComment = useStore(store, (state) => state.selectComment);
+  const comments = useStore(store, (state) => state.comments);
+  // Settled notes are out of the way by default and brought back on request:
+  // a canvas that keeps every answered question on it stops being readable.
+  const [resolvedShown, setResolvedShown] = useState(false);
+  const settled = comments.filter((comment) => comment.resolved).length;
   useReadingWalk(store);
   // Set the first time the person moves the canvas or a node themselves.
   const taken = useRef(false);
@@ -275,6 +287,16 @@ export function PlanCanvas({
             <Plus className="size-3.5 text-ink-faint" />
             Add node here
           </ContextAction>
+          {onAddComment === undefined ? null : (
+            <ContextAction
+              onSelect={() =>
+                onAddComment(pointer, under?.kind === 'node' ? under.id : null)
+              }
+            >
+              <MessageSquarePlus className="size-3.5 text-ink-faint" />
+              {under?.kind === 'node' ? 'Leave a note on this node' : 'Leave a note here'}
+            </ContextAction>
+          )}
           {under === null ? null : (
             <ContextAction tone="danger" onSelect={removeUnder}>
               <Trash2 className="size-3.5" />
@@ -299,6 +321,13 @@ export function PlanCanvas({
       )}
       <ContextAction onSelect={() => void fitView(FIT_VIEW)}>Fit the whole plan</ContextAction>
       <ContextAction onSelect={setGrid}>{grid ? 'Hide the grid' : 'Show the grid'}</ContextAction>
+      {settled === 0 ? null : (
+        <ContextAction onSelect={() => setResolvedShown((shown) => !shown)}>
+          {resolvedShown
+            ? `Hide ${plural(settled, 'resolved note')}`
+            : `Show ${plural(settled, 'resolved note')}`}
+        </ContextAction>
+      )}
     </>
   );
 
@@ -308,7 +337,18 @@ export function PlanCanvas({
     {/* The pointer can leave the canvas without leaving anything on it —
         straight off the edge of the window, or onto a panel — and then no node
         ever hears that it was let go of. */}
-    <div className="relative h-full w-full" onPointerLeave={() => highlight(null)}>
+    <div
+      className="relative h-full w-full"
+      onPointerMove={(event) =>
+        connection.publishCursor(screenToFlowPosition({ x: event.clientX, y: event.clientY }))
+      }
+      onPointerLeave={() => {
+        highlight(null);
+        // Leaving the canvas has to take the pointer off everyone else's screen
+        // too, or it is left standing wherever it crossed the edge.
+        connection.publishCursor(null);
+      }}
+    >
       <EdgeMarkers />
       <ReadingBanner store={store} />
       <ReactFlow
@@ -323,7 +363,10 @@ export function PlanCanvas({
         onConnect={readOnly ? undefined : handleConnect}
         onNodeClick={(_, node) => select(node.id)}
         onEdgeClick={(_, edge) => selectEdge(edge.id)}
-        onPaneClick={() => select(null)}
+        onPaneClick={() => {
+          select(null);
+          selectComment(null);
+        }}
         // React Flow's own hover events rather than a handler on every node:
         // one subscription instead of several hundred.
         onNodeMouseEnter={(_, node) => highlight(node.id, 'node')}
@@ -356,8 +399,14 @@ export function PlanCanvas({
           setUnder(null);
           setPointer(screenToFlowPosition({ x: event.clientX, y: event.clientY }));
         }}
-        onNodeContextMenu={(event, node) => setUnder({ kind: 'node', id: node.id })}
-        onEdgeContextMenu={(event, edge) => setUnder({ kind: 'edge', id: edge.id })}
+        onNodeContextMenu={(event, node) => {
+          setUnder({ kind: 'node', id: node.id });
+          setPointer(screenToFlowPosition({ x: event.clientX, y: event.clientY }));
+        }}
+        onEdgeContextMenu={(event, edge) => {
+          setUnder({ kind: 'edge', id: edge.id });
+          setPointer(screenToFlowPosition({ x: event.clientX, y: event.clientY }));
+        }}
       >
         {/* A drafting grid: a fine division inside a coarse one. */}
         {!grid ? null : (
@@ -378,6 +427,14 @@ export function PlanCanvas({
             />
           </>
         )}
+        <PlanComments
+          store={store}
+          doc={doc}
+          readOnly={readOnly}
+          showResolved={resolvedShown}
+          onSelect={selectComment}
+        />
+        <PeerCursors store={store} />
         <Controls
           showInteractive={false}
           className="!border !border-rule !bg-surface !shadow-none [&_button]:!border-rule [&_button]:!bg-surface [&_button]:!fill-ink-muted hover:[&_button]:!bg-surface-2"

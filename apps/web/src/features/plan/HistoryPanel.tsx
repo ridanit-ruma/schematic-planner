@@ -48,6 +48,16 @@ function sentence(change: PlanChangeRecord): string {
       return `connected ${name}`;
     case 'edge.removed':
       return `disconnected ${name}`;
+    case 'note.added':
+      return `left a note on ${name}`;
+    case 'note.removed':
+      return `removed the note on ${name}`;
+    case 'note.edited':
+      return `rewrote the note on ${name}`;
+    case 'note.resolved':
+      return `resolved the note on ${name}`;
+    case 'note.reopened':
+      return `reopened the note on ${name}`;
     default:
       return `changed ${name}`;
   }
@@ -88,12 +98,19 @@ function batches(changes: readonly PlanChangeRecord[]): Batch[] {
  * one number at the end, since naming each would be the list this replaces.
  */
 function summary(changes: readonly PlanChangeRecord[]): string {
-  const tally = { node: { added: 0, removed: 0 }, edge: { added: 0, removed: 0 }, other: 0 };
+  const tally = {
+    node: { added: 0, removed: 0 },
+    edge: { added: 0, removed: 0 },
+    note: { added: 0, removed: 0 },
+    other: 0,
+  };
   for (const change of changes) {
     if (change.kind === 'node.added') tally.node.added += 1;
     else if (change.kind === 'node.removed') tally.node.removed += 1;
     else if (change.kind === 'edge.added') tally.edge.added += 1;
     else if (change.kind === 'edge.removed') tally.edge.removed += 1;
+    else if (change.kind === 'note.added') tally.note.added += 1;
+    else if (change.kind === 'note.removed') tally.note.removed += 1;
     else tally.other += 1;
   }
 
@@ -110,6 +127,7 @@ function summary(changes: readonly PlanChangeRecord[]): string {
   const parts = [
     counted(tally.node, 'node'),
     counted(tally.edge, 'connection'),
+    counted(tally.note, 'note'),
     tally.other > 0 ? `${tally.other} edit${tally.other === 1 ? '' : 's'}` : null,
   ].filter((part) => part !== null);
 

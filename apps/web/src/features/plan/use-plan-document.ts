@@ -14,6 +14,8 @@ export interface PlanConnection {
   doc: Y.Doc;
   bound: PlanStore;
   publishDrag: (positions: Record<string, Position> | null) => void;
+  /** Where this person's pointer is, in plan coordinates. Null when it has left. */
+  publishCursor: (at: Position | null) => void;
 }
 
 export interface PlanDocumentHandle {
@@ -35,6 +37,7 @@ export function usePlanDocument(
   const [synced, setSynced] = useState(false);
   const [connection, setConnection] = useState<PlanConnection | null>(null);
   const frame = useRef<number | null>(null);
+  const cursorFrame = useRef<number | null>(null);
 
   const identity = useMemo(
     () => ({ id: me?.id ?? 'anonymous', name: me?.name ?? 'Someone' }),
@@ -69,8 +72,13 @@ export function usePlanDocument(
       const remoteDrag: Record<string, Position> = {};
       let reading: Reading | null = null;
 
+      let mine: Presence | null = null;
+
       for (const [clientId, state] of awareness.getStates()) {
-        if (clientId === awareness.clientID) continue;
+        if (clientId === awareness.clientID) {
+          mine = (state as { presence?: Presence }).presence ?? null;
+          continue;
+        }
         // The server publishes a walk on this channel and nothing else, so an
         // entry with no presence is not a missing peer — it is the reading.
         const announced = (state as { reading?: Reading | null }).reading;
@@ -83,7 +91,7 @@ export function usePlanDocument(
           remoteDrag[slug] = position;
         }
       }
-      bound.store.setState({ peers, remoteDrag, reading });
+      bound.store.setState({ peers, self: mine, remoteDrag, reading });
     };
 
     awareness?.setLocalStateField('presence', {
@@ -110,10 +118,27 @@ export function usePlanDocument(
       });
     };
 
-    setConnection({ doc, bound, publishDrag });
+    /**
+     * A pointer moves far more often than a screen refreshes, so this is
+     * coalesced to one update a frame the same way a drag is. It never enters
+     * the document: where somebody's pointer was a second ago is not history.
+     */
+    const publishCursor = (at: Position | null): void => {
+      if (awareness === null) return;
+      if (cursorFrame.current !== null) cancelAnimationFrame(cursorFrame.current);
+      cursorFrame.current = requestAnimationFrame(() => {
+        cursorFrame.current = null;
+        const current = awareness.getLocalState()?.['presence'] as Presence | undefined;
+        if (current === undefined) return;
+        awareness.setLocalStateField('presence', { ...current, cursor: at } satisfies Presence);
+      });
+    };
+
+    setConnection({ doc, bound, publishDrag, publishCursor });
 
     return () => {
       if (frame.current !== null) cancelAnimationFrame(frame.current);
+      if (cursorFrame.current !== null) cancelAnimationFrame(cursorFrame.current);
       awareness?.off('change', readPeers);
       bound.destroy();
       provider.destroy();
