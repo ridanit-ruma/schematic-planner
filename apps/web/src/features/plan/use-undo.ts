@@ -62,14 +62,21 @@ export function usePlanUndo(doc: Y.Doc): Undo {
  * cursor is in it — taking that over to revert a node they moved five minutes
  * ago would be startling. So the shortcut is left alone wherever text is being
  * edited.
+ *
+ * Both spellings of redo are taken. Ctrl+Y is what Windows has meant by it for
+ * thirty years, and Shift+Ctrl+Z is what everything else means; a person who
+ * reaches for the one their hands know should not have to find out which half
+ * of the world this was written in.
  */
 export function useUndoKeys({ undo, redo }: Undo): void {
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'z') return;
+      if (!(event.metaKey || event.ctrlKey)) return;
+      const key = event.key.toLowerCase();
+      if (key !== 'z' && key !== 'y') return;
       if (isEditingText(event.target)) return;
       event.preventDefault();
-      if (event.shiftKey) redo();
+      if (key === 'y' || event.shiftKey) redo();
       else undo();
     };
     window.addEventListener('keydown', onKey);

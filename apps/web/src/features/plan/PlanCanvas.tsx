@@ -282,7 +282,7 @@ export function PlanCanvas({
             <Undo2 className="size-3.5 text-ink-faint" />
             Undo
           </ContextAction>
-          <ContextAction onSelect={undo.redo} disabled={!undo.canRedo} hint="⇧⌘Z">
+          <ContextAction onSelect={undo.redo} disabled={!undo.canRedo} hint="⌘Y">
             <Redo2 className="size-3.5 text-ink-faint" />
             Redo
           </ContextAction>

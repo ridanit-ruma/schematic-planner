@@ -1,5 +1,5 @@
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useStore, type EdgeProps } from '@xyflow/react';
-import { edgeNote } from '@schematic/schema';
+import { edgeNote, type Position } from '@schematic/schema';
 import { memo } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -48,6 +48,30 @@ const NOTE_ROOM = 130;
  */
 const NOTE_LIFT = 13;
 
+/**
+ * Whether a stored anchor still belongs to this line.
+ *
+ * A smooth-step route stays inside the box its two ends make, give or take the
+ * corner radius, so a point well outside that box is a point the line has since
+ * moved away from.
+ */
+const NOTE_STRAY = 80;
+
+function nearTheLine(
+  at: Position,
+  sourceX: number,
+  sourceY: number,
+  targetX: number,
+  targetY: number,
+): boolean {
+  return (
+    at.x >= Math.min(sourceX, targetX) - NOTE_STRAY &&
+    at.x <= Math.max(sourceX, targetX) + NOTE_STRAY &&
+    at.y >= Math.min(sourceY, targetY) - NOTE_STRAY &&
+    at.y <= Math.max(sourceY, targetY) + NOTE_STRAY
+  );
+}
+
 function Line({
   id,
   sourceX,
@@ -75,6 +99,9 @@ function Line({
     borderRadius: 2,
   });
 
+  const selectEdge = usePlanStore((state) => state.selectEdge);
+  const highlight = usePlanStore((state) => state.highlight);
+
   const kind = data?.edge.kind ?? 'depends_on';
   const style = STYLE[kind] ?? STYLE['depends_on']!;
   const edge = data?.edge;
@@ -88,9 +115,16 @@ function Line({
   // Falling back to the midpoint when nothing has laid this plan out yet — and
   // the midpoint is exactly where parallel lines pile their notes up, so a line
   // too short to hold one keeps quiet until it has somewhere of its own.
-  const placed = edge?.labelPosition ?? null;
-  const at = placed ?? { x: labelX, y: labelY };
-  const show = note !== '' && (placed !== null || legible);
+  //
+  // That anchor is an absolute point, chosen for where the line was when the
+  // plan was laid out. Drag either end and the line leaves it behind, so a note
+  // that is no longer anywhere near its own line goes back to the middle of it
+  // and follows from then on. A note beside its line is placement; a note
+  // stranded across the canvas is a bug you have to explain.
+  const anchor = edge?.labelPosition ?? null;
+  const placed = anchor !== null && nearTheLine(anchor, sourceX, sourceY, targetX, targetY);
+  const at = placed ? (anchor as Position) : { x: labelX, y: labelY };
+  const show = note !== '' && (placed || legible);
 
   return (
     <>
@@ -121,9 +155,22 @@ function Line({
       {!show ? null : (
         <EdgeLabelRenderer>
           <div
+            role="button"
+            tabIndex={0}
+            onClick={(event) => {
+              // Otherwise the click reaches the pane behind and puts down what
+              // it has just picked up.
+              event.stopPropagation();
+              selectEdge(id);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') selectEdge(id);
+            }}
+            onMouseEnter={() => highlight(id, 'edge')}
+            onMouseLeave={() => highlight(null)}
             className={
               cn(
-                'pointer-events-none absolute truncate rounded-sm border border-rule-strong',
+                'pointer-events-auto absolute cursor-pointer truncate rounded-sm border border-rule-strong',
                 dimmed && 'plan-dim',
                 // Pointing at a line is asking what it carries, so it stops
                 // being an excerpt.
