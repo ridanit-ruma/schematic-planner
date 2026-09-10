@@ -97,15 +97,40 @@ done
 
 # k3s runs its own containerd, which does not share podman's image store and
 # keeps images under the k8s.io namespace rather than the default one.
+#
+# Detached for the same reason the build is: this takes a couple of minutes for
+# a gigabyte of image, and losing the connection halfway leaves a partial import
+# and nothing to show for the wait.
+loaded() {
+  [ "$(ssh "$NODE" "sudo k3s ctr --namespace k8s.io images ls -q 2>/dev/null | grep -cx schematic-planner.local/$1:$short || true")" != "0" ]
+}
+loading() { [ "$(ssh "$NODE" "pgrep -fc 'release-loa[d] $1 $short' || true")" != "0" ]; }
+
 for image in api web; do
-  present="$(ssh "$NODE" "sudo k3s ctr --namespace k8s.io images ls -q 2>/dev/null | grep -cx schematic-planner.local/$image:$short || true")"
-  if [ -z "$FORCE" ] && [ "$present" != "0" ]; then
+  if [ -z "$FORCE" ] && loaded "$image"; then
     skip "$image:$short is in containerd"
     continue
   fi
-  say "loading $image into the cluster"
-  ssh "$NODE" "$BUILDER save --format docker-archive schematic-planner.local/$image:$short \
-    | sudo k3s ctr --namespace k8s.io images import -"
+  log="\$HOME/.release-load-$image-$short.log"
+
+  if loading "$image"; then
+    say "$image at $short is already loading — watching"
+  else
+    say "loading $image into the cluster"
+    ssh "$NODE" "setsid nohup bash -c 'exec -a \"release-load $image $short\" bash -c \
+      \"$BUILDER save --format docker-archive schematic-planner.local/$image:$short | sudo k3s ctr --namespace k8s.io images import -\"' \
+      >$log 2>&1 </dev/null & sleep 1"
+  fi
+
+  while ! loaded "$image"; do
+    if ! loading "$image"; then
+      echo "the import of $image stopped without landing; its log is $log on $NODE" >&2
+      ssh "$NODE" "tail -20 $log" >&2 || true
+      exit 1
+    fi
+    sleep 15
+  done
+  echo "   loaded $image:$short"
 done
 
 # ---------------------------------------------------------------- release
