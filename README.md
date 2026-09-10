@@ -126,10 +126,18 @@ PlanDoc snapshot (jsonb)            ← the READ model.
 ### Where things live
 
 ```
-Workspace           people, roles, invitations, and the API keys agents connect with
-  └─ Project        one thing being built
-       └─ Plan      one graph
+Workspace            people, roles, invitations, and the API keys agents connect with
+  └─ Project         one thing being built
+       └─ Folder     optional: a drawer inside the project
+            └─ Plan  one graph
 ```
+
+Folders do not nest, and a plan does not have to be in one — `folderId` is null
+for every plan at a project's own top level, which is where they all were before
+folders existed. Two levels of grouping is what a project of a few dozen plans
+needs; each level past that multiplies the places a plan can be hiding without
+adding a way to find it. A folder is rearranged from the rail beside the canvas:
+right-click for the menu, drag a plan from one drawer to another.
 
 A workspace and a project are addressed by a readable slug; a plan is not, and
 sits at the top level:
@@ -164,9 +172,12 @@ one flag is enough and no query has to remember a second table.
 
 A trashed project takes its plans with it without marking them: their own
 `deletedAt` stays clear, so restoring the project brings back exactly what was
-under it and not the plans somebody had already thrown away. Nothing leaves the
-trash on its own; removing a row for good is a separate call, and emptying the
-trash is the only thing that deletes in bulk.
+under it and not the plans somebody had already thrown away. A folder behaves the
+same way, so every listing has to ask about the folder as well as the plan.
+Nothing leaves the trash on its own; removing a row for good is a separate call,
+and emptying the trash is the only thing that deletes in bulk. Destroying a
+folder for good is the one case that destroys nothing else: its plans fall back
+to the project's top level rather than going with it.
 
 ### Plan vocabulary
 
@@ -180,6 +191,19 @@ the pure reference implementation of the write path. A `PlanDoc` is:
 - **edges** — `contains` (nesting; becomes directory structure on export),
   `depends_on` (ordering; becomes file numbering on export), and `relates_to`
   (association with no structural meaning).
+- **comments** — notes left _on_ the drawing rather than in it. A node says what
+  the system is; a comment says what somebody thinks about it. They are keyed by
+  a readable id the author chooses, carry a position of their own, and may be
+  anchored to a node or float free. Deleting the node they were about unanchors
+  them rather than deleting them: an objection should not disappear along with
+  the box it was raised against.
+
+Comments are in the document rather than in a table, which is what makes them
+worth having. They appear on every open canvas the moment they are written, they
+come back through `get_plan`, and an agent asked to carry on with a plan reads
+the open objections before it starts. The cost is that `author` is self-reported
+like any other field — real attribution comes from the history, which is derived
+on the server from the difference between two versions.
 
 Edge identity is derived from its endpoints rather than generated, so submitting
 the same relationship twice collapses to one edge instead of duplicating it. That
@@ -208,7 +232,7 @@ at once.
 | `list_plans({ workspace? })`    | Plans, grouped by workspace and project                                                                                                                                                                                           |
 | `get_plan(id, { view })`        | `view`: `outline` \| `graph` \| `markdown`. Positions and styling are excluded by default to keep responses small                                                                                                                 |
 | `create_plan(spec)`             | Opens a plan, with whatever structure is already known or none at all. Takes a workspace and project slug; with one workspace reachable neither is needed, and with several it names them rather than guessing |
-| `apply_ops(id, ops[])`          | How a plan grows after that, and the only write door. Upsert by slug, so retries never duplicate. Each batch reaches every open canvas at once, so drawing in pieces is what a person watching actually sees |
+| `apply_ops(id, ops[])`          | How a plan grows after that, and the only write door. Upsert by slug, so retries never duplicate. Each batch reaches every open canvas at once, so drawing in pieces is what a person watching actually sees. `upsert_comment` goes through the same door: an agent unsure of something leaves a note where a person will see it instead of drawing confidently around the guess |
 | `layout(id, { scope })`         | Re-run layout over everything that is not pinned                                                                                                                                                                                  |
 | `export_plan(id)`               | Markdown tree plus `.canvas`                                                                                                                                                                                                      |
 
@@ -242,6 +266,32 @@ plan-export.zip
 ├── plan.canvas            Obsidian Canvas, original coordinates preserved
 └── plan.json              machine-readable source of the same content
 ```
+
+### The export has to open as a vault, not as a directory
+
+Obsidian builds its graph view, its backlinks and its unlinked mentions out of
+`[[wikilinks]]` and nothing else. An export whose relationships live only in
+frontmatter is complete to a parser and inert to a reader, so every note also
+carries a `## Links` section written as real wikilinks, by full path — container
+notes are all named `README.md`, and a bare basename would be ambiguous between
+them.
+
+`relates_to` used to be the one relation the export simply lost: it becomes no
+directory and no file number, so nothing was written for it at all. It is now
+`related:` in frontmatter and a line under Links, which matters more than its
+lack of structure suggests — in a vault a plain link between two notes is most of
+what the vault is.
+
+Comments never become files. An anchored one travels as a blockquote inside the
+note it is about, one about the plan as a whole goes on the cover, and every one
+of them is in `plan.json`. On `plan.canvas` an open note is a text card tied to
+what it is about, and a settled one is left off.
+
+A node holding others becomes a JSON Canvas `group` — a labelled frame — because
+that is what a box around other boxes is. Exported as an ordinary card, which is
+what used to happen, the nesting the whole plan is built on was not in the
+picture. Its own note is still the `README.md` of the folder the frame
+corresponds to.
 
 The whole transform is a pure function over a `PlanDoc`. It touches no database, no
 filesystem and no network, which is why it is the most heavily tested part of the repo.
@@ -608,12 +658,16 @@ Still missing:
 - [x] Connections that can be created, changed and removed on the canvas
 - [x] One origin behind a reverse proxy, in containers
 - [x] A trash: deleting hides, and only emptying destroys
-- [ ] Build and run the images
+- [x] Build and run the images, and a release that reaches a cluster
+- [x] Undo and redo on the canvas
+- [x] Folders inside a project, rearranged from the rail
+- [x] Comments: notes on a plan, readable by a person and by an agent
+- [x] Live cursors, and a row that says who else is on the plan
 - [ ] GitHub and Google sign-in callbacks
 - [ ] Email: invitations, address changes, password reset
 - [ ] Import: read an exported bundle back into a plan (the exporter, reversed)
-- [ ] Undo and redo on the canvas
 - [ ] Plan version history and restore
+- [ ] Export filenames from titles, so a vault survives the round trip
 
 ## Non-goals
 
