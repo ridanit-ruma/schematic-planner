@@ -10,9 +10,11 @@ import {
 } from '@xyflow/react';
 import { normalizeEdge, planEdgeInputSchema, type PlanOp, type Position } from '@schematic/schema';
 import { ORIGIN_LOCAL, commitLayout, commitNodePosition } from '@schematic/ydoc';
-import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react';
+import { Plus, Redo2, Trash2, Undo2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useStore } from 'zustand';
 
+import { ContextAction, ContextMenu, ContextSeparator } from '@/components/ui/context-menu';
 import { resolveDrop, type DropTarget } from './group-drop';
 import type { PlanStore } from './plan-store';
 import { PlanStoreProvider } from './store-context';
@@ -21,6 +23,8 @@ import { EdgeMarkers, PlanEdgeLine } from './PlanEdgeLine';
 import { PlanNodeCard } from './PlanNodeCard';
 import type { PlanConnection } from './use-plan-document';
 import type { PlanFlowNode } from './types';
+import { useGrid } from './use-grid';
+import type { Undo } from './use-undo';
 
 /*
  * Declared once at module scope. Rebuilding these objects inside the component
@@ -68,10 +72,16 @@ export function PlanCanvas({
   connection,
   readOnly,
   onApplyOps,
+  undo,
+  onAddNode,
 }: {
   connection: PlanConnection;
   readOnly: boolean;
   onApplyOps: (ops: PlanOp[]) => void;
+  /** Absent on a shared link, which has no document of its own to take back. */
+  undo?: Undo;
+  /** Asks for a name, and puts the node where it is told. */
+  onAddNode?: (at: Position) => void;
 }) {
   const { store, doc } = connection.bound;
   const nodes = useStore(store, (state) => state.nodes);
@@ -88,6 +98,12 @@ export function PlanCanvas({
   // Set the first time the person moves the canvas or a node themselves.
   const taken = useRef(false);
   useOpeningFit(nodes.length, taken);
+  const [grid, setGrid] = useGrid();
+  const { fitView, screenToFlowPosition } = useReactFlow();
+  // Where the menu was opened, so what it adds lands under the pointer rather
+  // than wherever the viewport happens to be centred.
+  const [pointer, setPointer] = useState<Position>({ x: 0, y: 0 });
+  const [under, setUnder] = useState<{ kind: 'node' | 'edge'; id: string } | null>(null);
 
   /** Someone else's in-flight drag overrides the stored position for that node. */
   const rendered = useMemo(
@@ -218,8 +234,58 @@ export function PlanCanvas({
     [onApplyOps],
   );
 
+  const removeUnder = (): void => {
+    if (under === null) return;
+    if (under.kind === 'node') {
+      onApplyOps([{ op: 'delete_node', slug: under.id }]);
+      return;
+    }
+    const edge = edges.find((candidate) => candidate.id === under.id)?.data?.edge;
+    if (edge !== undefined) {
+      onApplyOps([
+        { op: 'delete_edge', kind: edge.kind, from: edge.from, to: edge.to, via: edge.via },
+      ]);
+    }
+  };
+
+  const menu = (
+    <>
+      {readOnly || onAddNode === undefined ? null : (
+        <>
+          <ContextAction onSelect={() => onAddNode(pointer)}>
+            <Plus className="size-3.5 text-ink-faint" />
+            Add node here
+          </ContextAction>
+          {under === null ? null : (
+            <ContextAction tone="danger" onSelect={removeUnder}>
+              <Trash2 className="size-3.5" />
+              {under.kind === 'node' ? 'Delete node' : 'Delete connection'}
+            </ContextAction>
+          )}
+          <ContextSeparator />
+        </>
+      )}
+      {undo === undefined ? null : (
+        <>
+          <ContextAction onSelect={undo.undo} disabled={!undo.canUndo} hint="⌘Z">
+            <Undo2 className="size-3.5 text-ink-faint" />
+            Undo
+          </ContextAction>
+          <ContextAction onSelect={undo.redo} disabled={!undo.canRedo} hint="⇧⌘Z">
+            <Redo2 className="size-3.5 text-ink-faint" />
+            Redo
+          </ContextAction>
+          <ContextSeparator />
+        </>
+      )}
+      <ContextAction onSelect={() => void fitView(FIT_VIEW)}>Fit the whole plan</ContextAction>
+      <ContextAction onSelect={setGrid}>{grid ? 'Hide the grid' : 'Show the grid'}</ContextAction>
+    </>
+  );
+
   return (
     <PlanStoreProvider store={store}>
+    <ContextMenu menu={menu}>
     <div className="relative h-full w-full">
       <EdgeMarkers />
       <ReadingBanner store={store} />
@@ -264,28 +330,39 @@ export function PlanCanvas({
         onNodeDragStart={() => {
           taken.current = true;
         }}
+        onPaneContextMenu={(event) => {
+          setUnder(null);
+          setPointer(screenToFlowPosition({ x: event.clientX, y: event.clientY }));
+        }}
+        onNodeContextMenu={(event, node) => setUnder({ kind: 'node', id: node.id })}
+        onEdgeContextMenu={(event, edge) => setUnder({ kind: 'edge', id: edge.id })}
       >
         {/* A drafting grid: a fine division inside a coarse one. */}
-        <Background
-          id="fine"
-          variant={BackgroundVariant.Lines}
-          gap={20}
-          lineWidth={1}
-          color="var(--grid-fine)"
-        />
-        <Background
-          id="coarse"
-          variant={BackgroundVariant.Lines}
-          gap={100}
-          lineWidth={1}
-          color="var(--grid-coarse)"
-        />
+        {!grid ? null : (
+          <>
+            <Background
+              id="fine"
+              variant={BackgroundVariant.Lines}
+              gap={20}
+              lineWidth={1}
+              color="var(--grid-fine)"
+            />
+            <Background
+              id="coarse"
+              variant={BackgroundVariant.Lines}
+              gap={100}
+              lineWidth={1}
+              color="var(--grid-coarse)"
+            />
+          </>
+        )}
         <Controls
           showInteractive={false}
           className="!border !border-rule !bg-surface !shadow-none [&_button]:!border-rule [&_button]:!bg-surface [&_button]:!fill-ink-muted hover:[&_button]:!bg-surface-2"
         />
       </ReactFlow>
     </div>
+    </ContextMenu>
     </PlanStoreProvider>
   );
 }

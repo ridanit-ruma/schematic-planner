@@ -12,10 +12,13 @@ import type { ConnectionStatus } from './use-plan-document';
  * The title block of an engineering drawing: what the sheet is, what state it is
  * in, and who is working on it. It reads left to right and does not move.
  *
- * Only what is done to the drawing over and over stays on the row — adding and
- * arranging. Everything about the plan rather than the drawing is one menu, at
- * every width: a row that rearranges itself three times between a phone and a
- * desk is three rows to learn.
+ * Only what is done to the drawing over and over stays on the row, which is
+ * adding. Everything else is one menu, at every width: a row that rearranges
+ * itself three times between a phone and a desk is three rows to learn.
+ *
+ * Arranging is in the menu rather than on the row because it is a way out of a
+ * mess, not a step in the work — the server already places whatever arrives
+ * without a position of its own.
  */
 export function TitleBlock({
   title,
@@ -97,12 +100,6 @@ export function TitleBlock({
               <span className="hidden lg:inline">Add node</span>
             </Button>
           </Tooltip>
-          <Tooltip content="Lay out everything nobody has placed by hand">
-            <Button size="sm" variant="ghost" onClick={onArrange}>
-              <Wand2 className="size-3.5" />
-              <span className="hidden lg:inline">Arrange</span>
-            </Button>
-          </Tooltip>
         </div>
       )}
 
@@ -119,10 +116,16 @@ export function TitleBlock({
         }
       >
         {readOnly ? null : (
-          <DropdownAction onSelect={onShare}>
-            <Link2 className="size-3.5 text-ink-faint" />
-            Share
-          </DropdownAction>
+          <>
+            <DropdownAction onSelect={onArrange}>
+              <Wand2 className="size-3.5 text-ink-faint" />
+              Arrange
+            </DropdownAction>
+            <DropdownAction onSelect={onShare}>
+              <Link2 className="size-3.5 text-ink-faint" />
+              Share
+            </DropdownAction>
+          </>
         )}
         <DropdownAction onSelect={onHistory}>
           <Clock className="size-3.5 text-ink-faint" />

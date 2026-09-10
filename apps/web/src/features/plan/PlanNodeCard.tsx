@@ -45,16 +45,24 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
     return (
       /* Takes events across its whole area, so a group can be picked up
          anywhere on it. What it holds is drawn above it and is hit first, so
-         this does not swallow clicks meant for the nodes inside. */
+         this does not swallow clicks meant for the nodes inside.
+
+         A boundary has to be seen before it can be read as one. At sixty per
+         cent of the surface colour this was six per cent away from the ground
+         it sat on and disappeared; it is now its own fill with a ring around
+         it, still darker than the cards inside so they keep reading as sitting
+         on top of it rather than in a hole. */
       <div
         className={cn(
-          'h-full w-full rounded-lg border border-rule-strong bg-surface/60',
-          selected === true && 'border-accent',
+          'h-full w-full rounded-lg bg-group ring-1 ring-rule-strong ring-inset',
+          selected === true && 'ring-accent',
           attention,
         )}
         style={entrance}
       >
-        <div className="flex items-center gap-2 px-3 py-2">
+        {/* A header band, so the name belongs to the box rather than floating
+            over whatever the first child happens to be. */}
+        <div className="flex items-center gap-2 rounded-t-lg border-b border-rule bg-group-head px-3 py-2">
           <span
             aria-hidden
             className="h-3.5 w-1 shrink-0"

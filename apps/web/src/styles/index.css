@@ -46,6 +46,13 @@
   --grid-fine: #10131b;
   --grid-coarse: #161a24;
 
+  /* A boundary drawn around other things. Solid rather than translucent:
+     at 60% of the surface colour it landed within six per cent of the
+     ground and stopped being a boundary at all. Still below the cards it
+     holds, so they read as sitting on it rather than in a hole. */
+  --group: var(--surface);
+  --group-head: #141822;
+
   /* Telemetry. Every other colour in the interface is one of these, and none of
      them is decoration. */
   --status-idea: #64748b;
@@ -78,6 +85,8 @@
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
   --color-collab: var(--collab);
+  --color-group: var(--group);
+  --color-group-head: var(--group-head);
 
   --color-status-idea: var(--status-idea);
   --color-status-planned: var(--status-planned);

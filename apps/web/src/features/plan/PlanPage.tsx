@@ -1,4 +1,4 @@
-import { uniqueSlug, type PlanOp } from '@schematic/schema';
+import { uniqueSlug, type PlanOp, type Position } from '@schematic/schema';
 import { ORIGIN_LAYOUT, ORIGIN_LOCAL, applyOps, commitLayout, readPlanDoc } from '@schematic/ydoc';
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import { useCallback, useMemo, useState } from 'react';
@@ -18,6 +18,7 @@ import { PlanCanvas } from './PlanCanvas';
 import { PlanSidebar } from './PlanSidebar';
 import { TitleBlock } from './TitleBlock';
 import { usePlanDocument } from './use-plan-document';
+import { usePlanUndo, useUndoKeys } from './use-undo';
 
 export function PlanPage() {
   const { planId = '' } = useParams();
@@ -65,8 +66,13 @@ function PlanWorkspace({
   const edges = useStore(store, (state) => state.edges);
 
   const { screenToFlowPosition } = useReactFlow();
+  const undo = usePlanUndo(doc);
+  useUndoKeys(undo);
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  // Where a node asked for from the canvas should land. Null when the request
+  // came from the row, which has no place of its own to mean.
+  const [placing, setPlacing] = useState<Position | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   // One panel at a time on the right: opening the history puts down whatever
   // was selected, and selecting something puts the history away.
@@ -103,13 +109,16 @@ function PlanWorkspace({
       nodes.map((node) => node.id),
     );
 
-    // Placed where the person is looking rather than at the origin, where it
-    // would land under whatever is already there. Left unpinned, so Arrange is
-    // still free to tidy it into the graph.
-    const centre = screenToFlowPosition({
-      x: window.innerWidth / 2,
-      y: window.innerHeight / 2,
-    });
+    // Where it was asked for, if it was asked for somewhere; otherwise where
+    // the person is looking rather than at the origin, where it would land
+    // under whatever is already there. Left unpinned, so Arrange is still free
+    // to tidy it into the graph.
+    const centre =
+      placing ??
+      screenToFlowPosition({
+        x: window.innerWidth / 2,
+        y: window.innerHeight / 2,
+      });
 
     apply([
       {
@@ -123,6 +132,7 @@ function PlanWorkspace({
     ]);
     setNewTitle('');
     setAdding(false);
+    setPlacing(null);
     select(slug);
   };
 
@@ -160,7 +170,10 @@ function PlanWorkspace({
         peers={peers}
         status={status}
         readOnly={false}
-        onAddNode={() => setAdding(true)}
+        onAddNode={() => {
+          setPlacing(null);
+          setAdding(true);
+        }}
         onArrange={() => void arrange()}
         onExport={() => void exportZip()}
         onShare={() => void share()}
@@ -180,7 +193,16 @@ function PlanWorkspace({
 
       <div className="relative flex min-h-0 flex-1">
         <div className="min-w-0 flex-1">
-          <PlanCanvas connection={connection} readOnly={false} onApplyOps={apply} />
+          <PlanCanvas
+            connection={connection}
+            readOnly={false}
+            onApplyOps={apply}
+            undo={undo}
+            onAddNode={(at) => {
+              setPlacing(at);
+              setAdding(true);
+            }}
+          />
         </div>
         {selectedNode !== null ? (
           <Inspector
