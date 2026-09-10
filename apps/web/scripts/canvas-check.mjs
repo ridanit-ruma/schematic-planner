@@ -604,6 +604,46 @@ try {
       topmost.includes('handle'),
       topmost.slice(0, 60),
     );
+    console.log('\nopening a plan');
+    // The document arrives over a socket after the canvas has mounted, so a
+    // frame taken at init is a frame around whichever handful had landed. And
+    // the drawing puts itself down rather than appearing whole — however many
+    // parts arrive, they are spread across one short sweep.
+    await page.goto(`${BASE}/plan/${fixture.id}`, { waitUntil: 'domcontentloaded' });
+    let sweep = null;
+    for (let i = 0; i < 20 && sweep === null; i += 1) {
+      const seen = await page.evaluate(() =>
+        [...document.querySelectorAll('.plan-arrive')].map((el) => el.style.animationDelay),
+      );
+      if (seen.length > 2) sweep = seen;
+      await wait(120);
+    }
+    check(
+      'the drawing puts itself down rather than appearing whole',
+      sweep !== null && new Set(sweep).size > 2,
+      sweep === null ? 'no arrival seen' : `${sweep.length} arriving, ${new Set(sweep).size} delays`,
+    );
+
+    await wait(3500);
+    const opened = await page.evaluate(() => {
+      const pane = document.querySelector('.react-flow__pane')?.getBoundingClientRect();
+      const boxes = [...document.querySelectorAll('.react-flow__node')].map((el) =>
+        el.getBoundingClientRect(),
+      );
+      if (pane === undefined) return { drawn: 0, inside: 0 };
+      return {
+        drawn: boxes.length,
+        inside: boxes.filter(
+          (r) => r.right > pane.left && r.left < pane.right && r.bottom > pane.top && r.top < pane.bottom,
+        ).length,
+      };
+    });
+    check(
+      'and every part of it is on screen',
+      opened.drawn > 0 && opened.inside === opened.drawn,
+      `${opened.inside} of ${opened.drawn}`,
+    );
+
     console.log('\nfollowing one thread');
     // Pointing at a node is asking what it connects to. The answer is that the
     // rest of the drawing steps back — and that nothing steps back when the
