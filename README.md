@@ -425,6 +425,49 @@ Migrations run to completion in their own container before the API starts.
 
 There is no CI pipeline. `pnpm check` passing locally is the bar.
 
+**On NixOS, `pnpm check` stops at the API typecheck and it is not your change.**
+That script runs `prisma generate` first, and Prisma publishes no engine for
+`linux-nixos` — it tries to download one and gets a 404. The generated client is
+committed, so the typecheck itself is fine. Point Prisma at the engine nixpkgs
+has, or skip generation and run `tsc --noEmit` per package:
+
+```bash
+export PRISMA_SCHEMA_ENGINE_BINARY=$(nix-build '<nixpkgs>' -A prisma-engines --no-out-link)/bin/schema-engine
+export PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
+```
+
+### On Kubernetes
+
+`deploy/k8s` is the same three parts as a Deployment, a StatefulSet and a pair of
+Services, with nothing cluster-specific in it: no host, no storage class, no
+ingress controller, no secret. An installation supplies those in an overlay —
+`deploy/k8s/README.md` says exactly which.
+
+`deploy/release.sh` is what puts a commit into a cluster that has no registry in
+front of it. It builds the images on the node that will run them, loads them
+straight into containerd, and commits the resulting tag to the private
+repository the cluster's GitOps controller reads. **Building is not deploying —
+the commit at the end is.** Every step skips what has already been done, so an
+interrupted release is finished by running it again.
+
+Two shapes there are not preferences:
+
+- **The API runs one replica and replaces rather than rolls.** The
+  collaboration server is embedded in it and every open plan is a live document
+  in that process's memory. A second replica would hold its own copy of the same
+  plan and the two would drift apart, silently, each browser seeing whichever it
+  had connected to.
+- **Migrations are an init container, not a Job.** They have to finish before
+  the process that serves the schema starts, on every rollout and not only the
+  first.
+
+### A new route needs telling the proxy about it
+
+`deploy/Caddyfile` names the application's paths one by one, because everything
+else on the origin is the marketing site. **A route not on that list is answered
+by the site's 404** — with the whole screen sitting behind it, built and
+deployed and unreachable. This has cost a day twice.
+
 ### The smoke check
 
 `pnpm check` cannot see the seams — the websocket upgrade path, whether the sync
@@ -443,8 +486,10 @@ pointed at into a junk drawer of real accounts holding real keys. Point it at a
 development instance anyway: it spends the sign-in allowance on purpose. Run it
 after anything that touches collaboration, authentication, or the MCP surface.
 
-`SMOKE_INVITE_CODE` lets it register against an instance holding sign-up behind
-`REGISTRATION_CODE`, and it checks that signing up without one is refused.
+`SMOKE_INVITE_CODE` lets it register against an instance that has a
+`REGISTRATION_CODE` set, and it checks that signing up without one is refused.
+An instance with no code is invitation-only and there is nothing for the check to
+sign up with, which is a good reason to keep it pointed at a development one.
 
 ### The canvas check
 
@@ -465,8 +510,35 @@ behind the edges. It finds a browser itself — Chromium, Chrome or Firefox,
 whichever the machine has — and `CHROME_PATH` names one if you would rather
 choose. Needs a seeded plan to look at.
 
+## Who runs an instance
+
+Standing in the instance is separate from standing in a workspace. **The first
+account made owns it** — somebody has to, and the alternative is a flag set by
+hand in the database before anyone can look at anything. An owner gets one more
+screen than everybody else, at `/admin`:
+
+- **Usage** — what has been drawn, who is active, how much of it agents did,
+  which keys are working, how big the database is, and a fortnight of edits
+  split between people and agents. Every figure is a count of something that
+  exists or a moment that was recorded; nothing is sampled or estimated.
+- **Invitations** — ways in, issued rather than shared. A label, a limit, an
+  expiry, and the accounts that came in through each one. Only the hash is kept,
+  so a link is shown once. Withdrawing one stops it working and keeps that
+  record; deleting takes the record with it.
+- **People** — everyone here, what they hold, when they last changed anything,
+  and whether they may still sign in.
+
+`REGISTRATION_CODE` is the operator's own way in rather than a way to run an
+instance: it is how an empty one is claimed, and how an automated check makes a
+throwaway account. It is a fixed string with no expiry, no limit and no record
+of who used it, so while it is set the invitations screen says so — and clearing
+it makes the links the only door.
+
 ## Conventions
 
+- **Never run `pnpm format` across the repository.** It reformats files nobody
+  touched — seventy-two of them, once, of which forty-one had to be picked back
+  out by hand. Format what you changed.
 - **Everything written into this repository is in English.** Code, comments, commit
   messages, PR titles and bodies, test names, documentation. No exceptions.
 - **Comments explain _why_, and only where a reader would otherwise be puzzled.** Do
