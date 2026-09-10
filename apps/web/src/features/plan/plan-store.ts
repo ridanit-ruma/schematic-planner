@@ -28,13 +28,16 @@ export interface PlanState {
   /** The group each node belongs to, where that group is drawn as a boundary. */
   parentOf: Record<string, string>;
   /**
-   * Slugs and edge ids that appeared in the document a moment ago, so the
-   * canvas can draw them arriving. Empty on the first read of a plan: opening
-   * one should not animate forty nodes at once, and a node scrolling back into
-   * view is not an arrival either — which is why this is derived from the
-   * document rather than from a component mounting.
+   * Slugs and edge ids that appeared in the document a moment ago, each with
+   * how long to wait before it draws itself in.
+   *
+   * Derived from the document rather than from a component mounting, so a node
+   * scrolling back into view is not an arrival. Opening a plan is one: the
+   * drawing puts itself down across the canvas instead of appearing whole. The
+   * delays are what keep that from being forty things moving at once — however
+   * many arrive, the sweep takes the same short time.
    */
-  arrivals: ReadonlySet<string>;
+  arrivals: ReadonlyMap<string, number>;
   /**
    * What stays lit while the pointer is on something, or null when it is on
    * nothing. Reading a schematic is following one part's connections, so
@@ -112,7 +115,7 @@ export function createPlanStore(doc: Y.Doc) {
     remoteDrag: {},
     absolute: {},
     parentOf: {},
-    arrivals: new Set<string>(),
+    arrivals: new Map<string, number>(),
     related: null,
     reading: null,
 
@@ -164,26 +167,64 @@ export function createPlanStore(doc: Y.Doc) {
   let known: Set<string> | null = null;
   let settle: ReturnType<typeof setTimeout> | undefined;
 
-  const ARRIVAL_MS = 900;
+  /**
+   * How long the sweep takes, whatever arrives in it. Two nodes are two beats
+   * apart; forty are forty beats inside the same short window, which is the
+   * difference between a drawing being put down and a screen full of movement.
+   */
+  const NODE_SWEEP_MS = 420;
+  const LINE_SWEEP_MS = 320;
+  /** Long enough for the last line in the sweep to have finished drawing. */
+  const ARRIVAL_MS = NODE_SWEEP_MS + LINE_SWEEP_MS + 640;
 
-  function noteArrivals(plan: PlanDoc): ReadonlySet<string> {
+  /** Spreads n things across a window, in the order given. */
+  function spread(count: number, from: number, over: number): (index: number) => number {
+    if (count <= 1) return () => from;
+    return (index) => from + (over * index) / (count - 1);
+  }
+
+  function noteArrivals(plan: PlanDoc): ReadonlyMap<string, number> {
     const present = new Set<string>([
       ...plan.nodes.map((node) => node.slug),
       ...plan.edges.map((edge) => edge.id),
     ]);
-    if (known === null) {
-      known = present;
-      return new Set<string>();
-    }
-    const arrivals = new Set<string>();
-    for (const id of present) if (!known.has(id)) arrivals.add(id);
+
+    // The first read of a plan is the empty document, before the socket has
+    // said anything; what follows it is the plan arriving, and it is drawn as
+    // one. Nothing is exempt, so opening and being drawn into look alike —
+    // which is the truth of it.
+    const first = known ?? new Set<string>();
     known = present;
-    if (arrivals.size === 0) return store.getState().arrivals;
+
+    // Left to right, the way it would be drawn by hand. A node with no place
+    // yet goes last rather than at the origin.
+    const nodes = plan.nodes
+      .filter((node) => !first.has(node.slug))
+      .sort((a, b) => (a.position?.x ?? Infinity) - (b.position?.x ?? Infinity));
+    if (nodes.length === 0 && plan.edges.every((edge) => first.has(edge.id))) {
+      return store.getState().arrivals;
+    }
+
+    const arrivals = new Map<string, number>();
+    const nodeAt = spread(nodes.length, 0, NODE_SWEEP_MS);
+    nodes.forEach((node, index) => arrivals.set(node.slug, nodeAt(index)));
+
+    // A line is drawn once both its ends are down, so they are ordered by the
+    // later of the two and always start after the last node has settled.
+    const edges = plan.edges
+      .filter((edge) => !first.has(edge.id))
+      .sort(
+        (a, b) =>
+          Math.max(arrivals.get(a.from) ?? 0, arrivals.get(a.to) ?? 0) -
+          Math.max(arrivals.get(b.from) ?? 0, arrivals.get(b.to) ?? 0),
+      );
+    const edgeAt = spread(edges.length, NODE_SWEEP_MS, LINE_SWEEP_MS);
+    edges.forEach((edge, index) => arrivals.set(edge.id, edgeAt(index)));
 
     // Cleared again so the same node arriving twice animates twice, and so the
-    // set does not grow for the life of the page.
+    // map does not grow for the life of the page.
     clearTimeout(settle);
-    settle = setTimeout(() => store.setState({ arrivals: new Set<string>() }), ARRIVAL_MS);
+    settle = setTimeout(() => store.setState({ arrivals: new Map<string, number>() }), ARRIVAL_MS);
     return arrivals;
   }
 

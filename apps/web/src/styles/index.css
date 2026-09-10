@@ -206,8 +206,12 @@
   }
 }
 
+/*
+ * Filled backwards, because each part waits its turn: without it a card would
+ * show itself, blink out when its delay elapsed, and fade in again.
+ */
 .plan-arrive {
-  animation: plan-arrive 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: plan-arrive 220ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 
 /* The accent traces the path once and fades, over the line's own colour. */
@@ -228,7 +232,7 @@
 
 .plan-line-arrive {
   stroke-dasharray: 1;
-  animation: plan-line-arrive 620ms ease-out forwards;
+  animation: plan-line-arrive 620ms ease-out both;
   pointer-events: none;
 }
 

@@ -10,6 +10,15 @@ interface WorkspacesValue {
   readonly all: WorkspaceSummary[];
   readonly reload: () => void;
   /**
+   * Puts one into the list without waiting to be told about it again.
+   *
+   * A workspace you have just made is not in the list yet, and the route for it
+   * bounces anything it cannot resolve back to where you were — so creating one
+   * and going to it looked like creating one and staying put. The server has
+   * already handed back the whole thing; there is nothing to wait for.
+   */
+  readonly add: (workspace: WorkspaceSummary) => void;
+  /**
    * The one to show on a screen that does not name a workspace — your account,
    * the recent list. Where you last were, not whichever comes first.
    */
@@ -64,13 +73,21 @@ export function WorkspacesProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
+  const add = useCallback((workspace: WorkspaceSummary) => {
+    setAll((current) =>
+      (current ?? []).some((existing) => existing.id === workspace.id)
+        ? current
+        : [...(current ?? []), workspace],
+    );
+  }, []);
   const value = useMemo(
     () => ({
       all: all ?? [],
       reload,
+      add,
       resting: resolveWorkspace(all ?? [], undefined, last),
     }),
-    [all, reload, last],
+    [all, reload, add, last],
   );
 
   if (error !== null) {

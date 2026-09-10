@@ -306,7 +306,7 @@ function TopBar({ current }: { current: Workspace | undefined }) {
 }
 
 function WorkspaceSwitcher({ current }: { current: Workspace }) {
-  const { all, reload } = useWorkspaces();
+  const { all, add } = useWorkspaces();
   const navigate = useNavigate();
 
   const [creating, setCreating] = useState(false);
@@ -354,7 +354,9 @@ function WorkspaceSwitcher({ current }: { current: Workspace }) {
             void workspaces.create(name.trim()).then((created) => {
               setName('');
               setCreating(false);
-              reload();
+              // Into the list first: the route resolves the slug against it, and
+              // sends anything it cannot find back where it came from.
+              add(created);
               void navigate(`/workspace/${created.slug}`);
             });
           }}

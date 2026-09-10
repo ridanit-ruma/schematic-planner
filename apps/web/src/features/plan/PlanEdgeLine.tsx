@@ -60,7 +60,7 @@ function Line({
   data,
 }: EdgeProps<PlanFlowEdge>) {
   const zoom = useStore((state) => state.transform[2]);
-  const arrived = usePlanStore((state) => state.arrivals.has(id));
+  const arrivedAt = usePlanStore((state) => state.arrivals.get(id));
   const dimmed = usePlanStore((state) => state.related !== null && !state.related.has(id));
   const lit = usePlanStore((state) => state.related !== null && state.related.has(id));
   const room = Math.abs(targetX - sourceX) + Math.abs(targetY - sourceY);
@@ -107,16 +107,17 @@ function Line({
       />
       {/* Drawn over the line for as long as it takes to appear, then gone. The
           line itself keeps its own colour and dash pattern underneath. */}
-      {arrived ? (
+      {arrivedAt === undefined ? null : (
         <path
           d={path}
           pathLength={1}
           className="plan-line-arrive"
+          style={{ animationDelay: `${arrivedAt}ms` }}
           fill="none"
           stroke="var(--accent)"
           strokeWidth={2}
         />
-      ) : null}
+      )}
       {!show ? null : (
         <EdgeLabelRenderer>
           <div

@@ -6,10 +6,11 @@ import {
   type Connection,
   type EdgeTypes,
   type NodeTypes,
+  useReactFlow,
 } from '@xyflow/react';
 import { normalizeEdge, planEdgeInputSchema, type PlanOp, type Position } from '@schematic/schema';
 import { ORIGIN_LOCAL, commitLayout, commitNodePosition } from '@schematic/ydoc';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react';
 import { useStore } from 'zustand';
 
 import { resolveDrop, type DropTarget } from './group-drop';
@@ -40,6 +41,29 @@ const FIT_VIEW =
     ? { padding: 0.15, maxZoom: 1, minZoom: 0.4 }
     : { padding: 0.25, maxZoom: 1 };
 
+/**
+ * Frames the whole plan while it is still arriving.
+ *
+ * React Flow's own `fitView` runs once, at init. The document comes over a
+ * socket after that, so on anything large it framed whichever handful had
+ * landed by then and left the rest off-screen — where, being culled, they were
+ * never even drawn. So it is done again each time the plan gains or loses
+ * nodes, and stopped the moment somebody moves the canvas themselves.
+ */
+function useOpeningFit(count: number, taken: RefObject<boolean>): void {
+  const { fitView } = useReactFlow();
+
+  useEffect(() => {
+    if (taken.current || count === 0) return;
+    // After the browser has laid the new nodes out, or their sizes are not
+    // known yet and the frame is drawn around the wrong box.
+    const at = requestAnimationFrame(() => {
+      void fitView(FIT_VIEW);
+    });
+    return () => cancelAnimationFrame(at);
+  }, [count, fitView, taken]);
+}
+
 export function PlanCanvas({
   connection,
   readOnly,
@@ -61,6 +85,9 @@ export function PlanCanvas({
   const selectEdge = useStore(store, (state) => state.selectEdge);
   const highlight = useStore(store, (state) => state.highlight);
   useReadingWalk(store);
+  // Set the first time the person moves the canvas or a node themselves.
+  const taken = useRef(false);
+  useOpeningFit(nodes.length, taken);
 
   /** Someone else's in-flight drag overrides the stored position for that node. */
   const rendered = useMemo(
@@ -228,6 +255,15 @@ export function PlanCanvas({
         maxZoom={2}
         fitView
         fitViewOptions={FIT_VIEW}
+        // A person moving the canvas is taking the wheel; nothing frames it for
+        // them after that. React Flow passes no event for its own moves, which
+        // is how a fit is told apart from a drag.
+        onMoveStart={(event) => {
+          if (event !== null) taken.current = true;
+        }}
+        onNodeDragStart={() => {
+          taken.current = true;
+        }}
       >
         {/* A drafting grid: a fine division inside a coarse one. */}
         <Background

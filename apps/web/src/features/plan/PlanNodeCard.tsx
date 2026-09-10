@@ -29,11 +29,14 @@ const KIND_BORDER: Record<string, string> = {
 function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
   const { node, childCount } = data;
 
-  // One boolean each. A node re-renders when its own answer changes and not
+  // One value each. A node re-renders when its own answer changes and not
   // when somebody else's does.
-  const arrived = usePlanStore((state) => state.arrivals.has(id));
+  const arrivedAt = usePlanStore((state) => state.arrivals.get(id));
   const dimmed = usePlanStore((state) => state.related !== null && !state.related.has(id));
-  const attention = cn(arrived && 'plan-arrive', dimmed && 'plan-dim');
+  const attention = cn(arrivedAt !== undefined && 'plan-arrive', dimmed && 'plan-dim');
+  // Its place in the sweep. The animation fills backwards, so a card waiting
+  // its turn is already invisible rather than flashing on and starting over.
+  const entrance = arrivedAt === undefined ? undefined : { animationDelay: `${arrivedAt}ms` };
 
   // A node that holds others is drawn as the boundary around them, labelled at
   // the top edge where nothing else sits. Drawn as a card it would land on top
@@ -49,6 +52,7 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
           selected === true && 'border-accent',
           attention,
         )}
+        style={entrance}
       >
         <div className="flex items-center gap-2 px-3 py-2">
           <span
@@ -84,6 +88,7 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
         selected === true && 'border-accent ring-1 ring-accent',
         attention,
       )}
+      style={entrance}
     >
       <span aria-hidden className="w-1 shrink-0" style={{ background: STATUS_COLOR[node.status] }} />
 

@@ -145,7 +145,7 @@ export function RecentPage() {
 
 /** Everyone gets a workspace at sign-up, so this is close to unreachable. */
 function FirstWorkspace() {
-  const { reload } = useWorkspaces();
+  const { add } = useWorkspaces();
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -168,7 +168,7 @@ function FirstWorkspace() {
           onSubmit={(event) => {
             event.preventDefault();
             void workspaces.create(name.trim()).then((created) => {
-              reload();
+              add(created);
               void navigate(`/workspace/${created.slug}`);
             });
           }}
