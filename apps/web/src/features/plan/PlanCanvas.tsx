@@ -13,6 +13,7 @@ import { ORIGIN_LOCAL, commitLayout, commitNodePosition } from '@schematic/ydoc'
 import { Plus, Redo2, Trash2, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useStore } from 'zustand';
+import type * as Y from 'yjs';
 
 import { ContextAction, ContextMenu, ContextSeparator } from '@/components/ui/context-menu';
 import { resolveDrop, type DropTarget } from './group-drop';
@@ -53,9 +54,19 @@ const FIT_VIEW =
  * landed by then and left the rest off-screen — where, being culled, they were
  * never even drawn. So it is done again each time the plan gains or loses
  * nodes, and stopped the moment somebody moves the canvas themselves.
+ *
+ * Having moved one plan is not having moved the next. Opening another replaces
+ * the document without the canvas ever unmounting — the old connection is
+ * dropped and the new one set in the same render — so the memory of taking the
+ * wheel has to be let go of explicitly, or the first plan you move in is the
+ * last one that is ever framed for you.
  */
-function useOpeningFit(count: number, taken: RefObject<boolean>): void {
+function useOpeningFit(doc: Y.Doc, count: number, taken: RefObject<boolean>): void {
   const { fitView } = useReactFlow();
+
+  useEffect(() => {
+    taken.current = false;
+  }, [doc, taken]);
 
   useEffect(() => {
     if (taken.current || count === 0) return;
@@ -97,7 +108,7 @@ export function PlanCanvas({
   useReadingWalk(store);
   // Set the first time the person moves the canvas or a node themselves.
   const taken = useRef(false);
-  useOpeningFit(nodes.length, taken);
+  useOpeningFit(doc, nodes.length, taken);
   const [grid, setGrid] = useGrid();
   const { fitView, screenToFlowPosition } = useReactFlow();
   // Where the menu was opened, so what it adds lands under the pointer rather
