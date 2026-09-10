@@ -34,6 +34,8 @@ const NODE_WIDTH = 280;
 const NODE_HEIGHT = 140;
 const COLUMN_GAP = 400;
 const ROW_GAP = 200;
+const NOTE_WIDTH = 240;
+const NOTE_HEIGHT = 120;
 
 /** Obsidian's preset palette: 1 red, 2 orange, 3 yellow, 4 green, 5 cyan, 6 purple. */
 const STATUS_COLOR: Record<PlanNodeStatus, string | undefined> = {
@@ -52,7 +54,7 @@ const STATUS_COLOR: Record<PlanNodeStatus, string | undefined> = {
  * canvas, and exports the same way every time.
  */
 export function toCanvas(
-  doc: Pick<PlanDoc, 'nodes' | 'edges'>,
+  doc: Pick<PlanDoc, 'nodes' | 'edges'> & Partial<Pick<PlanDoc, 'comments'>>,
   graph: PlanGraph,
   fileOf: ReadonlyMap<string, string>,
 ): Canvas {
@@ -72,15 +74,33 @@ export function toCanvas(
       y = row * ROW_GAP;
     }
 
-    const canvasNode: CanvasNode = {
-      id: slug,
-      type: 'file',
-      file: fileOf.get(slug) ?? `${slug}.md`,
-      x: Math.round(x),
-      y: Math.round(y),
-      width: Math.round(node.size?.width ?? NODE_WIDTH),
-      height: Math.round(node.size?.height ?? NODE_HEIGHT),
-    };
+    // A node holding others is the box around them, which is what JSON Canvas
+    // calls a group. Exported as an ordinary card instead -- which is what used
+    // to happen -- the nesting the plan is built on is simply not in the
+    // picture, and the drawing says something different from the document. The
+    // container's own note is still in the tree, at the README of the folder
+    // this frame corresponds to.
+    const holds = (graph.childrenOf.get(slug)?.length ?? 0) > 0;
+
+    const canvasNode: CanvasNode = holds
+      ? {
+          id: slug,
+          type: 'group',
+          label: node.title,
+          x: Math.round(x),
+          y: Math.round(y),
+          width: Math.round(node.size?.width ?? NODE_WIDTH),
+          height: Math.round(node.size?.height ?? NODE_HEIGHT),
+        }
+      : {
+          id: slug,
+          type: 'file',
+          file: fileOf.get(slug) ?? `${slug}.md`,
+          x: Math.round(x),
+          y: Math.round(y),
+          width: Math.round(node.size?.width ?? NODE_WIDTH),
+          height: Math.round(node.size?.height ?? NODE_HEIGHT),
+        };
     const color = STATUS_COLOR[node.status];
     if (color !== undefined) canvasNode.color = color;
     nodes.push(canvasNode);
@@ -129,6 +149,33 @@ export function toCanvas(
         toSide: 'left',
         toEnd: 'none',
         ...(edge.label !== null && { label: edge.label }),
+      });
+    }
+  }
+
+  for (const comment of doc.comments ?? []) {
+    if (comment.resolved || comment.position === null) continue;
+    const who = comment.author === '' ? 'Someone' : comment.author;
+    nodes.push({
+      id: `note-${comment.id}`,
+      type: 'text',
+      text: `**${who}**\n\n${comment.body}`,
+      x: Math.round(comment.position.x),
+      y: Math.round(comment.position.y),
+      width: NOTE_WIDTH,
+      height: NOTE_HEIGHT,
+      // 6 is purple in Obsidian's preset palette, which is the colour this
+      // product gives to a person or an agent speaking.
+      color: '6',
+    });
+    if (comment.anchor !== null && graph.nodes.has(comment.anchor)) {
+      edges.push({
+        id: `note-${comment.id}`,
+        fromNode: `note-${comment.id}`,
+        fromSide: 'left',
+        toNode: comment.anchor,
+        toSide: 'right',
+        toEnd: 'none',
       });
     }
   }

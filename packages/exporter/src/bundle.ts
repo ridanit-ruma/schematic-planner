@@ -75,6 +75,20 @@ function overview(
   const toc = tableOfContents(graph, fileOf);
   sections.push(`## Contents\n\n${toc === '' ? '_This plan has no nodes yet._' : toc}`);
 
+  const loose = doc.comments.filter((comment) => comment.anchor === null);
+  if (loose.length > 0) {
+    sections.push(
+      `## Notes on this plan\n\n${loose
+        .map((comment) => {
+          const who = comment.author === '' ? 'Someone' : comment.author;
+          const state = comment.resolved ? ' _(resolved)_' : '';
+          const said = comment.body.trim() === '' ? '_(empty)_' : comment.body.trim();
+          return `- **${who}**${state} — ${said.replace(/\s+/g, ' ')}`;
+        })
+        .join('\n')}`,
+    );
+  }
+
   if (warnings.length > 0) {
     sections.push(`## Warnings\n\n${warnings.map((w) => `- ${w}`).join('\n')}`);
   }
@@ -99,7 +113,7 @@ export function exportPlan(doc: PlanDoc, options: ExportOptions = {}): ExportBun
   for (const [slug, path] of fileOf) {
     const node = graph.nodes.get(slug);
     if (node === undefined) continue;
-    files.push({ path, content: nodeToMarkdown(node, graph, doc.edges) });
+    files.push({ path, content: nodeToMarkdown(node, graph, doc.edges, fileOf, doc.comments) });
   }
 
   if (options.canvas !== false) {
