@@ -1,5 +1,5 @@
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useStore, type EdgeProps } from '@xyflow/react';
-import { edgeNote, type Position } from '@schematic/schema';
+import { edgeNote } from '@schematic/schema';
 import { memo } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -48,29 +48,7 @@ const NOTE_ROOM = 130;
  */
 const NOTE_LIFT = 13;
 
-/**
- * Whether a stored anchor still belongs to this line.
- *
- * A smooth-step route stays inside the box its two ends make, give or take the
- * corner radius, so a point well outside that box is a point the line has since
- * moved away from.
- */
-const NOTE_STRAY = 80;
 
-function nearTheLine(
-  at: Position,
-  sourceX: number,
-  sourceY: number,
-  targetX: number,
-  targetY: number,
-): boolean {
-  return (
-    at.x >= Math.min(sourceX, targetX) - NOTE_STRAY &&
-    at.x <= Math.max(sourceX, targetX) + NOTE_STRAY &&
-    at.y >= Math.min(sourceY, targetY) - NOTE_STRAY &&
-    at.y <= Math.max(sourceY, targetY) + NOTE_STRAY
-  );
-}
 
 function Line({
   id,
@@ -111,22 +89,21 @@ function Line({
   // an arrow with nothing written on it says only that two things touch.
   const note = edge === undefined ? '' : edgeNote(edge);
 
-  // Where layout put it, which is the only place that knows what else is near.
-  // Falling back to the midpoint when nothing has laid this plan out yet — and
-  // the midpoint is exactly where parallel lines pile their notes up, so a line
-  // too short to hold one keeps quiet until it has somewhere of its own.
+  // Drawn on its line, at the middle of wherever that line currently runs.
   //
-  // That anchor is an absolute point, chosen for where the line was when the
-  // plan was laid out. Drag either end and the line leaves it behind, so a note
-  // that is no longer anywhere near its own line goes back to the middle of it
-  // and follows from then on. A note beside its line is placement; a note
-  // stranded across the canvas is a bug you have to explain.
+  // Layout does choose a point for each label, and it is the only thing that
+  // knows what else is nearby — but it is an absolute point, true for where the
+  // line was when the plan was laid out. Drag either end afterwards and the
+  // note is left behind, somewhere on the canvas belonging to nothing. Trying
+  // to notice that and recover was worse: move a node away and the box its two
+  // ends make grows to swallow the stale point, so the note that had most
+  // obviously come adrift was the one that looked fine.
+  //
+  // So the anchor is kept for the one thing it can still answer honestly —
+  // whether layout thought this line had room for a note at all — and where the
+  // note goes is asked of the line itself, every time it moves.
   const anchor = edge?.labelPosition ?? null;
-  const placed = anchor !== null && nearTheLine(anchor, sourceX, sourceY, targetX, targetY);
-  const at = placed ? (anchor as Position) : { x: labelX, y: labelY };
-  // Having been given a place is what says this note is worth drawing, and
-  // moving the node it hangs off does not take that back. Only where it is
-  // drawn changes; whether it is drawn does not.
+  const at = { x: labelX, y: labelY };
   const show = note !== '' && (anchor !== null || legible);
 
   return (
