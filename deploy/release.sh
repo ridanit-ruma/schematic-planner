@@ -6,64 +6,70 @@
 #   ./deploy/release.sh <commit>     # a particular one
 #
 # There is no registry. The images are built on the node that runs them and
-# loaded straight into its containerd, and what says which of them is running is
-# a tag committed to the private infrastructure repository — which Flux reads,
-# and which is therefore the only thing that decides what the cluster serves.
-# Building is not deploying here; the commit at the end is.
+# loaded straight into its containerd; what says which of them is running is a
+# tag committed to the private infrastructure repository, which Flux reads and
+# which is therefore the only thing that decides what the cluster serves.
+# Building is not deploying — the commit at the end is.
+#
+# It runs from a workstation rather than on the node, because the credentials
+# that may write to the infrastructure repository are here and should stay here.
+# The node holds a read-only deploy key and nothing else.
 set -euo pipefail
 
-REPO="${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+NODE="${NODE:-rumavm}"
+# A checkout of this repository on the node, used only as a build context.
+NODE_REPO="${NODE_REPO:-schematic-planner}"
 INFRA="${INFRA:-$HOME/server-infrastructure}"
 OVERLAY="$INFRA/apps/schematic-planner/kustomization.yaml"
 SITE_URL="${SITE_URL:-https://schematic-planner.com}"
-# podman by default: it needs no daemon, and the node this runs on has k3s's
-# containerd already. docker works too if that is what is installed.
 BUILDER="${BUILDER:-podman}"
 
-commit="${1:-$(git -C "$REPO" rev-parse HEAD)}"
-sha="$(git -C "$REPO" rev-parse "$commit")"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+sha="$(git -C "$here" rev-parse "${1:-HEAD}")"
 short="${sha:0:12}"
-
 say() { printf '\n== %s\n' "$*"; }
 
-say "building $short"
-# Built from a clean copy of that commit rather than the working tree, so what
-# is running is a commit somebody else can check out — not whatever happened to
-# be on disk here.
-work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
-git -C "$REPO" archive "$sha" | tar -x -C "$work"
+if [ -n "$(git -C "$here" status --porcelain)" ]; then
+  echo "the working tree has changes; what is released has to be a commit" >&2
+  exit 1
+fi
+if ! git -C "$here" merge-base --is-ancestor "$sha" origin/main 2>/dev/null; then
+  echo "$short is not on origin/main — push it first, or the node cannot fetch it" >&2
+  exit 1
+fi
 
-"$BUILDER" build -f "$work/apps/api/Dockerfile" -t "schematic-planner.local/api:$short" "$work"
-"$BUILDER" build -f "$work/deploy/Dockerfile.web" \
-  --build-arg "NEXT_PUBLIC_SITE_URL=$SITE_URL" \
-  --build-arg 'NEXT_PUBLIC_APP_URL=' \
-  -t "schematic-planner.local/web:$short" "$work"
-
-say "loading into the cluster"
-# k3s runs its own containerd, which does not share docker's image store, and it
-# keeps images in the k8s.io namespace rather than the default one.
-for image in api web; do
-  "$BUILDER" save --format docker-archive "schematic-planner.local/$image:$short" \
-    | sudo k3s ctr --namespace k8s.io images import -
-done
+say "building $short on $NODE"
+ssh "$NODE" "set -e
+  cd \$HOME/$NODE_REPO
+  git fetch -q origin
+  git checkout -q $sha
+  $BUILDER build -f apps/api/Dockerfile -t schematic-planner.local/api:$short .
+  $BUILDER build -f deploy/Dockerfile.web \
+    --build-arg NEXT_PUBLIC_SITE_URL=$SITE_URL \
+    --build-arg NEXT_PUBLIC_APP_URL= \
+    -t schematic-planner.local/web:$short .
+  # k3s runs its own containerd, which does not share podman's image store and
+  # keeps images under the k8s.io namespace rather than the default one.
+  for image in api web; do
+    $BUILDER save --format docker-archive schematic-planner.local/\$image:$short \
+      | sudo k3s ctr --namespace k8s.io images import -
+  done"
 
 say "pointing the cluster at it"
 git -C "$INFRA" pull --ff-only
 sed -i \
-  -e "s|\(newTag: \).*# api|\1$short # api|" \
-  -e "s|\(newTag: \).*# web|\1$short # web|" \
+  -e "s|\(newTag: \).*\( # api\)|\1$short\2|" \
+  -e "s|\(newTag: \).*\( # web\)|\1$short\2|" \
+  -e "s|\(schematic-planner//deploy/k8s?ref=\)[0-9a-f]*|\1$sha|" \
   "$OVERLAY"
 
 if git -C "$INFRA" diff --quiet -- "$OVERLAY"; then
   echo "already at $short — nothing to commit"
   exit 0
 fi
+git -C "$INFRA" commit -q -m "schematic-planner: $short" -- "$OVERLAY"
+git -C "$INFRA" push -q
 
-git -C "$INFRA" add "$OVERLAY"
-git -C "$INFRA" commit -m "schematic-planner: $short"
-git -C "$INFRA" push
-
-say "pushed. Flux reconciles within a minute:"
+say "released $short"
 echo "  flux reconcile kustomization apps --with-source"
 echo "  kubectl -n schematic-planner rollout status deploy/schematic-planner-api"
