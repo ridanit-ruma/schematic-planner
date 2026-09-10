@@ -89,22 +89,21 @@ function Line({
   // an arrow with nothing written on it says only that two things touch.
   const note = edge === undefined ? '' : edgeNote(edge);
 
-  // Drawn on its line, at the middle of wherever that line currently runs.
+  // Where layout put it, which is the only place that knows what else is near,
+  // and the middle of the line when it has no such place.
   //
-  // Layout does choose a point for each label, and it is the only thing that
-  // knows what else is nearby — but it is an absolute point, true for where the
-  // line was when the plan was laid out. Drag either end afterwards and the
-  // note is left behind, somewhere on the canvas belonging to nothing. Trying
-  // to notice that and recover was worse: move a node away and the box its two
-  // ends make grows to swallow the stale point, so the note that had most
-  // obviously come adrift was the one that looked fine.
+  // The stored point is absolute — true for where the line was when the plan
+  // was laid out — so dragging a node withdraws it for every line that node
+  // touches, and those notes fall back to this midpoint and follow from then
+  // on. Guessing at staleness here instead was worse: moving a node away grows
+  // the box its two ends make until it swallows the stale point, so the note
+  // that had most obviously come adrift was the one that looked fine.
   //
-  // So the anchor is kept for the one thing it can still answer honestly —
-  // whether layout thought this line had room for a note at all — and where the
-  // note goes is asked of the line itself, every time it moves.
-  const anchor = edge?.labelPosition ?? null;
-  const at = { x: labelX, y: labelY };
-  const show = note !== '' && (anchor !== null || legible);
+  // The midpoint is exactly where parallel lines pile their notes up, so a line
+  // too short to hold one keeps quiet until it has somewhere of its own.
+  const placed = edge?.labelPosition ?? null;
+  const at = placed ?? { x: labelX, y: labelY };
+  const show = note !== '' && (placed !== null || legible);
 
   return (
     <>

@@ -32,6 +32,37 @@ export interface NodeSize {
 }
 
 /**
+ * Forgets where layout put the writing on every line touching these nodes.
+ *
+ * A label's stored point is absolute, and true only for where its line was when
+ * the plan was last laid out. Move one end by hand and that point is a place on
+ * the canvas belonging to nothing — so moving a node withdraws layout's opinion
+ * about the lines it touches, and those notes go back to riding the middle of
+ * their own line until somebody arranges the plan again.
+ *
+ * Only the lines that moved: every other note keeps the placement that stops it
+ * landing on its neighbour.
+ */
+export function releaseLabels(doc: Y.Doc, slugs: Iterable<string>, origin: unknown): void {
+  const touched = new Set(slugs);
+  const edges = edgesMap(doc);
+  Y.transact(
+    doc,
+    () => {
+      for (const [, edge] of edges) {
+        if (edge.get('labelPosition') === null || edge.get('labelPosition') === undefined) continue;
+        const from = edge.get('from');
+        const to = edge.get('to');
+        if (typeof from !== 'string' || typeof to !== 'string') continue;
+        if (!touched.has(from) && !touched.has(to)) continue;
+        edge.set('labelPosition', null);
+      }
+    },
+    origin,
+  );
+}
+
+/**
  * Apply a batch of positions from an auto-layout run in one transaction, plus
  * the bounds computed for any node that contains others.
  */
