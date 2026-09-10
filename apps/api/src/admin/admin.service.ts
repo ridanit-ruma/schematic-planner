@@ -76,15 +76,15 @@ export class AdminService {
   }
 
   /**
-   * The invitations, and whether they are the only way in.
+   * Everything that could let somebody in right now, and everything that used
+   * to.
    *
-   * A standing code in the configuration is a second door, open to anyone who
-   * has the string. That is a legitimate thing for an operator to want — it is
-   * how an empty instance is claimed and how automated checks make throwaway
-   * accounts — but it makes the promise of this screen untrue while it is set,
-   * so the screen says so rather than quietly meaning something else.
+   * The code in the configuration is one of those things, so it is returned
+   * here rather than merely alluded to: a screen that lists ways in and leaves
+   * out the one that is a plain string anybody could be holding is worse than
+   * no screen. It is shown to the owner, who set it.
    */
-  async listInvites(): Promise<{ standingCode: boolean; invites: InviteSummary[] }> {
+  async listInvites(): Promise<{ code: string | null; invites: InviteSummary[] }> {
     const rows = await this.prisma.signupInvite.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
@@ -110,17 +110,38 @@ export class AdminService {
       accounts: row.accounts,
     }));
 
-    return { standingCode: this.config.registrationCode !== '', invites };
+    return {
+      code: this.config.registrationCode === '' ? null : this.config.registrationCode,
+      invites,
+    };
   }
 
+  /**
+   * Stops it working, and keeps the record.
+   *
+   * The accounts that came in through it still point at it, and knowing who let
+   * whom in is worth more than a tidy table — so this is the ordinary way to
+   * end an invitation, and forgetting it is a separate, deliberate act.
+   */
   async revokeInvite(id: string): Promise<{ ok: true }> {
     const invite = await this.prisma.signupInvite.findUnique({ where: { id } });
     if (invite === null) throw new NotFoundException('No such invitation');
-    // Withdrawn rather than deleted: the accounts that came in through it still
-    // point at it, and a list of who let whom in is worth more than a tidy table.
     if (invite.revokedAt === null) {
       await this.prisma.signupInvite.update({ where: { id }, data: { revokedAt: new Date() } });
     }
+    return { ok: true };
+  }
+
+  /**
+   * Forgets it entirely.
+   *
+   * The accounts it let in stay, and stop saying how they got here — which is
+   * the whole cost, and the reason this is not what the withdraw button does.
+   */
+  async deleteInvite(id: string): Promise<{ ok: true }> {
+    const invite = await this.prisma.signupInvite.findUnique({ where: { id } });
+    if (invite === null) throw new NotFoundException('No such invitation');
+    await this.prisma.signupInvite.delete({ where: { id } });
     return { ok: true };
   }
 

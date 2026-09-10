@@ -1,15 +1,17 @@
-import { Copy, Plus } from 'lucide-react';
+import { Copy, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { DropdownAction } from '@/components/ui/dropdown-menu';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
 import { Field, Input } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
+import { RowMenu } from '@/components/ui/row-menu';
 import { Select } from '@/components/ui/select';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { admin, type InviteSummary } from '@/lib/api';
 import { useLiveList } from '@/lib/use-live-list';
-import { cn, formatWhen } from '@/lib/utils';
+import { cn, formatWhen, plural } from '@/lib/utils';
 
 const LIMITS = [
   { value: '1', label: 'One person' },
@@ -27,30 +29,34 @@ const LIVES = [
 ];
 
 /**
- * Ways onto this instance, issued rather than shared.
+ * Every way onto this instance, and only the ones that still work.
  *
- * What this replaces is one code everybody types: it could not be given to one
- * person, taken back from them, or matched to who used it. Each of these has a
- * name on it, a limit, an expiry, and the accounts that came in through it.
+ * The question this screen answers is "who could sign up right now" — so what
+ * is spent, expired or withdrawn is folded out of the way rather than left
+ * cluttering the answer, and the sign-up code from the configuration is listed
+ * as what it is: a way in, held by anyone who has the string. A screen that
+ * lists doors and leaves out the unlocked one is worse than no screen.
  */
 export function InvitationsPage() {
   const [invites, setInvites] = useState<InviteSummary[] | null>(null);
-  const [standingCode, setStandingCode] = useState(false);
+  const [code, setCode] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [making, setMaking] = useState(false);
+  const [showSpent, setShowSpent] = useState(false);
   const [label, setLabel] = useState('');
   const [limit, setLimit] = useState('1');
   const [life, setLife] = useState('14');
   // Shown once, because only the hash is kept. Losing it means issuing another.
   const [issued, setIssued] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<InviteSummary | null>(null);
 
   const reload = (): void => {
     admin
       .invites()
       .then((answer) => {
         setInvites(answer.invites);
-        setStandingCode(answer.standingCode);
+        setCode(answer.code);
       })
       .catch(setError);
   };
@@ -72,13 +78,19 @@ export function InvitationsPage() {
     }
   };
 
-  const revoke = async (invite: InviteSummary): Promise<void> => {
+  const act = async (run: Promise<unknown>): Promise<void> => {
     try {
-      await admin.revokeInvite(invite.id);
+      await run;
+      setDeleting(null);
       reload();
     } catch (cause) {
       setError(cause);
     }
+  };
+
+  const copy = (text: string): void => {
+    void navigator.clipboard.writeText(text);
+    setCopied(text);
   };
 
   if (invites === null && error === null) {
@@ -88,22 +100,15 @@ export function InvitationsPage() {
       </div>
     );
   }
-  const rows = invites ?? [];
+
+  const all = invites ?? [];
+  const live = all.filter((invite) => invite.state === 'live');
+  const spent = all.filter((invite) => invite.state !== 'live');
+  const shown = showSpent ? all : live;
 
   return (
     <div className="space-y-4">
       {error !== null ? <Problem error={error} /> : null}
-
-      {/* Saying it rather than meaning something else quietly: while a code is
-          configured, these links are not the only way in. */}
-      {!standingCode ? null : (
-        <p className="rounded-lg border border-status-progress/30 bg-surface-2 px-3 py-2 text-xs text-ink-muted">
-          <span className="text-ink">This instance also has a sign-up code set.</span> Anyone who
-          has that string can make an account without a link, and nothing here records that they
-          did. Clear <span className="slug">REGISTRATION_CODE</span> to make these links the only
-          way in.
-        </p>
-      )}
 
       <div className="flex items-start justify-between gap-4">
         <p className="max-w-prose text-sm text-ink-muted">
@@ -116,10 +121,37 @@ export function InvitationsPage() {
         </Button>
       </div>
 
-      {rows.length === 0 ? (
+      {/* Listed rather than alluded to. Anyone holding this string can sign up,
+          and nothing records that they did — which is the point of saying so
+          here, beside the links that do. */}
+      {code === null ? null : (
+        <div className="rounded-lg border border-status-progress/30 bg-surface-2 px-3 py-2.5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-ink">The sign-up code</p>
+              <p className="mt-0.5 text-xs text-ink-muted">
+                Set in this deployment&rsquo;s configuration. Anyone who has it can make an account
+                without a link, as many times as they like, and nothing here records that they did.
+                Clear <span className="slug">REGISTRATION_CODE</span> to take this door away.
+              </p>
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => copy(code)}>
+              <Copy className="size-3.5" />
+              {copied === code ? 'Copied' : 'Copy'}
+            </Button>
+          </div>
+          <p className="slug mt-2 rounded-sm bg-surface px-2 py-1 text-ink">{code}</p>
+        </div>
+      )}
+
+      {shown.length === 0 ? (
         <Empty
-          title="No invitations yet"
-          body="Nobody can sign up until you issue a link, unless this instance has never had an account."
+          title={live.length === 0 && spent.length > 0 ? 'No invitations still open' : 'No invitations yet'}
+          body={
+            code === null
+              ? 'Nobody can sign up until you issue a link.'
+              : 'The code above is the only way in at the moment.'
+          }
         />
       ) : (
         <Table>
@@ -135,11 +167,11 @@ export function InvitationsPage() {
               State
             </TH>
             <TH className="w-10" align="right">
-              <span className="sr-only">Withdraw</span>
+              <span className="sr-only">Actions</span>
             </TH>
           </THead>
           <tbody>
-            {rows.map((invite) => (
+            {shown.map((invite) => (
               <TR key={invite.id}>
                 <TD>
                   <span className="block truncate font-medium text-ink">
@@ -172,16 +204,36 @@ export function InvitationsPage() {
                   </span>
                 </TD>
                 <TD align="right">
-                  {invite.state === 'withdrawn' ? null : (
-                    <Button size="sm" variant="ghost" onClick={() => void revoke(invite)}>
-                      Withdraw
-                    </Button>
-                  )}
+                  <span className="flex justify-end">
+                    <RowMenu label={invite.label === '' ? 'this invitation' : invite.label}>
+                      {invite.state !== 'live' ? null : (
+                        <DropdownAction onSelect={() => void act(admin.withdrawInvite(invite.id))}>
+                          Withdraw
+                        </DropdownAction>
+                      )}
+                      <DropdownAction tone="danger" onSelect={() => setDeleting(invite)}>
+                        <Trash2 className="size-3.5" />
+                        Delete
+                      </DropdownAction>
+                    </RowMenu>
+                  </span>
                 </TD>
               </TR>
             ))}
           </tbody>
         </Table>
+      )}
+
+      {spent.length === 0 ? null : (
+        <button
+          type="button"
+          onClick={() => setShowSpent((open) => !open)}
+          className="text-xs text-ink-faint transition-colors hover:text-ink"
+        >
+          {showSpent
+            ? 'Hide what is no longer open'
+            : `${plural(spent.length, 'invitation')} no longer open — show`}
+        </button>
       )}
 
       <Modal open={making} onOpenChange={setMaking} title="New invitation">
@@ -205,9 +257,7 @@ export function InvitationsPage() {
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="How many accounts">
-              {(id) => (
-                <Select id={id} value={limit} onChange={setLimit} options={LIMITS} />
-              )}
+              {(id) => <Select id={id} value={limit} onChange={setLimit} options={LIMITS} />}
             </Field>
             <Field label="How long it lasts">
               {(id) => <Select id={id} value={life} onChange={setLife} options={LIVES} />}
@@ -229,7 +279,7 @@ export function InvitationsPage() {
         onOpenChange={(open) => {
           if (!open) {
             setIssued(null);
-            setCopied(false);
+            setCopied(null);
           }
         }}
         title="The link"
@@ -238,17 +288,36 @@ export function InvitationsPage() {
         <div className="space-y-3">
           <Input readOnly value={issued ?? ''} onFocus={(event) => event.target.select()} />
           <div className="flex justify-end">
-            <Button
-              variant="primary"
-              onClick={() => {
-                void navigator.clipboard.writeText(issued ?? '');
-                setCopied(true);
-              }}
-            >
+            <Button variant="primary" onClick={() => copy(issued ?? '')}>
               <Copy className="size-3.5" />
-              {copied ? 'Copied' : 'Copy link'}
+              {copied === issued ? 'Copied' : 'Copy link'}
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title="Delete this invitation?"
+        description={
+          deleting !== null && deleting.accounts.length > 0
+            ? `${plural(deleting.accounts.length, 'account')} came in through it and will stop saying how they got here. Withdrawing it instead stops it working and keeps that.`
+            : 'It will stop working and be forgotten. Withdrawing it instead keeps the record.'
+        }
+      >
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setDeleting(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              if (deleting !== null) void act(admin.deleteInvite(deleting.id));
+            }}
+          >
+            Delete
+          </Button>
         </div>
       </Modal>
     </div>

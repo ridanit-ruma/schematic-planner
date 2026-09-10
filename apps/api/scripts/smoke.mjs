@@ -815,6 +815,8 @@ async function main() {
   }
   const noIssuing = await call('/admin/invites', { method: 'POST', token, body: { label: 'nice try' } });
   check('nor issue itself a way in', noIssuing.status === 403, `status ${noIssuing.status}`);
+  const noDeleting = await call('/admin/invites/whatever', { method: 'DELETE', token });
+  check('nor forget one', noDeleting.status === 403, `status ${noDeleting.status}`);
 
   // Standing in the instance is reported by the account itself, so the screen
   // can be hidden from people the door would turn away anyway.

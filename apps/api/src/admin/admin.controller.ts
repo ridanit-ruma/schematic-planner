@@ -37,9 +37,16 @@ export class AdminController {
     return this.admin.createInvite(user.id, body);
   }
 
-  @Delete('invites/:id')
-  revokeInvite(@Param('id') id: string) {
+  /** Stops it working and keeps the record of who it let in. */
+  @Post('invites/:id/withdraw')
+  withdrawInvite(@Param('id') id: string) {
     return this.admin.revokeInvite(id);
+  }
+
+  /** Forgets it. A second, deliberate act, the way deleting a plan is. */
+  @Delete('invites/:id')
+  deleteInvite(@Param('id') id: string) {
+    return this.admin.deleteInvite(id);
   }
 
   @Get('accounts')

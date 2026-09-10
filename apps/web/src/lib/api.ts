@@ -448,13 +448,15 @@ export interface Usage {
 /** The instance rather than a workspace. Every one of these is owner-only. */
 export const admin = {
   usage: () => api<Usage>('/admin/usage'),
-  invites: () => api<{ standingCode: boolean; invites: InviteSummary[] }>('/admin/invites'),
+  invites: () => api<{ code: string | null; invites: InviteSummary[] }>('/admin/invites'),
   createInvite: (input: { label: string; maxUses: number | null; expiresInDays: number | null }) =>
     api<{ id: string; token: string; prefix: string }>('/admin/invites', {
       method: 'POST',
       ...json(input),
     }),
-  revokeInvite: (id: string) => api<{ ok: true }>(`/admin/invites/${id}`, { method: 'DELETE' }),
+  withdrawInvite: (id: string) =>
+    api<{ ok: true }>(`/admin/invites/${id}/withdraw`, { method: 'POST', ...json({}) }),
+  deleteInvite: (id: string) => api<{ ok: true }>(`/admin/invites/${id}`, { method: 'DELETE' }),
   accounts: () => api<AccountSummary[]>('/admin/accounts'),
   updateAccount: (id: string, input: { instanceRole?: InstanceRole; suspended?: boolean }) =>
     api<{ ok: true }>(`/admin/accounts/${id}`, { method: 'PATCH', ...json(input) }),
