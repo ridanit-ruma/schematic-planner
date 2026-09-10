@@ -7,7 +7,14 @@ export interface AuthUser {
   email: string;
   name: string;
   avatarUrl: string | null;
+  /**
+   * Standing in the instance, which is not standing in a workspace. Absent from
+   * the answers that sign you in, present on the one that says who you are.
+   */
+  instanceRole?: InstanceRole;
 }
+
+export type InstanceRole = 'OWNER' | 'MEMBER';
 
 export type Role = 'OWNER' | 'ADMIN' | 'EDITOR' | 'VIEWER';
 
@@ -380,6 +387,77 @@ export const trash = {
     api<{ ok: true }>(`/trash/${kind}s/${id}/restore`, { method: 'POST' }),
   purge: (kind: 'plan' | 'project', id: string) =>
     api<{ ok: true }>(`/trash/${kind}s/${id}`, { method: 'DELETE' }),
+};
+
+export interface InviteSummary {
+  id: string;
+  label: string;
+  prefix: string;
+  maxUses: number | null;
+  uses: number;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  createdBy: string;
+  state: 'live' | 'used up' | 'expired' | 'withdrawn';
+  accounts: { id: string; name: string; email: string; createdAt: string }[];
+}
+
+export interface AccountSummary {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  instanceRole: InstanceRole;
+  suspendedAt: string | null;
+  createdAt: string;
+  invitedVia: { id: string; label: string } | null;
+  workspaces: number;
+  plans: number;
+  keys: number;
+  sessions: number;
+  lastChangeAt: string | null;
+}
+
+export interface Usage {
+  accounts: { total: number; suspended: number; joinedRecently: number; activeRecently: number };
+  content: {
+    workspaces: number;
+    projects: number;
+    plans: number;
+    trashedPlans: number;
+    nodes: number;
+    edges: number;
+    largestPlan: number;
+  };
+  activity: {
+    changes: number;
+    changesRecently: number;
+    byAgents: number;
+    trend: { day: string; people: number; agents: number }[];
+  };
+  agents: { keys: number; liveKeys: number; recent: { name: string; by: string; lastUsedAt: string | null }[] };
+  reach: { sessions: number; shares: number; liveInvites: number };
+  live: { documents: number; connections: number };
+  storage: { databaseBytes: number };
+  busiest: { name: string; slug: string; plans: number; changes: number }[];
+  days: number;
+  recentDays: number;
+}
+
+/** The instance rather than a workspace. Every one of these is owner-only. */
+export const admin = {
+  usage: () => api<Usage>('/admin/usage'),
+  invites: () => api<{ standingCode: boolean; invites: InviteSummary[] }>('/admin/invites'),
+  createInvite: (input: { label: string; maxUses: number | null; expiresInDays: number | null }) =>
+    api<{ id: string; token: string; prefix: string }>('/admin/invites', {
+      method: 'POST',
+      ...json(input),
+    }),
+  revokeInvite: (id: string) => api<{ ok: true }>(`/admin/invites/${id}`, { method: 'DELETE' }),
+  accounts: () => api<AccountSummary[]>('/admin/accounts'),
+  updateAccount: (id: string, input: { instanceRole?: InstanceRole; suspended?: boolean }) =>
+    api<{ ok: true }>(`/admin/accounts/${id}`, { method: 'PATCH', ...json(input) }),
 };
 
 /**

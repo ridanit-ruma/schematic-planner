@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, Reflector } from '@nestjs/core';
 import { ThrottlerModule, type ThrottlerModuleOptions } from '@nestjs/throttler';
 
+import { AdminModule } from './admin/admin.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { JwtAuthGuard } from './auth/jwt.guard.js';
 import { PlanOpExceptionFilter } from './common/plan-op.filter.js';
@@ -53,6 +54,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module.js';
     PlansModule,
     TrashModule,
     McpModule,
+    AdminModule,
     HealthModule,
   ],
   providers: [

@@ -804,6 +804,42 @@ async function main() {
   a.provider.destroy();
   b.provider.destroy();
 
+  section('the instance');
+  // Everything here is owner-only, and this account is not the owner -- it is
+  // whatever the check just made. That it is refused is the check.
+  const forbidden = await call('/admin/usage', { token });
+  check('an ordinary account cannot see the instance', forbidden.status === 403, `status ${forbidden.status}`);
+  for (const path of ['/admin/invites', '/admin/accounts']) {
+    const shut = await call(path, { token });
+    check(`nor ${path}`, shut.status === 403, `status ${shut.status}`);
+  }
+  const noIssuing = await call('/admin/invites', { method: 'POST', token, body: { label: 'nice try' } });
+  check('nor issue itself a way in', noIssuing.status === 403, `status ${noIssuing.status}`);
+
+  // Standing in the instance is reported by the account itself, so the screen
+  // can be hidden from people the door would turn away anyway.
+  const whoami = await call('/auth/me', { token });
+  check(
+    'an account knows its standing in the instance',
+    whoami.body?.user?.instanceRole === 'MEMBER',
+    String(whoami.body?.user?.instanceRole),
+  );
+
+  const uninvited = await call('/auth/register', {
+    method: 'POST',
+    body: {
+      email: `smoke-nolink-${Date.now()}@example.invalid`,
+      name: 'No link',
+      password: 'correct-horse-battery',
+      inviteCode: 'not-an-invitation',
+    },
+  });
+  check(
+    'a made-up invitation is refused',
+    uninvited.status === 403,
+    uninvited.body?.message ?? `status ${uninvited.status}`,
+  );
+
   section('clearing up after itself');
   // A check that leaves two accounts and their workspaces behind every run turns
   // whatever instance it is pointed at into a junk drawer — and the accounts it

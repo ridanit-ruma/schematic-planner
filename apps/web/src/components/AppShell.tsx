@@ -4,6 +4,7 @@ import {
   ChevronsUpDown,
   Clock,
   FolderKanban,
+  Gauge,
   KeyRound,
   LogOut,
   Plus,
@@ -167,6 +168,14 @@ function AccountRow() {
           <KeyRound className="size-3.5 text-ink-faint" />
           Agent keys
         </DropdownAction>
+        {/* Only whoever owns the instance has anywhere to go here, and only
+            they are allowed through the door at the other end. */}
+        {user?.instanceRole !== 'OWNER' ? null : (
+          <DropdownAction onSelect={() => void navigate('/admin')}>
+            <Gauge className="size-3.5 text-ink-faint" />
+            Instance
+          </DropdownAction>
+        )}
         <DropdownSeparator />
         <DropdownAction tone="danger" onSelect={() => void signOut()}>
           <LogOut className="size-3.5" />

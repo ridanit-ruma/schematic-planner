@@ -106,9 +106,12 @@ export class AuthController {
     return { ok: true };
   }
 
+  // Read rather than taken from the token: standing in the instance can be
+  // withdrawn, and a token issued fifteen minutes ago should not still say
+  // otherwise.
   @Get('me')
-  me(@CurrentUser() user: AuthUser): { user: AuthUser } {
-    return { user };
+  me(@CurrentUser() user: AuthUser) {
+    return this.auth.me(user.id);
   }
 
   @Patch('me')
@@ -182,13 +185,15 @@ export class AuthController {
   /** Which sign-in methods this instance actually has configured. */
   @Public()
   @Get('providers')
-  providers() {
+  async providers() {
     return {
       password: true,
       registration: this.config.allowRegistration,
-      // So the sign-up form can ask for the code rather than letting somebody
-      // fill in a whole form and then be turned away.
-      inviteCode: this.config.registrationCode !== '',
+      // So the sign-up form can ask for it rather than letting somebody fill in
+      // a whole form and then be turned away. Once this instance has an account
+      // the only way in is an invitation, whatever the configuration says --
+      // the code in it is for claiming an empty instance, and nothing else.
+      inviteCode: await this.auth.invitationOnly(),
       github: this.config.oauth.github !== null,
       google: this.config.oauth.google !== null,
     };

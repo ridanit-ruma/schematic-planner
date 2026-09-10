@@ -48,13 +48,12 @@ export class AuthService {
     if (!this.config.allowRegistration) {
       throw new ForbiddenException('Registration is closed on this instance');
     }
-    // A shared code rather than per-person invitations: it closes an instance to
-    // the open internet without needing email, which is not built. Compared in
-    // constant time, because it is a secret people type.
-    const required = this.config.registrationCode;
-    if (required !== '' && !tokensMatch(input.inviteCode ?? '', required)) {
-      throw new ForbiddenException('That invite code is not right');
-    }
+
+    // The first account owns the instance. Somebody has to be able to administer
+    // it, and the alternative is a flag set by hand in the database before
+    // anyone can look at anything.
+    const first = (await this.prisma.user.count()) === 0;
+    const invite = await this.admitted(input.inviteCode ?? '', first);
 
     const email = input.email.toLowerCase();
     const existing = await this.prisma.user.findUnique({ where: { email } });
@@ -64,6 +63,8 @@ export class AuthService {
       data: {
         email,
         name: input.name,
+        instanceRole: first ? 'OWNER' : 'MEMBER',
+        invitedViaId: invite?.id ?? null,
         passwordHash: await argon2.hash(input.password),
         // Everyone gets a workspace immediately: a plan has to live somewhere,
         // and asking a new user to create one first is a step with no decision
@@ -86,7 +87,76 @@ export class AuthService {
       },
     });
 
+    // Counted after the account exists, so a link cannot be spent by an attempt
+    // that then failed on a duplicate email.
+    if (invite !== null) {
+      await this.prisma.signupInvite.update({
+        where: { id: invite.id },
+        data: { uses: { increment: 1 } },
+      });
+    }
+
     return this.issue({ id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl }, userAgent);
+  }
+
+  /**
+   * Whether this instance will take another account, and on whose invitation.
+   *
+   * Two ways in, for two different askers. A link is issued to a person: it is
+   * limited, revocable, and recorded against whoever came in through it, which
+   * is what a shared string can never be. The code in the configuration is the
+   * operator's own — it claims an empty instance, and it lets automated checks
+   * make throwaway accounts. It is unset by default, and while it is set anyone
+   * who has it can sign up, which the invitations screen says out loud.
+   */
+  private async admitted(
+    presented: string,
+    first: boolean,
+  ): Promise<{ id: string } | null> {
+    if (presented !== '') {
+      const invite = await this.prisma.signupInvite.findUnique({
+        where: { tokenHash: hashToken(presented) },
+      });
+      if (invite !== null) {
+        if (invite.revokedAt !== null) throw new ForbiddenException('That invitation was withdrawn');
+        if (invite.expiresAt !== null && invite.expiresAt.getTime() < Date.now()) {
+          throw new ForbiddenException('That invitation has expired');
+        }
+        if (invite.maxUses !== null && invite.uses >= invite.maxUses) {
+          throw new ForbiddenException('That invitation has been used up');
+        }
+        return { id: invite.id };
+      }
+    }
+
+    const code = this.config.registrationCode;
+    if (code !== '' && tokensMatch(presented, code)) return null;
+    // An instance nobody has claimed yet has to let its first account in
+    // somehow, and with no code set that is simply the first person to ask.
+    if (first && code === '') return null;
+
+    throw new ForbiddenException(
+      presented === '' ? 'Sign-up here is by invitation' : 'That invitation is not valid',
+    );
+  }
+
+  /**
+   * Whether somebody arriving now needs an invitation.
+   *
+   * Everybody does, once there is anybody: the code in the configuration is how
+   * an empty instance gets claimed, not a standing way in.
+   */
+  async invitationOnly(): Promise<boolean> {
+    return (await this.prisma.user.count()) > 0 || this.config.registrationCode !== '';
+  }
+
+  /** Who this is, as the database has it now. */
+  async me(id: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id },
+      select: { id: true, email: true, name: true, avatarUrl: true, instanceRole: true },
+    });
+    return { user };
   }
 
   async login(input: LoginInput, userAgent?: string): Promise<AuthResult> {
@@ -99,6 +169,11 @@ export class AuthService {
 
     if (user === null || user.passwordHash === null || !valid) {
       throw new UnauthorizedException('Incorrect email or password');
+    }
+    // Checked after the password, so a suspended account is not a way to learn
+    // which addresses are registered.
+    if (user.suspendedAt !== null) {
+      throw new UnauthorizedException('This account has been suspended');
     }
 
     return this.issue({ id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl }, userAgent);

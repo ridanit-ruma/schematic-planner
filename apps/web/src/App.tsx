@@ -6,6 +6,10 @@ import { Spinner } from '@/components/ui/feedback';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAuth } from '@/lib/auth-store';
 import { AccountSettingsPage } from '@/features/account/AccountSettingsPage';
+import { AdminLayout } from '@/features/admin/AdminLayout';
+import { InvitationsPage } from '@/features/admin/InvitationsPage';
+import { PeoplePage } from '@/features/admin/PeoplePage';
+import { UsagePage } from '@/features/admin/UsagePage';
 import { SettingsLayout } from '@/features/account/SettingsLayout';
 import { AuthPage } from '@/features/auth/AuthPage';
 import { PlanPage } from '@/features/plan/PlanPage';
@@ -29,6 +33,8 @@ import { WorkspaceLayout, WorkspacesProvider } from '@/features/workspaces/works
  *   /login  /register
  *   /settings                            your account
  *   /settings/agents                     the keys your agents hold
+ *   /admin  /admin/invitations  /admin/people
+ *                                        the instance, for whoever owns it
  *   /workspace/:slug                     projects
  *   /workspace/:slug/project/:slug       plans in a project
  *   /workspace/:slug/project/:slug/settings
@@ -86,6 +92,14 @@ export function App() {
             <Route path="agents" element={<AgentsPage />} />
           </Route>
           <Route path="/invite/:token" element={<InvitePage />} />
+
+          {/* Owner only, and the API says so too — a route that is merely not
+              linked to is not a route that is closed. */}
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<UsagePage />} />
+            <Route path="invitations" element={<InvitationsPage />} />
+            <Route path="people" element={<PeoplePage />} />
+          </Route>
 
           <Route path="/workspace/:workspaceSlug" element={<WorkspaceLayout />}>
             <Route index element={<ProjectIndexPage />} />

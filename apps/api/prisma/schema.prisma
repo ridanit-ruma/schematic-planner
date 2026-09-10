@@ -9,14 +9,29 @@ datasource db {
   provider = "postgresql"
 }
 
+/// Standing in the instance itself, as distinct from standing in a workspace.
+/// Almost everyone is a MEMBER: they own the workspaces they make and nothing
+/// else. An OWNER can administer the instance -- who is on it, and who may join.
+enum InstanceRole {
+  OWNER
+  MEMBER
+}
+
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String       @id @default(cuid())
+  email        String       @unique
   name         String
   passwordHash String?
   avatarUrl    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  /// The first account made owns the instance. Somebody has to, and the
+  /// alternative is a flag set by hand in the database before anyone can look
+  /// at anything.
+  instanceRole InstanceRole @default(MEMBER)
+  /// Set when the account may not sign in. Suspended rather than deleted, so
+  /// what it drew stays attributed to somebody.
+  suspendedAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   identities  OAuthIdentity[]
   memberships Membership[]
@@ -26,6 +41,13 @@ model User {
   invitesSent Invite[]        @relation("InviteCreator")
   plansTrashed    Plan[]    @relation("PlanTrasher")
   projectsTrashed Project[] @relation("ProjectTrasher")
+
+  signupsInvited SignupInvite[] @relation("SignupInviteCreator")
+  /// Which link this account came in through, when it came in through one.
+  invitedVia     SignupInvite?  @relation("SignupInviteUsed", fields: [invitedViaId], references: [id], onDelete: SetNull)
+  invitedViaId   String?
+
+  @@index([invitedViaId])
 }
 
 model OAuthIdentity {
@@ -183,6 +205,36 @@ model PlanChange {
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([planId, createdAt])
+}
+
+/// A way onto this instance, issued rather than shared.
+///
+/// What it replaces is one code everybody types: it cannot be given to one
+/// person, cannot be taken back from them, and leaves no record of who used it.
+/// This has a name on it, a limit, an expiry and an issuer, and the accounts
+/// that came in through it point back at it.
+///
+/// Only the hash is stored, the way a session token is. A link that is lost is
+/// gone -- issue another.
+model SignupInvite {
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique
+  /// The first characters of the token, so a list can say which link is which.
+  prefix      String
+  /// What it is for, in the issuer's own words. "For the design review", "Jae".
+  label       String    @default("")
+  /// How many accounts it may still make. Null is no limit.
+  maxUses     Int?
+  uses        Int       @default(0)
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+
+  createdBy User   @relation("SignupInviteCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  accounts  User[] @relation("SignupInviteUsed")
+
+  @@index([createdById])
 }
 
 model PlanShare {

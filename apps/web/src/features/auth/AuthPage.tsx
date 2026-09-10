@@ -32,7 +32,11 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
+  // An invitation arrives as a link, so the field is usually already filled in
+  // and there is nothing to type. It stays visible and editable: a link that
+  // was pasted wrong should be fixable here rather than mysteriously refused.
+  const fromLink = new URLSearchParams(location.search).get('invite') ?? '';
+  const [inviteCode, setInviteCode] = useState(fromLink);
   const [codeRequired, setCodeRequired] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -134,8 +138,15 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
             )}
           </Field>
 
-          {mode === 'sign-up' && codeRequired ? (
-            <Field label="Invite code" hint="This instance is not open to sign up yet.">
+          {mode === 'sign-up' && (codeRequired || fromLink !== '') ? (
+            <Field
+              label="Invitation"
+              hint={
+                fromLink === ''
+                  ? 'Sign-up here is by invitation. Ask whoever runs this instance for a link.'
+                  : 'From the link you followed.'
+              }
+            >
               {(id) => (
                 <Input
                   id={id}
