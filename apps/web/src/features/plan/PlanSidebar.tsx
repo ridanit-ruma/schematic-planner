@@ -164,6 +164,20 @@ export function PlanSidebar({ planId }: { planId: string }) {
     });
   };
 
+  /**
+   * Throwing away the plan on screen has to take you off it as well, or the
+   * canvas carries on showing a document the rest of the product has stopped
+   * listing — and the next write to it fails with nothing to explain why.
+   */
+  const trashPlan = (id: string): void => {
+    void act(async () => {
+      await plans.remove(id);
+      if (id !== planId) return;
+      const workspace = nav?.workspace.slug;
+      navigate(workspace === undefined ? '/recent' : `/workspace/${workspace}`);
+    });
+  };
+
   const movePlan = (plan: string, to: Drop): void => {
     void act(() => plans.move(plan, to.project, to.folder));
   };
@@ -315,7 +329,7 @@ export function PlanSidebar({ planId }: { planId: string }) {
                   workspaceSlug={nav.workspace.slug}
                   onTrashProject={(id) => void act(() => projects.remove(id))}
                   onTrashFolder={(id) => void act(() => folders.remove(id))}
-                  onTrashPlan={(id) => void act(() => plans.remove(id))}
+                  onTrashPlan={trashPlan}
                   onShare={share}
                   onExport={exportPlan}
                 />
