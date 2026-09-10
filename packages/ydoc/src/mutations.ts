@@ -32,30 +32,44 @@ export interface NodeSize {
 }
 
 /**
- * Forgets where layout put the writing on every line touching these nodes.
+ * Carries the writing on a line along with the ends that moved.
  *
- * A label's stored point is absolute, and true only for where its line was when
- * the plan was last laid out. Move one end by hand and that point is a place on
- * the canvas belonging to nothing — so moving a node withdraws layout's opinion
- * about the lines it touches, and those notes go back to riding the middle of
- * their own line until somebody arranges the plan again.
+ * A label's stored point is absolute, chosen by the layout run that placed the
+ * nodes — the only thing that knows what else is nearby, which is why it is
+ * worth keeping. Move one end by hand and the line goes without it.
  *
- * Only the lines that moved: every other note keeps the placement that stops it
- * landing on its neighbour.
+ * Moving one end moves the middle of a line by half as far, and moving both
+ * moves it by the whole, so that is what the note is shifted by. It keeps the
+ * separation layout worked out while staying on its own line; dropping the
+ * point instead and letting every note fall to its midpoint put three of them
+ * on top of each other.
  */
-export function releaseLabels(doc: Y.Doc, slugs: Iterable<string>, origin: unknown): void {
-  const touched = new Set(slugs);
+export function nudgeLabels(
+  doc: Y.Doc,
+  moved: ReadonlyMap<string, Position>,
+  origin: unknown,
+): void {
+  if (moved.size === 0) return;
   const edges = edgesMap(doc);
+  const shift = (slug: unknown): Position =>
+    (typeof slug === 'string' ? moved.get(slug) : undefined) ?? { x: 0, y: 0 };
+
   Y.transact(
     doc,
     () => {
       for (const [, edge] of edges) {
-        if (edge.get('labelPosition') === null || edge.get('labelPosition') === undefined) continue;
-        const from = edge.get('from');
-        const to = edge.get('to');
-        if (typeof from !== 'string' || typeof to !== 'string') continue;
-        if (!touched.has(from) && !touched.has(to)) continue;
-        edge.set('labelPosition', null);
+        const at = edge.get('labelPosition');
+        if (at === null || at === undefined) continue;
+        const from = shift(edge.get('from'));
+        const to = shift(edge.get('to'));
+        const dx = (from.x + to.x) / 2;
+        const dy = (from.y + to.y) / 2;
+        if (dx === 0 && dy === 0) continue;
+        const point = at as Position;
+        edge.set('labelPosition', {
+          x: Math.round(point.x + dx),
+          y: Math.round(point.y + dy),
+        });
       }
     },
     origin,

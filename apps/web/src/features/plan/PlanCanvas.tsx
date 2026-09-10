@@ -9,7 +9,7 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import { normalizeEdge, planEdgeInputSchema, type PlanOp, type Position } from '@schematic/schema';
-import { ORIGIN_LOCAL, commitLayout, commitNodePosition, releaseLabels } from '@schematic/ydoc';
+import { ORIGIN_LOCAL, commitLayout, commitNodePosition, nudgeLabels } from '@schematic/ydoc';
 import { Plus, Redo2, Trash2, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useStore } from 'zustand';
@@ -199,11 +199,6 @@ export function PlanCanvas({
 
       commitNodePosition(doc, node.id, drop.position, ORIGIN_LOCAL);
 
-      // Layout's opinion about where the writing on these lines goes was true
-      // for where they used to run. Withdrawn here, so those notes ride the
-      // middle of their own line from now on.
-      releaseLabels(doc, [node.id, ...descendantsOf(node.id, parentOf)], ORIGIN_LOCAL);
-
       // Dragging a group moves everything inside it, so their stored absolute
       // coordinates move with it. Without this the picture and the plan would
       // disagree the moment anybody else opened it.
@@ -214,6 +209,14 @@ export function PlanCanvas({
           const at = absolute[slug];
           if (at !== undefined) moved.set(slug, { x: at.x + shift.x, y: at.y + shift.y });
         }
+      }
+
+      // The writing on every line these ends carry goes with them, or it is
+      // left standing where the line used to run.
+      if (shift.x !== 0 || shift.y !== 0) {
+        const carried = new Map<string, Position>([[node.id, shift]]);
+        for (const slug of descendantsOf(node.id, parentOf)) carried.set(slug, shift);
+        nudgeLabels(doc, carried, ORIGIN_LOCAL);
       }
       const grown =
         drop.grow === null || drop.parent === null
