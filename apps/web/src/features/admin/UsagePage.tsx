@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Problem, Spinner } from '@/components/ui/feedback';
 import { admin, type Usage } from '@/lib/api';
 import { useLiveList } from '@/lib/use-live-list';
-import { cn, formatWhen } from '@/lib/utils';
+import { cn, formatWhen, plural } from '@/lib/utils';
 
 /**
  * What this instance is, in numbers it already knows.
@@ -62,8 +62,8 @@ export function UsagePage() {
               ['Plans', `${content.plans}`, content.trashedPlans > 0 ? `${content.trashedPlans} in the trash` : ''],
               ['Nodes', `${content.nodes}`, content.plans > 0 ? `${Math.round(content.nodes / content.plans)} a plan on average` : ''],
               ['Connections', `${content.edges}`, ''],
-              ['Largest plan', `${content.largestPlan} nodes`, ''],
-              ['Workspaces', `${content.workspaces}`, `${content.projects} projects`],
+              ['Largest plan', plural(content.largestPlan, 'node'), ''],
+              ['Workspaces', `${content.workspaces}`, plural(content.projects, 'project')],
             ]}
           />
         </Panel>
@@ -71,7 +71,7 @@ export function UsagePage() {
         <Panel title="Agents">
           <Rows
             rows={[
-              ['Keys', `${agents.liveKeys}`, agents.keys > agents.liveKeys ? `${agents.keys - agents.liveKeys} revoked` : ''],
+              ['Keys in use', `${agents.liveKeys}`, agents.keys > agents.liveKeys ? `${agents.keys - agents.liveKeys} revoked` : ''],
               [
                 'Changes by agents',
                 `${activity.byAgents}`,
@@ -107,8 +107,8 @@ export function UsagePage() {
           <Rows
             rows={busiest.map((workspace) => [
               workspace.name,
-              `${workspace.changes} changes`,
-              `${workspace.plans} plans`,
+              plural(workspace.changes, 'change'),
+              plural(workspace.plans, 'plan'),
             ])}
           />
         </Panel>
@@ -131,7 +131,7 @@ function Trend({ usage }: { usage: Usage }) {
   return (
     <Panel
       title={`Changes over ${usage.days} days`}
-      aside={`${usage.activity.changesRecently} in the last ${usage.recentDays}`}
+      aside={`${usage.activity.changesRecently} in the last ${plural(usage.recentDays, 'day')}`}
     >
       <div className="flex items-end gap-1" style={{ height: 96 }}>
         {days.map((day) => {

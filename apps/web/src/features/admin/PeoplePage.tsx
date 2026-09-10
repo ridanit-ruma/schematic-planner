@@ -11,7 +11,7 @@ import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { admin, type AccountSummary } from '@/lib/api';
 import { useLiveList } from '@/lib/use-live-list';
 import { useAuth } from '@/lib/auth-store';
-import { formatWhen } from '@/lib/utils';
+import { formatWhen, plural } from '@/lib/utils';
 
 /**
  * Everyone with an account here, what they hold, and when they were last seen
@@ -102,8 +102,8 @@ export function PeoplePage() {
                 </span>
               </TD>
               <TD className="text-xs text-ink-muted" hide="md">
-                {account.workspaces} workspaces · {account.plans} plans
-                {account.keys > 0 ? ` · ${account.keys} keys` : ''}
+                {plural(account.workspaces, 'workspace')} · {plural(account.plans, 'plan')}
+                {account.keys > 0 ? ` · ${plural(account.keys, 'key')}` : ''}
               </TD>
               <TD className="text-xs text-ink-muted" hide="sm">
                 {formatWhen(account.createdAt)}
