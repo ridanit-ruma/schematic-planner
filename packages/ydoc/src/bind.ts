@@ -2,6 +2,7 @@ import * as Y from 'yjs';
 import {
   applyPlanOps,
   sanitizePlanDoc,
+  type PlanComment,
   type PlanDoc,
   type PlanEdge,
   type PlanNode,
@@ -9,7 +10,16 @@ import {
   type SanitizeResult,
 } from '@schematic/schema';
 
-import { EDGES_KEY, META_KEY, NODES_KEY, ORIGIN_AGENT, type YEdge, type YNode } from './keys.js';
+import {
+  COMMENTS_KEY,
+  EDGES_KEY,
+  META_KEY,
+  NODES_KEY,
+  ORIGIN_AGENT,
+  type YComment,
+  type YEdge,
+  type YNode,
+} from './keys.js';
 
 export function metaMap(doc: Y.Doc): Y.Map<unknown> {
   return doc.getMap<unknown>(META_KEY);
@@ -28,17 +38,26 @@ export function edgesMap(doc: Y.Doc): Y.Map<YEdge> {
   return doc.getMap<YEdge>(EDGES_KEY);
 }
 
-export function isEmpty(doc: Y.Doc): boolean {
-  return nodesMap(doc).size === 0 && edgesMap(doc).size === 0 && metaMap(doc).size === 0;
+export function commentsMap(doc: Y.Doc): Y.Map<YComment> {
+  return doc.getMap<YComment>(COMMENTS_KEY);
 }
 
-function readBody(node: YNode): string {
+export function isEmpty(doc: Y.Doc): boolean {
+  return (
+    nodesMap(doc).size === 0 &&
+    edgesMap(doc).size === 0 &&
+    commentsMap(doc).size === 0 &&
+    metaMap(doc).size === 0
+  );
+}
+
+function readBody(node: YNode | YComment): string {
   const body = node.get('body');
   if (body instanceof Y.Text) return body.toString();
   return typeof body === 'string' ? body : '';
 }
 
-function setBody(node: YNode, value: string): void {
+function setBody(node: YNode | YComment, value: string): void {
   const body = node.get('body');
   if (body instanceof Y.Text) {
     // Replace in place so the Y.Text identity, and therefore any cursor another
@@ -80,6 +99,18 @@ function readEdge(edge: YEdge): unknown {
   };
 }
 
+function readComment(comment: YComment): unknown {
+  return {
+    id: comment.get('id'),
+    body: readBody(comment),
+    author: comment.get('author') ?? '',
+    at: comment.get('at') ?? '',
+    position: comment.get('position') ?? null,
+    anchor: comment.get('anchor') ?? null,
+    resolved: comment.get('resolved') ?? false,
+  };
+}
+
 /**
  * Project the collaborative document into the validated read model. Repair, not
  * rejection: see `sanitizePlanDoc` for why a live CRDT can hold states no client
@@ -96,6 +127,7 @@ export function readPlanDoc(doc: Y.Doc, options: { updatedAt?: string } = {}): S
     ...(options.updatedAt !== undefined && { updatedAt: options.updatedAt }),
     nodes: [...nodesMap(doc).values()].map(readNode),
     edges: [...edgesMap(doc).values()].map(readEdge),
+    comments: [...commentsMap(doc).values()].map(readComment),
   });
 }
 
@@ -122,6 +154,16 @@ function writeEdge(target: YEdge, edge: PlanEdge): void {
   target.set('labelPosition', edge.labelPosition);
 }
 
+function writeComment(target: YComment, comment: PlanComment): void {
+  target.set('id', comment.id);
+  target.set('author', comment.author);
+  target.set('at', comment.at);
+  target.set('position', comment.position);
+  target.set('anchor', comment.anchor);
+  target.set('resolved', comment.resolved);
+  setBody(target, comment.body);
+}
+
 /** Write a whole plan into an empty document. Used when a plan is first opened. */
 export function initializePlan(doc: Y.Doc, plan: PlanDoc, origin: unknown = ORIGIN_AGENT): void {
   Y.transact(
@@ -135,8 +177,10 @@ export function initializePlan(doc: Y.Doc, plan: PlanDoc, origin: unknown = ORIG
 
       const nodes = nodesMap(doc);
       const edges = edgesMap(doc);
+      const comments = commentsMap(doc);
       nodes.clear();
       edges.clear();
+      comments.clear();
 
       for (const node of plan.nodes) {
         const target = new Y.Map<unknown>();
@@ -147,6 +191,11 @@ export function initializePlan(doc: Y.Doc, plan: PlanDoc, origin: unknown = ORIG
         const target = new Y.Map<unknown>();
         edges.set(edge.id, target);
         writeEdge(target, edge);
+      }
+      for (const comment of plan.comments) {
+        const target = new Y.Map<unknown>();
+        comments.set(comment.id, target);
+        writeComment(target, comment);
       }
     },
     origin,
@@ -167,6 +216,7 @@ export function applyOps(doc: Y.Doc, ops: readonly PlanOp[], origin: unknown = O
   const next = applyPlanOps(current, ops);
   const byslug = new Map(next.nodes.map((node) => [node.slug, node]));
   const byId = new Map(next.edges.map((edge) => [edge.id, edge]));
+  const byComment = new Map(next.comments.map((comment) => [comment.id, comment]));
 
   Y.transact(
     doc,
@@ -174,6 +224,7 @@ export function applyOps(doc: Y.Doc, ops: readonly PlanOp[], origin: unknown = O
       const meta = metaMap(doc);
       const nodes = nodesMap(doc);
       const edges = edgesMap(doc);
+      const comments = commentsMap(doc);
 
       for (const op of ops) {
         switch (op.op) {
@@ -201,6 +252,21 @@ export function applyOps(doc: Y.Doc, ops: readonly PlanOp[], origin: unknown = O
             // the derived edge id and whether the edge survived.
             break;
           }
+          case 'upsert_comment': {
+            const resolved = byComment.get(op.comment.id);
+            if (resolved === undefined) break;
+            let target = comments.get(op.comment.id);
+            if (target === undefined) {
+              target = new Y.Map<unknown>();
+              comments.set(op.comment.id, target);
+            }
+            writeComment(target, resolved);
+            break;
+          }
+          case 'delete_comment': {
+            comments.delete(op.id);
+            break;
+          }
           case 'set_plan': {
             if (op.title !== undefined) meta.set('title', op.title);
             if (op.description !== undefined) meta.set('description', op.description);
@@ -226,6 +292,17 @@ export function applyOps(doc: Y.Doc, ops: readonly PlanOp[], origin: unknown = O
 
       for (const [slug] of nodes) {
         if (!byslug.has(slug)) nodes.delete(slug);
+      }
+
+      // Deleting a node unanchors whatever was said about it, which the
+      // projected result already worked out.
+      for (const [id, comment] of comments) {
+        const resolved = byComment.get(id);
+        if (resolved === undefined) {
+          comments.delete(id);
+          continue;
+        }
+        if (comment.get('anchor') !== resolved.anchor) comment.set('anchor', resolved.anchor);
       }
 
       meta.set('id', next.id);

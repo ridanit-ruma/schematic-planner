@@ -1,7 +1,9 @@
 import {
   PLAN_DOC_VERSION,
+  planCommentSchema,
   planEdgeSchema,
   planNodeSchema,
+  type PlanComment,
   type PlanDoc,
   type PlanEdge,
   type PlanNode,
@@ -20,6 +22,7 @@ export interface SanitizeInput {
   updatedAt?: string;
   nodes: readonly unknown[];
   edges: readonly unknown[];
+  comments?: readonly unknown[];
 }
 
 /**
@@ -84,6 +87,29 @@ export function sanitizePlanDoc(input: SanitizeInput): SanitizeResult {
     edges.set(edge.id, edge);
   }
 
+  const comments = new Map<string, PlanComment>();
+  for (const raw of input.comments ?? []) {
+    const parsed = planCommentSchema.safeParse(raw);
+    if (!parsed.success) {
+      dropped.push(`comment discarded: ${parsed.error.issues[0]?.message ?? 'invalid'}`);
+      continue;
+    }
+    const comment = parsed.data;
+    if (comments.has(comment.id)) {
+      dropped.push(`duplicate comment "${comment.id}" discarded`);
+      continue;
+    }
+    // The node it was about is gone. The note is not: it is kept, floating,
+    // because deleting somebody's question along with the box they asked it
+    // about is how an objection disappears without being answered.
+    comments.set(
+      comment.id,
+      comment.anchor !== null && !nodes.has(comment.anchor)
+        ? { ...comment, anchor: null }
+        : comment,
+    );
+  }
+
   const doc: PlanDoc = {
     version: PLAN_DOC_VERSION,
     id: input.id,
@@ -91,6 +117,7 @@ export function sanitizePlanDoc(input: SanitizeInput): SanitizeResult {
     description: typeof input.description === 'string' ? input.description : '',
     nodes: [...nodes.values()],
     edges: [...edges.values()],
+    comments: [...comments.values()],
     updatedAt: input.updatedAt ?? new Date(0).toISOString(),
   };
 

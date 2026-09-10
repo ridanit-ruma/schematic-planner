@@ -152,18 +152,62 @@ export function edgeNote(edge: Pick<PlanEdge, 'kind' | 'label' | 'via' | 'carrie
   return [edge.via, edge.carries].filter((part) => part !== null && part !== '').join(': ');
 }
 
+/**
+ * A note left on the drawing rather than part of it.
+ *
+ * A node says what the system is; a comment says what somebody thinks about it —
+ * a question, an objection, a reminder. Keeping the two apart is what lets the
+ * export stay a description of the system: a note never becomes a file of its
+ * own, and travels instead inside the note it is about.
+ *
+ * It is identified the way a node is, by a readable slug the author chooses, so
+ * an agent leaving the same note twice leaves one note. `anchor` is the node it
+ * is about, when it is about one; `position` is always where it is drawn.
+ */
+export const planCommentSchema = z.object({
+  id: slugSchema,
+  body: z.string().max(10_000).default(''),
+  /** Who wrote it, as a display name. An agent writes under its owner's name. */
+  author: z.string().max(120).default(''),
+  /** ISO 8601. Set by whoever creates the comment. */
+  at: z.string().max(40).default(''),
+  position: positionSchema.nullable().default(null),
+  /** The node this is about, or null for a note on the canvas itself. */
+  anchor: slugSchema.nullable().default(null),
+  /**
+   * Dealt with. A resolved comment stays in the document rather than being
+   * deleted: what was asked and that it was settled is worth as much as the
+   * answer, and the canvas puts it away rather than showing it.
+   */
+  resolved: z.boolean().default(false),
+});
+export type PlanComment = z.infer<typeof planCommentSchema>;
+
+/** Every field but `id` is optional: an upsert merges into whatever is there. */
+export const planCommentPatchSchema = z.object({
+  id: slugSchema,
+  body: z.string().max(10_000).optional(),
+  author: z.string().max(120).optional(),
+  at: z.string().max(40).optional(),
+  position: positionSchema.nullable().optional(),
+  anchor: slugSchema.nullable().optional(),
+  resolved: z.boolean().optional(),
+});
+export type PlanCommentPatch = z.infer<typeof planCommentPatchSchema>;
+
 const planBodySchema = z.object({
   version: z.literal(PLAN_DOC_VERSION).default(PLAN_DOC_VERSION),
   title: z.string().min(1).max(200),
   description: z.string().max(2000).default(''),
   nodes: z.array(planNodeSchema).max(5000).default([]),
   edges: z.array(planEdgeSchema).max(20_000).default([]),
+  comments: z.array(planCommentSchema).max(2000).default([]),
 });
 
 /** Referential integrity. Structural cycles are reported here; dependency cycles
  * are not, because export breaks those deterministically rather than rejecting. */
 function checkIntegrity(
-  doc: { nodes: PlanNode[]; edges: PlanEdge[] },
+  doc: { nodes: PlanNode[]; edges: PlanEdge[]; comments: PlanComment[] },
   ctx: z.RefinementCtx,
 ): void {
   const slugs = new Set<string>();
@@ -216,6 +260,25 @@ function checkIntegrity(
     parentOf.set(edge.to, edge.from);
   });
 
+  const ids = new Set<string>();
+  doc.comments.forEach((comment, index) => {
+    if (ids.has(comment.id)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `duplicate comment id "${comment.id}"`,
+        path: ['comments', index, 'id'],
+      });
+    }
+    ids.add(comment.id);
+    if (comment.anchor !== null && !slugs.has(comment.anchor)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `comment "${comment.id}" is anchored to unknown node "${comment.anchor}"`,
+        path: ['comments', index, 'anchor'],
+      });
+    }
+  });
+
   for (const start of parentOf.keys()) {
     const seen = new Set<string>([start]);
     let cursor = parentOf.get(start);
@@ -244,7 +307,7 @@ export type PlanDoc = z.infer<typeof planDocSchema>;
 
 /** What an agent submits to `create_plan`: structure without server-owned fields. */
 export const planSpecSchema = planBodySchema
-  .omit({ edges: true })
+  .omit({ edges: true, comments: true })
   .extend({ edges: z.array(planEdgeInputSchema).max(20_000).default([]) });
 export type PlanSpec = z.infer<typeof planSpecSchema>;
 export type PlanSpecInput = z.input<typeof planSpecSchema>;
@@ -257,6 +320,7 @@ export function emptyPlanDoc(id: string, title: string): PlanDoc {
     description: '',
     nodes: [],
     edges: [],
+    comments: [],
     updatedAt: new Date(0).toISOString(),
   };
 }

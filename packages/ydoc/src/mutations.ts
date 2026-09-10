@@ -1,7 +1,7 @@
 import * as Y from 'yjs';
 import type { Position } from '@schematic/schema';
 
-import { edgesMap, nodesMap } from './bind.js';
+import { commentsMap, edgesMap, nodesMap } from './bind.js';
 import { ORIGIN_LOCAL } from './keys.js';
 
 /**
@@ -24,6 +24,31 @@ export function commitNodePosition(
     },
     origin,
   );
+}
+
+/**
+ * Where a note sits, after somebody has moved it. Same reasoning as a node's
+ * position: the drag itself is ephemeral and only the resting place is written.
+ */
+export function commitCommentPosition(
+  doc: Y.Doc,
+  id: string,
+  position: Position,
+  origin: unknown = ORIGIN_LOCAL,
+): void {
+  const comment = commentsMap(doc).get(id);
+  if (comment === undefined) return;
+  Y.transact(
+    doc,
+    () => comment.set('position', { x: Math.round(position.x), y: Math.round(position.y) }),
+    origin,
+  );
+}
+
+/** The shared text of one note, so two people can type into it at once. */
+export function commentBodyText(doc: Y.Doc, id: string): Y.Text | undefined {
+  const body = commentsMap(doc).get(id)?.get('body');
+  return body instanceof Y.Text ? body : undefined;
 }
 
 export interface NodeSize {

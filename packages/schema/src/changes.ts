@@ -1,4 +1,4 @@
-import type { PlanDoc, PlanEdge, PlanNode } from './plan.js';
+import type { PlanComment, PlanDoc, PlanEdge, PlanNode } from './plan.js';
 
 export const planChangeKinds = [
   'plan.title',
@@ -13,6 +13,11 @@ export const planChangeKinds = [
   'node.tags',
   'edge.added',
   'edge.removed',
+  'note.added',
+  'note.removed',
+  'note.edited',
+  'note.resolved',
+  'note.reopened',
 ] as const;
 
 export type PlanChangeKind = (typeof planChangeKinds)[number];
@@ -80,6 +85,50 @@ export function diffPlans(before: PlanDoc, after: PlanDoc): PlanChangeEntry[] {
     }
   }
 
+  const notesWere = new Map(before.comments.map((comment) => [comment.id, comment]));
+  const notesAre = new Map(after.comments.map((comment) => [comment.id, comment]));
+
+  for (const comment of after.comments) {
+    const previous = notesWere.get(comment.id);
+    if (previous === undefined) {
+      entries.push({
+        kind: 'note.added',
+        subject: comment.id,
+        label: noteLabel(comment, is),
+        detail: null,
+      });
+      continue;
+    }
+    if (previous.resolved !== comment.resolved) {
+      entries.push({
+        kind: comment.resolved ? 'note.resolved' : 'note.reopened',
+        subject: comment.id,
+        label: noteLabel(comment, is),
+        detail: null,
+      });
+    }
+    // Opening a note and typing the first sentence into it are one act to the
+    // person doing it, so an empty note gaining its words is not a second entry.
+    if (previous.body !== comment.body && previous.body !== '') {
+      entries.push({
+        kind: 'note.edited',
+        subject: comment.id,
+        label: noteLabel(comment, is),
+        detail: null,
+      });
+    }
+  }
+  for (const comment of before.comments) {
+    if (!notesAre.has(comment.id)) {
+      entries.push({
+        kind: 'note.removed',
+        subject: comment.id,
+        label: noteLabel(comment, was),
+        detail: null,
+      });
+    }
+  }
+
   const moved = after.nodes.filter((node) => {
     const previous = was.get(node.slug);
     return previous !== undefined && !samePosition(previous, node);
@@ -118,6 +167,12 @@ function nodeChanges(before: PlanNode, after: PlanNode): PlanChangeEntry[] {
 function edgeLabel(edge: PlanEdge, nodes: ReadonlyMap<string, PlanNode>): string {
   const name = (slug: string): string => nodes.get(slug)?.title ?? slug;
   return `${name(edge.from)} → ${name(edge.to)}`;
+}
+
+/** A note is named by what it is about, because its id is not a sentence. */
+function noteLabel(comment: PlanComment, nodes: ReadonlyMap<string, PlanNode>): string {
+  if (comment.anchor === null) return comment.id;
+  return nodes.get(comment.anchor)?.title ?? comment.anchor;
 }
 
 function samePosition(before: PlanNode, after: PlanNode): boolean {

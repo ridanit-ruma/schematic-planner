@@ -3,9 +3,11 @@ import type * as Y from 'yjs';
 export const META_KEY = 'meta';
 export const NODES_KEY = 'nodes';
 export const EDGES_KEY = 'edges';
+export const COMMENTS_KEY = 'comments';
 
 export type YNode = Y.Map<unknown>;
 export type YEdge = Y.Map<unknown>;
+export type YComment = Y.Map<unknown>;
 
 /**
  * Transaction origins. Yjs hands the origin to every observer, which is how a

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   edgeId,
+  planCommentPatchSchema,
   planDocSchema,
   planEdgeKinds,
   planEdgeInputSchema,
@@ -11,6 +12,8 @@ import {
   sizeSchema,
   slugSchema,
   normalizeEdge,
+  type PlanComment,
+  type PlanCommentPatch,
   type PlanDoc,
   type PlanEdge,
   type PlanNode,
@@ -44,6 +47,8 @@ export const planOpSchema = z.discriminatedUnion('op', [
     /** Needed to name one of several flows between the same pair of nodes. */
     via: z.string().max(200).nullable().optional(),
   }),
+  z.object({ op: z.literal('upsert_comment'), comment: planCommentPatchSchema }),
+  z.object({ op: z.literal('delete_comment'), id: slugSchema }),
   z.object({
     op: z.literal('set_plan'),
     title: z.string().min(1).max(200).optional(),
@@ -92,6 +97,30 @@ function mergeNode(node: PlanNode, patch: PlanNodePatch): PlanNode {
   };
 }
 
+function newComment(patch: PlanCommentPatch): PlanComment {
+  return {
+    id: patch.id,
+    body: patch.body ?? '',
+    author: patch.author ?? '',
+    at: patch.at ?? new Date().toISOString(),
+    position: patch.position ?? null,
+    anchor: patch.anchor ?? null,
+    resolved: patch.resolved ?? false,
+  };
+}
+
+function mergeComment(comment: PlanComment, patch: PlanCommentPatch): PlanComment {
+  return {
+    ...comment,
+    ...(patch.body !== undefined && { body: patch.body }),
+    ...(patch.author !== undefined && { author: patch.author }),
+    ...(patch.at !== undefined && { at: patch.at }),
+    ...(patch.position !== undefined && { position: patch.position }),
+    ...(patch.anchor !== undefined && { anchor: patch.anchor }),
+    ...(patch.resolved !== undefined && { resolved: patch.resolved }),
+  };
+}
+
 function resolveEdgeId(op: Extract<PlanOp, { op: 'delete_edge' }>): string {
   if (op.id !== undefined) return op.id;
   if (op.from === undefined || op.to === undefined) {
@@ -109,6 +138,7 @@ function resolveEdgeId(op: Extract<PlanOp, { op: 'delete_edge' }>): string {
 export function applyPlanOps(doc: PlanDoc, ops: readonly PlanOp[]): PlanDoc {
   const nodes = new Map(doc.nodes.map((node) => [node.slug, node]));
   const edges = new Map(doc.edges.map((edge) => [edge.id, edge]));
+  const comments = new Map(doc.comments.map((comment) => [comment.id, comment]));
   let { title, description } = doc;
 
   for (const op of ops) {
@@ -126,6 +156,10 @@ export function applyPlanOps(doc: PlanDoc, ops: readonly PlanOp[]): PlanDoc {
         for (const [id, edge] of edges) {
           if (edge.from === op.slug || edge.to === op.slug) edges.delete(id);
         }
+        // A note about the node outlives it, unanchored. See `sanitizePlanDoc`.
+        for (const [id, comment] of comments) {
+          if (comment.anchor === op.slug) comments.set(id, { ...comment, anchor: null });
+        }
         break;
       }
       case 'upsert_edge': {
@@ -135,6 +169,18 @@ export function applyPlanOps(doc: PlanDoc, ops: readonly PlanOp[]): PlanDoc {
       }
       case 'delete_edge': {
         edges.delete(resolveEdgeId(op));
+        break;
+      }
+      case 'upsert_comment': {
+        const existing = comments.get(op.comment.id);
+        comments.set(
+          op.comment.id,
+          existing === undefined ? newComment(op.comment) : mergeComment(existing, op.comment),
+        );
+        break;
+      }
+      case 'delete_comment': {
+        comments.delete(op.id);
         break;
       }
       case 'set_plan': {
@@ -151,6 +197,7 @@ export function applyPlanOps(doc: PlanDoc, ops: readonly PlanOp[]): PlanDoc {
     description,
     nodes: [...nodes.values()],
     edges: [...edges.values()],
+    comments: [...comments.values()],
   };
 
   const parsed = planDocSchema.safeParse(next);

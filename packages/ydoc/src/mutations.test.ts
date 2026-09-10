@@ -2,8 +2,14 @@ import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
 import { planDocSchema } from '@schematic/schema';
 
-import { initializePlan, readPlanDoc } from './bind.js';
-import { commitLayout, commitNodePosition, nodeBodyText } from './mutations.js';
+import { applyOps, initializePlan, readPlanDoc } from './bind.js';
+import {
+  commentBodyText,
+  commitCommentPosition,
+  commitLayout,
+  commitNodePosition,
+  nodeBodyText,
+} from './mutations.js';
 import { presenceColor } from './presence.js';
 
 function doc() {
@@ -84,5 +90,56 @@ describe('presenceColor', () => {
     expect(presenceColor('user-1')).toBe(presenceColor('user-1'));
     const colors = new Set(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map(presenceColor));
     expect(colors.size).toBeGreaterThan(1);
+  });
+});
+
+function plan(): Y.Doc {
+  const ydoc = new Y.Doc();
+  initializePlan(
+    ydoc,
+    planDocSchema.parse({
+      id: 'plan-1',
+      title: 'Plan',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [{ slug: 'api', title: 'API' }],
+    }),
+  );
+  return ydoc;
+}
+
+describe('notes in the shared document', () => {
+  it('survives the round trip through the CRDT', () => {
+    const doc = plan();
+    applyOps(doc, [
+      {
+        op: 'upsert_comment',
+        comment: { id: 'why-here', body: 'Why Postgres?', anchor: 'api', author: 'Ruma' },
+      },
+    ]);
+
+    const [note] = readPlanDoc(doc).doc.comments;
+    expect(note?.body).toBe('Why Postgres?');
+    expect(note?.anchor).toBe('api');
+    expect(note?.author).toBe('Ruma');
+  });
+
+  /* Two people typing into the same note merge, which is only true while the
+     body stays one Y.Text rather than being replaced on each write. */
+  it('keeps the body as shared text across a rewrite', () => {
+    const doc = plan();
+    applyOps(doc, [{ op: 'upsert_comment', comment: { id: 'n', body: 'first' } }]);
+    const text = commentBodyText(doc, 'n');
+    applyOps(doc, [{ op: 'upsert_comment', comment: { id: 'n', body: 'second' } }]);
+
+    expect(commentBodyText(doc, 'n')).toBe(text);
+    expect(text?.toString()).toBe('second');
+  });
+
+  it('moves where it is put, and nowhere else', () => {
+    const doc = plan();
+    applyOps(doc, [{ op: 'upsert_comment', comment: { id: 'n', body: 'here' } }]);
+    commitCommentPosition(doc, 'n', { x: 12.4, y: -3.8 });
+
+    expect(readPlanDoc(doc).doc.comments[0]?.position).toEqual({ x: 12, y: -4 });
   });
 });
