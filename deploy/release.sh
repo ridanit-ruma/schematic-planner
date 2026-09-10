@@ -16,11 +16,12 @@
 # that may write to the infrastructure repository are here and should stay here.
 # The node holds a read-only deploy key and nothing else.
 #
-# Every step asks whether it has already been done, so an interrupted run is
-# finished by running it again. That is not a nicety: a release takes minutes of
-# building on the other end of an ssh connection, and this workstation has 3.6GB
-# of memory — the thing watching the build is the first thing something decides
-# to stop.
+# The build is detached on the node and this only watches it, and every step
+# asks whether it has already been done. Both are for the same reason: a release
+# is minutes of building on the far end of an ssh connection, and the machine
+# this runs from has 3.6GB of memory, so the thing watching is the first thing
+# something decides to stop. Watching is cheap to lose. Building is not — hence
+# setsid on the other end, and a rerun that picks up wherever it got to.
 set -euo pipefail
 
 NODE="${NODE:-rumavm}"
@@ -49,24 +50,44 @@ fi
 
 # ---------------------------------------------------------------- build
 
+built() { ssh "$NODE" "$BUILDER image exists schematic-planner.local/$1:$short" 2>/dev/null; }
+building() { [ "$(ssh "$NODE" "pgrep -fc 'release-build $1 $short' || true")" != "0" ]; }
+
 for image in api web; do
-  if [ -z "$FORCE" ] && ssh "$NODE" "$BUILDER image exists schematic-planner.local/$image:$short" 2>/dev/null; then
+  if [ -z "$FORCE" ] && built "$image"; then
     skip "$image:$short is built"
     continue
   fi
-  say "building $image at $short on $NODE"
   case "$image" in
     api) dockerfile='apps/api/Dockerfile' ;;
     web) dockerfile='deploy/Dockerfile.web' ;;
   esac
-  ssh "$NODE" "set -e
-    cd \$HOME/$NODE_REPO
-    git fetch -q origin
-    git checkout -q $sha
-    $BUILDER build -f $dockerfile \
-      --build-arg NEXT_PUBLIC_SITE_URL=$SITE_URL \
-      --build-arg NEXT_PUBLIC_APP_URL= \
-      -t schematic-planner.local/$image:$short ."
+  log="\$HOME/.release-$image-$short.log"
+
+  if building "$image"; then
+    say "$image at $short is already building on $NODE — watching"
+  else
+    say "building $image at $short on $NODE"
+    # setsid, so losing this connection does not lose the build. The marker in
+    # the command line is how a later run finds it again.
+    ssh "$NODE" "cd \$HOME/$NODE_REPO && git fetch -q origin && git checkout -q $sha &&
+      setsid nohup bash -c 'exec -a \"release-build $image $short\" \
+        $BUILDER build -f $dockerfile \
+          --build-arg NEXT_PUBLIC_SITE_URL=$SITE_URL \
+          --build-arg NEXT_PUBLIC_APP_URL= \
+          -t schematic-planner.local/$image:$short .' >$log 2>&1 </dev/null &
+      sleep 1"
+  fi
+
+  while ! built "$image"; do
+    if ! building "$image"; then
+      echo "the build of $image stopped without producing an image; its log is $log on $NODE" >&2
+      ssh "$NODE" "tail -20 $log" >&2 || true
+      exit 1
+    fi
+    sleep 15
+  done
+  echo "   built $image:$short"
 done
 
 # ---------------------------------------------------------------- load
