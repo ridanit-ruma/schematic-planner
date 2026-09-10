@@ -46,6 +46,14 @@ export interface PlanState {
    */
   related: ReadonlySet<string> | null;
   /**
+   * What is being pointed at, which the set above is the answer for.
+   *
+   * Kept because the answer outlives the question otherwise: delete the node
+   * under the pointer and no leave event is ever sent for it, so the rest of
+   * the drawing stays stepped back around a node that is not there any more.
+   */
+  relatedTo: string | null;
+  /**
    * An agent walking this plan right now, or null. Published on the awareness
    * channel by whoever is reading, so it arrives and leaves the way a cursor
    * does and never touches the document.
@@ -117,6 +125,7 @@ export function createPlanStore(doc: Y.Doc) {
     parentOf: {},
     arrivals: new Map<string, number>(),
     related: null,
+    relatedTo: null,
     reading: null,
 
     onNodesChange: (changes) => set({ nodes: applyNodeChanges(changes, get().nodes) }),
@@ -125,7 +134,7 @@ export function createPlanStore(doc: Y.Doc) {
 
     highlight: (id, kind = 'node') => {
       if (id === null) {
-        if (get().related !== null) set({ related: null });
+        if (get().related !== null) set({ related: null, relatedTo: null });
         return;
       }
       const { edges, parentOf } = get();
@@ -156,7 +165,7 @@ export function createPlanStore(doc: Y.Doc) {
           withAncestors(edge.target);
         }
       }
-      set({ related });
+      set({ related, relatedTo: id });
     },
     selectEdge: (selectedEdge) => set({ selectedEdge, selected: null }),
   }));
@@ -315,8 +324,22 @@ export function createPlanStore(doc: Y.Doc) {
       description: plan.description,
       absolute,
       parentOf,
+      // Nobody is pointing at something that is no longer in the plan. Without
+      // this, removing the node under the pointer leaves the whole drawing
+      // dimmed with nothing lit, and the only way out is to point at something
+      // else and then let go.
+      ...(pointingAtSomethingGone(store, plan) ? { related: null, relatedTo: null } : {}),
     });
   };
+
+  function pointingAtSomethingGone(target: typeof store, at: PlanDoc): boolean {
+    const { relatedTo } = target.getState();
+    if (relatedTo === null) return false;
+    return (
+      !at.nodes.some((node) => node.slug === relatedTo) &&
+      !at.edges.some((edge) => edge.id === relatedTo)
+    );
+  }
 
   function get_nodes(): Map<string, PlanFlowNode> {
     return new Map(store.getState().nodes.map((node) => [node.id, node]));

@@ -87,4 +87,27 @@ describe('createPlanStore', () => {
     applyOps(doc, ops([{ op: 'upsert_node', node: { slug: 'late', title: 'Late' } }]));
     expect(bound.store.getState().nodes.map((node) => node.id)).not.toContain('late');
   });
+
+  it('stops pointing at something once it has been removed', () => {
+    const { doc, bound } = seeded();
+    bound.store.getState().highlight('ui');
+    expect(bound.store.getState().related).not.toBeNull();
+
+    // Removing the node under the pointer sends no leave event for it, so
+    // without the document being consulted the rest of the drawing would stay
+    // stepped back around a node that is not there any more.
+    applyOps(doc, ops([{ op: 'delete_node', slug: 'ui' }]), 'test');
+
+    expect(bound.store.getState().related).toBeNull();
+    expect(bound.store.getState().relatedTo).toBeNull();
+  });
+
+  it('keeps pointing at something that is still there', () => {
+    const { doc, bound } = seeded();
+    bound.store.getState().highlight('auth');
+    applyOps(doc, ops([{ op: 'delete_node', slug: 'ui' }]), 'test');
+
+    expect(bound.store.getState().relatedTo).toBe('auth');
+    expect(bound.store.getState().related?.has('auth')).toBe(true);
+  });
 });

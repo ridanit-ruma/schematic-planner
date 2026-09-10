@@ -305,7 +305,10 @@ export function PlanCanvas({
   return (
     <PlanStoreProvider store={store}>
     <ContextMenu menu={menu}>
-    <div className="relative h-full w-full">
+    {/* The pointer can leave the canvas without leaving anything on it —
+        straight off the edge of the window, or onto a panel — and then no node
+        ever hears that it was let go of. */}
+    <div className="relative h-full w-full" onPointerLeave={() => highlight(null)}>
       <EdgeMarkers />
       <ReadingBanner store={store} />
       <ReactFlow
