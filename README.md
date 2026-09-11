@@ -179,6 +179,14 @@ and emptying the trash is the only thing that deletes in bulk. Destroying a
 folder for good is the one case that destroys nothing else: its plans fall back
 to the project's top level rather than going with it.
 
+An invitation to a workspace can be listed and withdrawn — `GET` and `DELETE` on
+`workspaces/:id/invites`, both ADMIN. Only the ones that would still let
+somebody in are listed, following the instance's own invitation screen: a list
+of links that no longer work is a list nobody can act on. Withdrawing removes
+the row, because a single-use link that was taken back before it was used has
+nothing left to say. An invitation may not carry a role above the one its issuer
+holds.
+
 A share link outlives the trash, because the trash is reversible and a fresh
 token would not be the link people have already pasted around. That makes the
 trash the only screen the link can be turned off from — every other route to
@@ -243,8 +251,9 @@ at once.
 | `layout(id, { scope })`         | Re-run layout over everything that is not pinned                                                                                                                                                                                  |
 | `export_plan(id)`               | Markdown tree plus `.canvas`. The download link it returns opens with the same key, because the content is what `get_plan` already hands over |
 
-Authentication is a hosted Remote MCP endpoint: the user copies a URL and a Bearer key
-from their settings page into any MCP client. Nothing to install, nothing to keep
+Authentication is a hosted Remote MCP endpoint: the settings page hands over the whole
+client configuration as JSON, ready to paste — including `type: "http"`, without which a
+client has no way to know the URL is a remote server rather than a command to run. Nothing to install, nothing to keep
 updated, and a self-hosted instance simply hands out its own URL.
 
 **A key belongs to a person, not a workspace.** Someone who works across several
