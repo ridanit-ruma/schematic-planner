@@ -7,7 +7,7 @@ import {
 } from '@schematic/ydoc';
 import { ViewportPortal, useReactFlow, useStore as useFlowStore } from '@xyflow/react';
 import { Check, RotateCcw, Trash2 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import type * as Y from 'yjs';
 
@@ -18,6 +18,8 @@ import { useYText } from './use-y-text';
 
 /** Wide enough for a sentence, narrow enough not to cover what it is about. */
 const WIDTH = 216;
+/** How far clear of the drawing an unplaced note sits. */
+const ABOVE = 150;
 
 /**
  * Notes left on the drawing: what somebody thinks about it, beside it.
@@ -48,6 +50,7 @@ export function PlanComments({
   const selected = useStore(store, (state) => state.selectedComment);
   const absolute = useStore(store, (state) => state.absolute);
   const showing = comments.filter((comment) => showResolved || !comment.resolved);
+  const placed = usePlacements(showing, absolute);
   if (showing.length === 0) return null;
 
   return (
@@ -56,6 +59,7 @@ export function PlanComments({
         <Note
           key={comment.id}
           comment={comment}
+          at={comment.position ?? placed[comment.id] ?? { x: 0, y: 0 }}
           doc={doc}
           readOnly={readOnly}
           open={comment.id === selected}
@@ -67,8 +71,49 @@ export function PlanComments({
   );
 }
 
+/**
+ * Where a note goes when nobody has said.
+ *
+ * `null` means unplaced, the same as it does on a node — but layout must never
+ * move a note, so nothing on the server ever fills this in. An agent leaving one
+ * over MCP has no coordinates to give and should not have any, which left every
+ * such note stacked on the origin, underneath whatever card happened to be
+ * there.
+ *
+ * So the drawing decides, from the same document every client has: a note about
+ * a node sits above it, clear of the row the flow runs along, and one about the
+ * plan as a whole goes under the drawing in the order it was left. Dragging it
+ * writes a real position and this stops applying to it.
+ */
+function usePlacements(
+  comments: readonly PlanComment[],
+  absolute: Record<string, Position>,
+): Record<string, Position> {
+  return useMemo(() => {
+    const placed: Record<string, Position> = {};
+    let below = 0;
+
+    const corners = Object.values(absolute);
+    const left = corners.length === 0 ? 0 : Math.min(...corners.map((at) => at.x));
+    const bottom = corners.length === 0 ? 0 : Math.max(...corners.map((at) => at.y));
+
+    for (const comment of comments) {
+      if (comment.position !== null) continue;
+      const anchor = comment.anchor === null ? undefined : absolute[comment.anchor];
+      if (anchor !== undefined) {
+        placed[comment.id] = { x: anchor.x, y: anchor.y - ABOVE };
+        continue;
+      }
+      placed[comment.id] = { x: left + below * (WIDTH + 24), y: bottom + ABOVE };
+      below += 1;
+    }
+    return placed;
+  }, [comments, absolute]);
+}
+
 function Note({
   comment,
+  at: fallback,
   doc,
   readOnly,
   open,
@@ -76,6 +121,8 @@ function Note({
   onSelect,
 }: {
   comment: PlanComment;
+  /** Where to draw it, which is its own position unless it has none. */
+  at: Position;
   doc: Y.Doc;
   readOnly: boolean;
   open: boolean;
@@ -90,7 +137,7 @@ function Note({
   const [held, setHeld] = useState<Position | null>(null);
   const grab = useRef<{ pointer: Position; from: Position } | null>(null);
 
-  const at = held ?? comment.position ?? { x: 0, y: 0 };
+  const at = held ?? comment.position ?? fallback;
 
   const onPointerDown = (event: React.PointerEvent): void => {
     if (readOnly || event.button !== 0) return;
@@ -98,7 +145,9 @@ function Note({
     event.stopPropagation();
     grab.current = {
       pointer: screenToFlowPosition({ x: event.clientX, y: event.clientY }),
-      from: comment.position ?? { x: 0, y: 0 },
+      // From where it is drawn, not from the origin: picking up a note that has
+      // never been placed must not teleport it first.
+      from: at,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -164,7 +213,10 @@ function Note({
             ? 'border-rule opacity-60'
             : 'border-collab/45 shadow-[0_0_0_1px_rgb(139_92_246/0.12)]',
         )}
-        style={{ transform: `translate(${at.x}px, ${at.y}px)`, width: WIDTH }}
+        // Above every node: React Flow stacks nodes by containment depth in
+        // small numbers, and a note behind the card it is about is a note
+        // nobody can read or reach.
+        style={{ transform: `translate(${at.x}px, ${at.y}px)`, width: WIDTH, zIndex: 1000 }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

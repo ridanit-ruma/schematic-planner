@@ -97,6 +97,7 @@ export function TitleBlock({
         <Tooltip content="Go to the next open note">
           <button
             type="button"
+            aria-label="Go to the next open note"
             onClick={onNextNote}
             className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-collab transition-colors hover:bg-surface-2"
           >
