@@ -193,22 +193,67 @@ export function AgentsPage() {
       >
         <CopyRow value={issued?.key ?? ''} />
         <p className="mt-4 text-xs font-medium text-ink-muted">Configuration for an MCP client</p>
-        <pre className="mt-2 overflow-x-auto rounded-md border border-rule bg-surface-2 p-3 text-2xs leading-relaxed text-ink">
-          {JSON.stringify(
-            {
-              mcpServers: {
-                'schematic-planner': {
-                  url: MCP_URL,
-                  headers: { Authorization: `Bearer ${issued?.key ?? ''}` },
-                },
-              },
-            },
-            null,
-            2,
-          )}
-        </pre>
+        <p className="mt-1 text-xs text-ink-faint">
+          Paste it into the client's MCP settings. Copying this is the whole of the setup — there
+          is nothing to install.
+        </p>
+        <CopyBlock value={mcpConfig(issued?.key ?? '')} className="mt-2" />
       </Modal>
     </>
+  );
+}
+
+/**
+ * What an MCP client needs, in the shape one actually accepts.
+ *
+ * `type` matters and was missing: a client reading this to reach a remote
+ * server over HTTP has no other way to know that is what it is, so the snippet
+ * read correctly and did not work when it was pasted.
+ */
+function mcpConfig(key: string): string {
+  return JSON.stringify(
+    {
+      mcpServers: {
+        'schematic-planner': {
+          type: 'http',
+          url: MCP_URL,
+          headers: { Authorization: `Bearer ${key}` },
+        },
+      },
+    },
+    null,
+    2,
+  );
+}
+
+/**
+ * A block that can be taken whole. `CopyRow` is for one line and truncates;
+ * this is for something meant to be read and then copied, which is most of what
+ * the snippet is for.
+ */
+function CopyBlock({ value, className }: { value: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <div className={`relative ${className ?? ''}`}>
+      <pre className="overflow-x-auto rounded-md border border-rule bg-surface-2 p-3 pr-12 text-2xs leading-relaxed text-ink">
+        {value}
+      </pre>
+      <Button
+        size="icon"
+        variant="quiet"
+        aria-label="Copy configuration"
+        className="absolute top-1.5 right-1.5"
+        onClick={() => {
+          void navigator.clipboard.writeText(value).then(() => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1500);
+          });
+        }}
+      >
+        {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+      </Button>
+    </div>
   );
 }
 
