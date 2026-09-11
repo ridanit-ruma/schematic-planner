@@ -1,5 +1,5 @@
 import matter from 'gray-matter';
-import type { PlanComment, PlanEdge, PlanGraph, PlanNode } from '@schematic/schema';
+import { RESERVED_META_KEYS, type PlanComment, type PlanEdge, type PlanGraph, type PlanNode } from '@schematic/schema';
 
 /**
  * Frontmatter carries everything needed to rebuild the graph, so an exported
@@ -53,13 +53,23 @@ export function nodeToMarkdown(
   if (dependsOn.length > 0) data['depends_on'] = dependsOn;
   if (contains.length > 0) data['contains'] = contains;
   if (related.length > 0) data['related'] = related;
+  // Frontmatter this product does not own, written back where it was found.
+  // Guarded rather than trusted: the schema refuses a reserved key, and a
+  // document repaired out of a live CRDT is not always what the schema saw.
+  for (const [key, value] of Object.entries(node.meta)) {
+    if (RESERVED_META_KEYS.has(key)) continue;
+    data[key] = value;
+  }
   if (node.pinned && node.position !== null) {
     data['pinned'] = true;
     data['position'] = { x: node.position.x, y: node.position.y };
   }
 
   const body = node.body.trim();
-  const sections = [`# ${node.title}`];
+  // The filename is the title now, and Obsidian shows it above the note. An H1
+  // saying the same thing is the title twice. A container is the exception: its
+  // file is the README of a folder, which does not say what it holds.
+  const sections = contains.length > 0 ? [`# ${node.title}`] : [];
   if (body !== '') sections.push(body);
 
   // Frontmatter slugs are how a machine rebuilds the graph; these are how a
@@ -73,7 +83,8 @@ export function nodeToMarkdown(
   const said = notesSection(node.slug, comments);
   if (said !== null) sections.push(said);
 
-  return matter.stringify(`\n${sections.join('\n\n')}\n`, data);
+  const content = sections.length === 0 ? '\n' : `\n${sections.join('\n\n')}\n`;
+  return matter.stringify(content, data);
 }
 
 /** `[[path/to/file|Title]]`: a full path, because container notes are all README. */

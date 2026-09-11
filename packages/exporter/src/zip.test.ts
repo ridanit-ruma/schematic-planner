@@ -15,17 +15,17 @@ describe('exportPlanToZip', () => {
       .sort();
 
     expect(paths).toEqual([
-      '01-foundation/01-database.md',
-      '01-foundation/02-auth.md',
-      '01-foundation/README.md',
-      '02-editor/01-canvas.md',
-      '02-editor/README.md',
+      '01-Foundation/01-Database.md',
+      '01-Foundation/02-Auth.md',
+      '01-Foundation/README.md',
+      '02-Editor/Canvas.md',
+      '02-Editor/README.md',
       'README.md',
       'plan.canvas',
       'plan.json',
     ]);
 
-    const auth = await zip.file('01-foundation/02-auth.md')?.async('string');
+    const auth = await zip.file('01-Foundation/02-Auth.md')?.async('string');
     expect(auth).toContain('title: Auth');
   });
 

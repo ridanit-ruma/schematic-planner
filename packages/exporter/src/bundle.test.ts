@@ -12,11 +12,11 @@ describe('exportPlan', () => {
   it('folds containment into directories and dependency order into filenames', () => {
     expect(pathsOf()).toEqual([
       'README.md',
-      '01-foundation/README.md',
-      '01-foundation/01-database.md',
-      '01-foundation/02-auth.md',
-      '02-editor/README.md',
-      '02-editor/01-canvas.md',
+      '01-Foundation/README.md',
+      '01-Foundation/01-Database.md',
+      '01-Foundation/02-Auth.md',
+      '02-Editor/README.md',
+      '02-Editor/Canvas.md',
       'plan.canvas',
       'plan.json',
     ]);
@@ -25,34 +25,34 @@ describe('exportPlan', () => {
   it('writes a nested table of contents in the overview', () => {
     const readme = fileAt('README.md');
     expect(readme).toContain('# Schematic Planner');
-    expect(readme).toContain('- [Foundation](01-foundation/README.md)');
-    expect(readme).toContain('  - [Database](01-foundation/01-database.md) — `done`');
+    expect(readme).toContain('- [Foundation](01-Foundation/README.md)');
+    expect(readme).toContain('  - [Database](01-Foundation/01-Database.md) — `done`');
   });
 
   it('lists contents in export order, not alphabetically', () => {
     const readme = fileAt('README.md');
-    expect(readme.indexOf('01-database.md')).toBeLessThan(readme.indexOf('02-auth.md'));
-    expect(readme.indexOf('01-foundation/README.md')).toBeLessThan(
-      readme.indexOf('02-editor/README.md'),
+    expect(readme.indexOf('01-Database.md')).toBeLessThan(readme.indexOf('02-Auth.md'));
+    expect(readme.indexOf('01-Foundation/README.md')).toBeLessThan(
+      readme.indexOf('02-Editor/README.md'),
     );
   });
 
   it('carries the graph in frontmatter so the bundle is self-describing', () => {
-    const auth = fileAt('01-foundation/02-auth.md');
+    const auth = fileAt('01-Foundation/02-Auth.md');
     expect(auth).toContain('slug: auth');
     expect(auth).toContain('status: in_progress');
     expect(auth).toContain('depends_on:\n  - database');
-    expect(auth).toContain('# Auth');
+    expect(auth).toContain('title: Auth');
     expect(auth).toContain('Email and password first.');
 
-    const foundation = fileAt('01-foundation/README.md');
+    const foundation = fileAt('01-Foundation/README.md');
     expect(foundation).toContain('contains:');
     expect(foundation).toContain('  - auth');
   });
 
   it('writes position only for pinned nodes', () => {
-    expect(fileAt('02-editor/01-canvas.md')).toContain('pinned: true');
-    expect(fileAt('01-foundation/01-database.md')).not.toContain('position');
+    expect(fileAt('02-Editor/Canvas.md')).toContain('pinned: true');
+    expect(fileAt('01-Foundation/01-Database.md')).not.toContain('position');
   });
 
   it('is deterministic', () => {
@@ -98,8 +98,11 @@ describe('exportPlan', () => {
     expect(bundle.warnings[0]).toContain('dependency cycle between a, b');
     expect(bundle.files.map((f) => f.path)).toEqual([
       'README.md',
-      '01-a.md',
-      '02-b.md',
+      // Numbered even though the order had to be invented: a cycle is still a
+      // dependency between these two, and the prefix is how the export says
+      // which one it settled on.
+      '01-A.md',
+      '02-B.md',
       'plan.canvas',
       'plan.json',
     ]);

@@ -18,7 +18,7 @@ describe('toCanvas', () => {
     expect(canvas.nodes).toHaveLength(5);
     expect(canvas.nodes.find((n) => n.id === 'auth')).toMatchObject({
       type: 'file',
-      file: '01-foundation/02-auth.md',
+      file: '01-Foundation/02-Auth.md',
       color: '3',
     });
   });
