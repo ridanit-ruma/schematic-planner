@@ -283,6 +283,27 @@ plan-export.zip
 └── plan.json              machine-readable source of the same content
 ```
 
+### A share link is the one address that unfurls into its plan
+
+An unfurl is rendered for everybody in the channel somebody pasted the link
+into, so the application's card is the same everywhere and says nothing about
+what is behind it — a plan's title there would hand it to people who cannot open
+the plan. A share link is the one address where that runs the other way: it is a
+capability given out on purpose, and whoever holds it can already read the whole
+plan, so naming it gives away nothing the link does not.
+
+The proxy sends a known link unfurler asking about `/share/*` to
+`share/:token/preview`, which renders a small card, and sends everybody else to
+the application. Social unfurlers only, deliberately not search crawlers: a
+capability URL is not something to hand to an index, and the card carries the
+plan's name.
+
+That card is the one place in the product where a plan's own text reaches a
+browser as markup rather than as text a framework escapes, which is why
+`sharePreviewHtml` is a pure function with its own tests and escapes all five
+characters — an apostrophe included, because an attribute may be quoted either
+way and a reader should not have to check which.
+
 **A node cannot take a name the bundle has already written.** The overview is
 `README.md`, every container owns the `README.md` of its own directory, and the
 root also holds `plan.canvas` and `plan.json`. A zip keeps the last entry written

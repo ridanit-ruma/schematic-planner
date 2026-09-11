@@ -1,14 +1,27 @@
-import { Body, Controller, Delete, Get, Param, Post, Patch, Query, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Inject,
+  Param,
+  Post,
+  Patch,
+  Query,
+  Res,
+} from '@nestjs/common';
 import { exportFileName } from '@schematic/exporter';
 import type { Response } from 'express';
 
 import type { AuthUser } from '../auth/auth.types.js';
 import { AgentReadable } from '../auth/agent-readable.decorator.js';
+import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { Public } from '../auth/public.decorator.js';
 import { StrictRateLimit } from '../common/throttle.js';
 import { ZodPipe } from '../common/zod.pipe.js';
 import { PlansService } from './plans.service.js';
+import { sharePreviewHtml } from './share-preview.js';
 import {
   applyOpsSchema,
   createPlanSchema,
@@ -26,7 +39,10 @@ import {
 
 @Controller()
 export class PlansController {
-  constructor(private readonly plans: PlansService) {}
+  constructor(
+    private readonly plans: PlansService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
+  ) {}
 
   @Get('projects/:projectId/plans')
   list(@CurrentUser() user: AuthUser, @Param('projectId') projectId: string) {
@@ -148,6 +164,30 @@ export class PlansController {
   @Get('share/:token')
   readShared(@Param('token') token: string) {
     return this.plans.readShared(token);
+  }
+
+  /**
+   * The card a link unfurler is shown. The proxy sends one here and sends a
+   * person to the application, so this is never what a reader sees.
+   */
+  @Public()
+  @StrictRateLimit()
+  @Get('share/:token/preview')
+  async preview(@Param('token') token: string, @Res() response: Response): Promise<void> {
+    const doc = await this.plans.readShared(token);
+    response.setHeader('Content-Type', 'text/html; charset=utf-8');
+    // The token is a capability. Caching this anywhere shared would hand the
+    // plan's name to whoever asks the cache next.
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.end(
+      sharePreviewHtml({
+        title: doc.title,
+        description: doc.description,
+        nodeCount: doc.nodes.length,
+        url: `${this.config.appPublicUrl}/share/${encodeURIComponent(token)}`,
+        image: `${this.config.appPublicUrl}/assets/og.png`,
+      }),
+    );
   }
 
   @Public()

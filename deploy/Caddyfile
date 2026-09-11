@@ -34,6 +34,37 @@
 		file_server
 	}
 
+	# A link unfurler asking about a share link gets a card naming the plan; a
+	# person gets the application, which is what the rewrite below never touches.
+	#
+	# Only a share link. A link to anything else in the application must not say
+	# what is behind it — an unfurl is rendered for everybody in the channel it
+	# was pasted into, and most of them cannot open the plan. A share link is the
+	# one address where that runs the other way: it is a capability handed out on
+	# purpose, and whoever holds it can already read the whole plan.
+	#
+	# Social unfurlers only, deliberately not search crawlers: the card carries
+	# the plan's name, and a capability URL is not something to hand to an index.
+	@unfurl {
+		path /share/*
+		header User-Agent *facebookexternalhit*
+		header User-Agent *Twitterbot*
+		header User-Agent *Slackbot*
+		header User-Agent *Discordbot*
+		header User-Agent *WhatsApp*
+		header User-Agent *TelegramBot*
+		header User-Agent *LinkedInBot*
+		header User-Agent *Applebot*
+		header User-Agent *Mastodon*
+		header User-Agent *Iframely*
+		header User-Agent *SkypeUriPreview*
+		header User-Agent *embedly*
+	}
+	handle @unfurl {
+		uri path_regexp ^/share/([^/]+)/?$ /share/$1/preview
+		reverse_proxy {$UPSTREAM_API:api:3001}
+	}
+
 	# Every application route. A single-page app owns these paths and resolves
 	# them itself, so anything not on disk falls back to its index.
 	@app path /login /register /recent /settings /settings/* /admin /admin/* /workspace/* /plan/* /share/* /invite/*
