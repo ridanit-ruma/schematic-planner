@@ -106,6 +106,8 @@ export interface TrashItem {
   where: string;
   deletedAt: string;
   by: { name: string; avatarUrl: string | null } | null;
+  /** Still answering a public share link, which this is the only place to stop. */
+  shared: boolean;
 }
 
 export interface PlanChangeRecord {

@@ -519,7 +519,12 @@ export class PlansService {
   }
 
   async unshare(userId: string, planId: string) {
-    await this.access.requirePlan(userId, planId, 'EDITOR');
+    // `includeTrashed`, because this is the one act that still has to work on a
+    // plan in the trash. Trashing does not drop the share -- the trash is
+    // reversible and a new token would not be the link people already have --
+    // so a trashed plan goes on serving its link while every route that could
+    // turn it off reports the plan as missing.
+    await this.access.requirePlan(userId, planId, 'EDITOR', { includeTrashed: true });
     await this.prisma.planShare.deleteMany({ where: { planId } });
     return { ok: true };
   }

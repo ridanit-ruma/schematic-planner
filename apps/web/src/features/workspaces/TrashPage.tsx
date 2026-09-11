@@ -1,4 +1,4 @@
-import { RotateCcw, Trash2 } from 'lucide-react';
+import { Link2Off, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Modal } from '@/components/ui/modal';
 import { Page } from '@/components/ui/page';
 import { RowMenu } from '@/components/ui/row-menu';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
-import { trash, type TrashItem } from '@/lib/api';
+import { plans, trash, type TrashItem } from '@/lib/api';
 import { formatWhen, plural } from '@/lib/utils';
 import { useLiveList } from '@/lib/use-live-list';
 import { useWorkspace } from './workspace-context';
@@ -37,6 +37,20 @@ export function TrashPage() {
       await trash.restore(item.kind, item.id);
       reload();
       reloadWorkspaces();
+    } catch (cause) {
+      setError(cause);
+    }
+  };
+
+  /**
+   * A trashed plan keeps serving its share link, and every other way to turn
+   * that off runs through a plan page that reports it as missing. So it is
+   * offered here, where the plan is.
+   */
+  const stopSharing = async (item: TrashItem): Promise<void> => {
+    try {
+      await plans.unshare(item.id);
+      reload();
     } catch (cause) {
       setError(cause);
     }
@@ -120,6 +134,11 @@ export function TrashPage() {
                     <span className="min-w-0 flex-1 truncate font-medium text-ink">
                       {item.name}
                     </span>
+                    {item.shared ? (
+                      <span className="rail-heading shrink-0 rounded-sm border border-collab/40 px-1 py-0.5 text-collab">
+                        shared
+                      </span>
+                    ) : null}
                   </span>
                   <span className="block truncate text-xs text-ink-muted md:hidden">
                     {item.where}
@@ -144,6 +163,12 @@ export function TrashPage() {
                       <RotateCcw className="size-3.5" />
                       Restore
                     </Button>
+                    {item.shared ? (
+                      <Button size="sm" variant="ghost" onClick={() => void stopSharing(item)}>
+                        <Link2Off className="size-3.5" />
+                        Stop sharing
+                      </Button>
+                    ) : null}
                     <Button size="sm" variant="ghost" onClick={() => setPurging(item)}>
                       Delete
                     </Button>
@@ -154,6 +179,12 @@ export function TrashPage() {
                         <RotateCcw className="size-3.5 text-ink-faint" />
                         Restore
                       </DropdownAction>
+                      {item.shared ? (
+                        <DropdownAction onSelect={() => void stopSharing(item)}>
+                          <Link2Off className="size-3.5 text-ink-faint" />
+                          Stop sharing
+                        </DropdownAction>
+                      ) : null}
                       <DropdownAction tone="danger" onSelect={() => setPurging(item)}>
                         <Trash2 className="size-3.5" />
                         Delete for good

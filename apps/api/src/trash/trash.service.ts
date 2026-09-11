@@ -11,6 +11,12 @@ export interface TrashItem {
   where: string;
   deletedAt: Date;
   by: { name: string; avatarUrl: string | null } | null;
+  /**
+   * The plan is still answering a public share link. Trashing does not drop the
+   * share -- the trash is reversible, and a fresh token would not be the link
+   * people already have -- so this screen is where it can be turned off.
+   */
+  shared: boolean;
 }
 
 /**
@@ -64,6 +70,7 @@ export class TrashService {
           deletedAt: true,
           deletedBy: { select: { name: true, avatarUrl: true } },
           project: { select: { name: true } },
+          share: { select: { id: true } },
         },
       }),
     ]);
@@ -77,6 +84,7 @@ export class TrashService {
           project._count.plans === 1 ? '1 plan inside' : `${project._count.plans} plans inside`,
         deletedAt: project.deletedAt as Date,
         by: project.deletedBy,
+        shared: false,
       })),
       ...folders.map((folder) => ({
         kind: 'folder' as const,
@@ -88,6 +96,7 @@ export class TrashService {
             : `${folder._count.plans} plans inside, in ${folder.project.name}`,
         deletedAt: folder.deletedAt as Date,
         by: folder.deletedBy,
+        shared: false,
       })),
       ...plans.map((plan) => ({
         kind: 'plan' as const,
@@ -96,6 +105,7 @@ export class TrashService {
         where: plan.project.name,
         deletedAt: plan.deletedAt as Date,
         by: plan.deletedBy,
+        shared: plan.share !== null,
       })),
     ];
 
