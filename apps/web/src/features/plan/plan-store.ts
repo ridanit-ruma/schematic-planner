@@ -127,14 +127,28 @@ function toFlowNode(
   };
 }
 
-function toFlowEdge(edge: PlanEdge): PlanFlowEdge {
+/**
+ * Colour is data here, and the one piece of data a line has of its own is
+ * whether what it leaves has stopped.
+ *
+ * So a flow out of a blocked node is drawn in the blocked colour and every
+ * other line stays neutral. It answers the question a reader actually brings to
+ * a flow diagram — where does this stop — and it answers it in one hue, on a
+ * minority of lines, in a plan that has anything wrong with it at all. Giving a
+ * person a colour picker per line was the alternative and it is the wrong
+ * trade: in this drawing line style already carries the relation, so a free
+ * colour would be the only mark on the canvas that means whatever its author
+ * privately decided.
+ */
+function toFlowEdge(edge: PlanEdge, from: PlanNode | undefined): PlanFlowEdge {
   // Dependencies point from what is needed to what needs it, so the arrows read
   // in build order — the same direction the export numbers files in. A flow is
   // drawn the way it actually moves, which is the whole of what it says.
   const [source, target] = edge.kind === 'depends_on' ? [edge.to, edge.from] : [edge.from, edge.to];
   // The writing on the line is drawn by PlanEdgeLine, which knows where layout
   // put it. Handing React Flow a `label` as well would draw a second one.
-  return { id: edge.id, source, target, type: 'plan', data: { edge } };
+  const stopped = edge.kind === 'flows_to' && from?.status === 'blocked';
+  return { id: edge.id, source, target, type: 'plan', data: { edge, stopped } };
 }
 
 export function createPlanStore(doc: Y.Doc) {
@@ -350,7 +364,7 @@ export function createPlanStore(doc: Y.Doc) {
       nodes: nextNodes,
       edges: plan.edges
         .filter((edge) => !(edge.kind === 'contains' && drawnAsBoundary.has(edge.from)))
-        .map(toFlowEdge),
+        .map((edge) => toFlowEdge(edge, byslug.get(edge.from))),
       comments: plan.comments,
       title: plan.title,
       description: plan.description,

@@ -234,7 +234,7 @@ at once.
 | `create_plan(spec)`             | Opens a plan, with whatever structure is already known or none at all. Takes a workspace and project slug; with one workspace reachable neither is needed, and with several it names them rather than guessing |
 | `apply_ops(id, ops[])`          | How a plan grows after that, and the only write door. Upsert by slug, so retries never duplicate. Each batch reaches every open canvas at once, so drawing in pieces is what a person watching actually sees. `upsert_comment` goes through the same door: an agent unsure of something leaves a note where a person will see it instead of drawing confidently around the guess |
 | `layout(id, { scope })`         | Re-run layout over everything that is not pinned                                                                                                                                                                                  |
-| `export_plan(id)`               | Markdown tree plus `.canvas`                                                                                                                                                                                                      |
+| `export_plan(id)`               | Markdown tree plus `.canvas`. The download link it returns opens with the same key, because the content is what `get_plan` already hands over |
 
 Authentication is a hosted Remote MCP endpoint: the user copies a URL and a Bearer key
 from their settings page into any MCP client. Nothing to install, nothing to keep
@@ -258,14 +258,37 @@ it is broken deterministically and reported as a warning.
 ```
 plan-export.zip
 ├── README.md              overview and table of contents
-├── 01-foundation/
-│   ├── 01-database.md     frontmatter: id · status · depends_on
-│   └── 02-auth.md
-├── 02-editor/
-│   └── 01-canvas.md
+├── 01-Foundation/
+│   ├── 01-Database.md     frontmatter: slug · status · depends_on · related
+│   └── 02-Auth.md
+├── 02-Editor/
+│   └── Canvas.md          no prefix: nothing here depends on anything here
 ├── plan.canvas            Obsidian Canvas, original coordinates preserved
 └── plan.json              machine-readable source of the same content
 ```
+
+**A file is named after its title, not its slug.** The slug is the identity —
+stable, ASCII, safe in a URL — and it stays in frontmatter. It makes a poor
+filename: a vault written in Korean has no ASCII slug that resembles it, so the
+export renamed every file and broke every `[[wikilink]]` already written between
+them. Only what a filesystem or a wikilink cannot carry is removed, and two notes
+of the same title are told apart by the thing that tells them apart, their slug.
+
+**The prefix is applied only where it says something.** It exists to carry an
+order a name cannot. Where no sibling depends on another there is no order to
+carry, and numbering anyway invents one — over the order the author already put
+in the names, which is how a vault reading `00-overview, 01-core, 02-plugins`
+came back as `01-app, 02-business, 04-core`.
+
+**The title is written once.** The filename says it, so a leaf note has no H1
+repeating it. A container's file is the `README.md` of a folder, whose name says
+nothing about what it holds, so that one keeps its heading.
+
+**`meta` carries frontmatter this product has no opinion about.** A vault written
+by a person has keys of its own — `owner`, `reviewed`, a status vocabulary that is
+not this one's — and with nowhere to put them an import has to throw them away.
+They are written back beside the fields the export does understand and can never
+shadow one.
 
 ### The export has to open as a vault, not as a directory
 
@@ -663,11 +686,11 @@ Still missing:
 - [x] Folders inside a project, rearranged from the rail
 - [x] Comments: notes on a plan, readable by a person and by an agent
 - [x] Live cursors, and a row that says who else is on the plan
+- [x] Export filenames from titles, so a vault keeps the names it had
 - [ ] GitHub and Google sign-in callbacks
 - [ ] Email: invitations, address changes, password reset
-- [ ] Import: read an exported bundle back into a plan (the exporter, reversed)
 - [ ] Plan version history and restore
-- [ ] Export filenames from titles, so a vault survives the round trip
+- [ ] Import: a vault read straight back in, rather than redrawn by an agent
 
 ## Non-goals
 

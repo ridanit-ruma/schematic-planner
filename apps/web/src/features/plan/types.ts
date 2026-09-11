@@ -7,4 +7,13 @@ export interface PlanNodeData extends Record<string, unknown> {
 }
 
 export type PlanFlowNode = FlowNode<PlanNodeData, 'plan'>;
-export type PlanFlowEdge = FlowEdge<Record<string, unknown>> & { data?: { edge: PlanEdge } };
+export type PlanFlowEdge = FlowEdge<Record<string, unknown>> & {
+  data?: {
+    edge: PlanEdge;
+    /**
+     * True when the flow leaves a node that is blocked. Carried on the edge so
+     * the line does not have to search the node list to draw itself.
+     */
+    stopped?: boolean;
+  };
+};

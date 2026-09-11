@@ -112,7 +112,13 @@ function Line({
         path={path}
         className={cn(dimmed && 'plan-dim')}
         style={{
-          stroke: selected === true || lit ? 'var(--accent)' : 'var(--edge)',
+          // Accent still wins: "you are here" outranks what the line reports.
+          stroke:
+            selected === true || lit
+              ? 'var(--accent)'
+              : data?.stopped === true
+                ? 'var(--status-blocked)'
+                : 'var(--edge)',
           strokeWidth: selected === true ? 2 : lit ? 2 : 1.5,
           ...(style.dash !== undefined && { strokeDasharray: style.dash }),
         }}
