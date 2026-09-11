@@ -221,9 +221,17 @@ export class AdminService {
         },
       }),
       // Suspending has to take effect now, not in fifteen minutes when the
-      // access token they are holding expires.
+      // access token they are holding expires. Deleting the sessions is only
+      // half of that -- a session is the refresh token, and the access token is
+      // stateless -- so the guard, the key resolver and every authorisation
+      // check ask about `suspendedAt` as well.
       ...(input.suspended === true ? [this.prisma.session.deleteMany({ where: { userId: id } })] : []),
     ]);
+
+    // And the sockets they already hold, which were authorised when they opened
+    // and would otherwise outlive all of the above.
+    if (input.suspended === true) this.collab.revoke(id);
+
     return { ok: true };
   }
 

@@ -353,9 +353,16 @@ export class AuthService {
     return { ok: true as const };
   }
 
+  /**
+   * Reported as missing when the account is suspended, which is what makes a
+   * suspension take effect now rather than whenever the access token in the
+   * caller's hand happens to expire. Ending their sessions is not enough on its
+   * own: a session is the refresh token, and the access token is stateless.
+   */
   async userById(id: string): Promise<AuthUser | null> {
     const user = await this.prisma.user.findUnique({ where: { id } });
-    return user === null ? null : { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl };
+    if (user === null || user.suspendedAt !== null) return null;
+    return { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl };
   }
 
   private async issue(user: AuthUser, userAgent?: string): Promise<AuthResult> {

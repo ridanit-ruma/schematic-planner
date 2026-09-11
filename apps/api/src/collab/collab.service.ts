@@ -105,6 +105,33 @@ export class CollabService implements OnModuleDestroy {
     );
   }
 
+  /**
+   * Drops every socket a person currently holds.
+   *
+   * A connection is authorised once, when it opens, and hocuspocus routes every
+   * later frame straight past that check — which is the right design for a
+   * stream, and the reason revoking somebody's access has to reach out and say
+   * so. Without this, suspending an account ends its sessions and refuses its
+   * key while a canvas it already had open keeps reading everybody else's
+   * edits and writing its own, with no bound but the next restart.
+   *
+   * Closing rather than re-checking: the next connection re-runs
+   * `onAuthenticate`, so one act settles it and there is no second copy of the
+   * permission rules to keep in step with the first.
+   */
+  revoke(userId: string): number {
+    let closed = 0;
+    for (const document of this.hocuspocus.documents.values()) {
+      for (const connection of document.getConnections()) {
+        if (connection.context.userId !== userId) continue;
+        connection.close({ code: 4403, reason: 'Access revoked' });
+        closed += 1;
+      }
+    }
+    if (closed > 0) this.logger.log(`closed ${closed} connection(s) for a revoked account`);
+    return closed;
+  }
+
   /** The live document if this instance has it in memory. */
   loaded(planId: string): Document | undefined {
     return this.hocuspocus.documents.get(planId);

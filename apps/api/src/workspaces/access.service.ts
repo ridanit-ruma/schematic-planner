@@ -40,11 +40,23 @@ export class AccessService {
   async requireWorkspace(userId: string, workspaceId: string, required: Role): Promise<Role> {
     const membership = await this.prisma.membership.findUnique({
       where: { userId_workspaceId: { userId, workspaceId } },
+      include: { user: { select: { suspendedAt: true } } },
     });
 
     // Something the caller cannot see is reported as missing rather than
     // forbidden: "forbidden" would confirm that it exists.
     if (membership === null) throw new NotFoundException('Workspace not found');
+
+    // Suspension is asked about here rather than only at sign-in, because this
+    // is the one place every authorisation decision passes through and the
+    // collaboration socket is not one of the places that goes near
+    // `AuthService`. Said plainly rather than reported as missing: a suspended
+    // account knows it is suspended, and a workspace it can no longer reach is
+    // not a workspace whose existence is a secret from it. Carried on the
+    // membership query, so no path pays for a second round trip.
+    if (membership.user.suspendedAt !== null) {
+      throw new ForbiddenException('This account is suspended');
+    }
     if (!atLeast(membership.role, required)) {
       throw new ForbiddenException(`This action requires the ${required} role`);
     }

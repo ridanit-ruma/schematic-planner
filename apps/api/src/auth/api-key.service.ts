@@ -20,13 +20,23 @@ export interface McpIdentity {
 export class ApiKeyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Resolves a Bearer credential, or null if it is unknown or revoked. */
+  /**
+   * Resolves a Bearer credential, or null if it is unknown, revoked, or its
+   * owner is suspended.
+   *
+   * The owner's standing is asked about here because this is the whole of the
+   * gate: `/mcp` is a public route that calls this itself rather than passing
+   * through `JwtAuthGuard`. A key is left alive rather than revoked when an
+   * account is suspended, so that letting somebody back in restores what they
+   * had instead of making them re-issue every key they hold.
+   */
   async resolve(secret: string): Promise<McpIdentity | null> {
     const key = await this.prisma.apiKey.findUnique({
       where: { hash: hashToken(secret) },
-      include: { user: { select: { name: true } } },
+      include: { user: { select: { name: true, suspendedAt: true } } },
     });
     if (key === null || key.revokedAt !== null) return null;
+    if (key.user.suspendedAt !== null) return null;
 
     await this.prisma.apiKey.update({
       where: { id: key.id },
