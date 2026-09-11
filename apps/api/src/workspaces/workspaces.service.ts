@@ -10,13 +10,14 @@ import { customAlphabet } from 'nanoid';
 import { hashToken, randomToken } from '../common/crypto.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
+import { CollabService } from '../collab/collab.service.js';
 import { AccessService } from './access.service.js';
 import type {
   CreateInviteInput,
   CreateWorkspaceInput,
   UpdateWorkspaceInput,
 } from './workspaces.dto.js';
-import type { Role } from './roles.js';
+import { atLeast, type Role } from './roles.js';
 
 const suffix = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 6);
 
@@ -25,6 +26,7 @@ export class WorkspacesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
+    private readonly collab: CollabService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -106,18 +108,38 @@ export class WorkspacesService {
       where: { userId_workspaceId: { userId: memberUserId, workspaceId } },
       data: { role },
     });
+    // A socket is authorised when it opens and never again, so an editor demoted
+    // to viewer keeps writing until something says otherwise. Dropped rather
+    // than adjusted in place: reconnecting runs the real check, which leaves one
+    // copy of the permission rules instead of two.
+    this.collab.revoke(memberUserId);
     return { ok: true };
   }
 
   async removeMember(userId: string, workspaceId: string, memberUserId: string) {
     await this.access.requireWorkspace(userId, workspaceId, 'ADMIN');
+    // Matching `updateMember`, and for the same reason: your own row is the one
+    // row you cannot reason about while you are standing on it.
+    if (memberUserId === userId) throw new BadRequestException('You cannot remove yourself');
     await this.requireAnotherOwnerRemains(workspaceId, memberUserId, 'VIEWER');
     await this.prisma.membership.deleteMany({ where: { workspaceId, userId: memberUserId } });
+    // Removal is the stronger case: without this they keep receiving everybody
+    // else's edits on a plan they are no longer on.
+    this.collab.revoke(memberUserId);
     return { ok: true };
   }
 
   async createInvite(userId: string, workspaceId: string, input: CreateInviteInput) {
-    await this.access.requireWorkspace(userId, workspaceId, 'ADMIN');
+    const actor = await this.access.requireWorkspace(userId, workspaceId, 'ADMIN');
+
+    // Nobody may issue a way in that outranks them. An admin handing out OWNER
+    // is how the one rule this file does enforce -- that a workspace keeps an
+    // owner -- gets walked around: mint the invite, drop your own membership so
+    // the upsert below takes its create branch, accept, and the workspace has a
+    // second owner who can now demote the first.
+    if (!atLeast(actor, input.role)) {
+      throw new ForbiddenException('You cannot invite someone above your own role');
+    }
 
     const token = randomToken();
     await this.prisma.invite.create({
