@@ -3,7 +3,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { Request, Response } from 'express';
 
 import { Public } from '../auth/public.decorator.js';
-import { ApiKeyService, type McpIdentity } from './api-key.service.js';
+import { ApiKeyService, type McpIdentity } from '../auth/api-key.service.js';
 import { McpFactory } from './mcp.factory.js';
 
 /**

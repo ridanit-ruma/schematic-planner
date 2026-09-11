@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 
 import type { WorkspacesService } from '../workspaces/workspaces.service.js';
-import type { McpIdentity } from './api-key.service.js';
+import type { McpIdentity } from '../auth/api-key.service.js';
 
 export interface ScopedWorkspace {
   readonly id: string;

@@ -14,7 +14,7 @@ import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { PlansService } from '../plans/plans.service.js';
 import { ProjectsService } from '../projects/projects.service.js';
 import { WorkspacesService } from '../workspaces/workspaces.service.js';
-import type { McpIdentity } from './api-key.service.js';
+import type { McpIdentity } from '../auth/api-key.service.js';
 import { renderPlan, renderTrace } from './render.js';
 import {
   applyOpsShape,

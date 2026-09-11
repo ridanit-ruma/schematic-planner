@@ -3,6 +3,7 @@ import { exportFileName } from '@schematic/exporter';
 import type { Response } from 'express';
 
 import type { AuthUser } from '../auth/auth.types.js';
+import { AgentReadable } from '../auth/agent-readable.decorator.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { Public } from '../auth/public.decorator.js';
 import { StrictRateLimit } from '../common/throttle.js';
@@ -113,6 +114,9 @@ export class PlansController {
     return this.plans.layout(user.id, id, body);
   }
 
+  /* The link `export_plan` hands an agent has to open with the key it was
+     asked with. The content is the same content `get_plan` already returns. */
+  @AgentReadable()
   @Get('plans/:id/export')
   async exportZip(
     @CurrentUser() user: AuthUser,

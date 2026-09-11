@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
+import { ApiKeyService } from './api-key.service.js';
 import { AuthController } from './auth.controller.js';
 import { AvatarsController } from './avatars.controller.js';
 import { AvatarsService } from './avatars.service.js';
@@ -19,7 +20,7 @@ import { JwtAuthGuard } from './jwt.guard.js';
     }),
   ],
   controllers: [AuthController, AvatarsController],
-  providers: [AuthService, AvatarsService, JwtAuthGuard],
-  exports: [AuthService, JwtAuthGuard, JwtModule],
+  providers: [ApiKeyService, AuthService, AvatarsService, JwtAuthGuard],
+  exports: [ApiKeyService, AuthService, JwtAuthGuard, JwtModule],
 })
 export class AuthModule {}
