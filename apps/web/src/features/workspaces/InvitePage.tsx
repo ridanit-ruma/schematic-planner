@@ -4,8 +4,10 @@ import { Navigate, useParams } from 'react-router';
 import { Problem, Spinner } from '@/components/ui/feedback';
 import { workspaces } from '@/lib/api';
 import { useWorkspaces } from './workspace-context';
+import { useDocumentTitle } from '@/lib/use-document-title';
 
 export function InvitePage() {
+  useDocumentTitle('Invitation');
   const { token = '' } = useParams();
   const { reload } = useWorkspaces();
   const [workspaceSlug, setWorkspaceSlug] = useState<string | null>(null);

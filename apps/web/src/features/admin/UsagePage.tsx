@@ -4,6 +4,7 @@ import { Problem, Spinner } from '@/components/ui/feedback';
 import { admin, type Usage } from '@/lib/api';
 import { useLiveList } from '@/lib/use-live-list';
 import { cn, formatWhen, plural } from '@/lib/utils';
+import { useDocumentTitle } from '@/lib/use-document-title';
 
 /**
  * What this instance is, in numbers it already knows.
@@ -13,6 +14,7 @@ import { cn, formatWhen, plural } from '@/lib/utils';
  * could fall behind and quietly lie.
  */
 export function UsagePage() {
+  useDocumentTitle('Usage');
   const [usage, setUsage] = useState<Usage | null>(null);
   const [error, setError] = useState<unknown>(null);
 

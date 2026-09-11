@@ -9,6 +9,7 @@ import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { config } from '@/lib/config';
 import { account, type ApiKeySummary } from '@/lib/api';
 import { formatWhen } from '@/lib/utils';
+import { useDocumentTitle } from '@/lib/use-document-title';
 
 const MCP_URL = `${config.apiUrl}/mcp`;
 
@@ -17,6 +18,7 @@ const MCP_URL = `${config.apiUrl}/mcp`;
  * into another program is monospace and one click from the clipboard.
  */
 export function AgentsPage() {
+  useDocumentTitle('Agents');
   const [keys, setKeys] = useState<ApiKeySummary[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [naming, setNaming] = useState(false);

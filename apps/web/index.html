@@ -18,6 +18,11 @@
 
       Per-page titles are set by the application once it is running, which is
       what makes the browser tab useful; a crawler does not get that far.
+
+      The image is under /assets/ because that is the path the application owns
+      and the proxy already serves from its own root. The marketing site has its
+      own copy at /og.png: the two are deployed separately, and an instance that
+      runs only the application still has to have a card.
     -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Schematic Planner" />
@@ -26,14 +31,14 @@
       property="og:description"
       content="A plan on the canvas. You need an account on this instance to open it."
     />
-    <meta property="og:image" content="/og.png" />
+    <meta property="og:image" content="/assets/og.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Schematic Planner" />
     <meta
       name="twitter:description"
       content="A plan on the canvas. You need an account on this instance to open it."
     />
-    <meta name="twitter:image" content="/og.png" />
+    <meta name="twitter:image" content="/assets/og.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

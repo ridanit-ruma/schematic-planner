@@ -12,6 +12,7 @@ import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { admin, type InviteSummary } from '@/lib/api';
 import { useLiveList } from '@/lib/use-live-list';
 import { cn, formatWhen, plural } from '@/lib/utils';
+import { useDocumentTitle } from '@/lib/use-document-title';
 
 const LIMITS = [
   { value: '1', label: 'One person' },
@@ -38,6 +39,7 @@ const LIVES = [
  * lists doors and leaves out the unlocked one is worse than no screen.
  */
 export function InvitationsPage() {
+  useDocumentTitle('Invitations');
   const [invites, setInvites] = useState<InviteSummary[] | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);

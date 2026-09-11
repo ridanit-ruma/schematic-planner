@@ -7,8 +7,10 @@ import { Problem } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { workspaces } from '@/lib/api';
 import { useWorkspace } from './workspace-context';
+import { useDocumentTitle } from '@/lib/use-document-title';
 
 export function WorkspaceSettingsPage() {
+  useDocumentTitle('Workspace settings');
   const { current, reload } = useWorkspace();
   const navigate = useNavigate();
 

@@ -12,6 +12,7 @@ import { admin, type AccountSummary } from '@/lib/api';
 import { useLiveList } from '@/lib/use-live-list';
 import { useAuth } from '@/lib/auth-store';
 import { formatWhen, plural } from '@/lib/utils';
+import { useDocumentTitle } from '@/lib/use-document-title';
 
 /**
  * Everyone with an account here, what they hold, and when they were last seen
@@ -22,6 +23,7 @@ import { formatWhen, plural } from '@/lib/utils';
  * already a record of what people actually did.
  */
 export function PeoplePage() {
+  useDocumentTitle('People');
   const me = useAuth((state) => state.user);
   const [accounts, setAccounts] = useState<AccountSummary[] | null>(null);
   const [error, setError] = useState<unknown>(null);

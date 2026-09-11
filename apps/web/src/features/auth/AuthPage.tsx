@@ -7,6 +7,7 @@ import { Field, Input } from '@/components/ui/field';
 import { Problem } from '@/components/ui/feedback';
 import { auth as authApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
+import { useDocumentTitle } from '@/lib/use-document-title';
 
 /**
  * Where to go once signed in.
@@ -25,6 +26,7 @@ function landing(state: unknown): string {
 }
 
 export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
+  useDocumentTitle(mode === 'sign-in' ? 'Sign in' : 'Create an account');
   const { status, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

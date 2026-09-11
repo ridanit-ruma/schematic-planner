@@ -10,6 +10,7 @@ import { account, type SessionSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { formatWhen } from '@/lib/utils';
 import { AvatarEditor } from './AvatarEditor';
+import { useDocumentTitle } from '@/lib/use-document-title';
 
 /** Reads "Chrome on Linux" out of a user-agent string, or gives up honestly. */
 function describeClient(userAgent: string | null): string {
@@ -41,6 +42,7 @@ function describeClient(userAgent: string | null): string {
 }
 
 export function AccountSettingsPage() {
+  useDocumentTitle('Account');
   const { user, signOut, patchUser } = useAuth();
   const navigate = useNavigate();
 
