@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   edgeId,
+  metaSchema,
   planCommentPatchSchema,
   planDocSchema,
   planEdgeKinds,
@@ -30,6 +31,7 @@ export const planNodePatchSchema = z.object({
   pinned: z.boolean().optional(),
   size: sizeSchema.nullable().optional(),
   tags: z.array(z.string().min(1).max(40)).max(20).optional(),
+  meta: metaSchema.optional(),
 });
 export type PlanNodePatch = z.infer<typeof planNodePatchSchema>;
 
@@ -80,6 +82,7 @@ function newNode(patch: PlanNodePatch): PlanNode {
     pinned: patch.pinned ?? false,
     size: patch.size ?? null,
     tags: patch.tags ?? [],
+    meta: patch.meta ?? {},
   };
 }
 
@@ -94,6 +97,7 @@ function mergeNode(node: PlanNode, patch: PlanNodePatch): PlanNode {
     ...(patch.pinned !== undefined && { pinned: patch.pinned }),
     ...(patch.size !== undefined && { size: patch.size }),
     ...(patch.tags !== undefined && { tags: patch.tags }),
+    ...(patch.meta !== undefined && { meta: patch.meta }),
   };
 }
 

@@ -11,6 +11,7 @@ export const planChangeKinds = [
   'node.kind',
   'node.body',
   'node.tags',
+  'node.meta',
   'edge.added',
   'edge.removed',
   'note.added',
@@ -160,6 +161,9 @@ function nodeChanges(before: PlanNode, after: PlanNode): PlanChangeEntry[] {
   if (before.body !== after.body) entries.push(at('node.body', null));
   if (before.tags.join(' ') !== after.tags.join(' ')) {
     entries.push(at('node.tags', after.tags.join(' ')));
+  }
+  if (JSON.stringify(before.meta) !== JSON.stringify(after.meta)) {
+    entries.push(at('node.meta', Object.keys(after.meta).sort().join(' ')));
   }
   return entries;
 }

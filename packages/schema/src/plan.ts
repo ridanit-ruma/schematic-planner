@@ -47,6 +47,31 @@ export const sizeSchema = z.object({
   height: z.number().finite().positive(),
 });
 
+/** Keys this product owns in exported frontmatter, and will not be shadowed. */
+export const RESERVED_META_KEYS: ReadonlySet<string> = new Set([
+  'slug',
+  'title',
+  'kind',
+  'status',
+  'tags',
+  'flows_to',
+  'depends_on',
+  'contains',
+  'related',
+  'pinned',
+  'position',
+]);
+
+export const metaSchema = z
+  .record(z.string().min(1).max(64), z.string().max(500))
+  .default({})
+  .refine((meta) => Object.keys(meta).length <= 30, {
+    message: 'at most 30 extra frontmatter keys',
+  })
+  .refine((meta) => Object.keys(meta).every((key) => !RESERVED_META_KEYS.has(key)), {
+    message: 'that key is written by the export itself',
+  });
+
 export const planNodeSchema = z.object({
   slug: slugSchema,
   kind: z.enum(planNodeKinds).default('task'),
@@ -59,6 +84,16 @@ export const planNodeSchema = z.object({
   pinned: z.boolean().default(false),
   size: sizeSchema.nullable().default(null),
   tags: z.array(z.string().min(1).max(40)).max(20).default([]),
+  /**
+   * Frontmatter this product has no opinion about, carried through untouched.
+   *
+   * A vault written by a person has keys of its own -- `owner`, `reviewed`, a
+   * status vocabulary that is not this one's -- and without somewhere to put
+   * them an import has to throw them away and a round trip cannot be a round
+   * trip. Nothing reads these; the export writes them back beside the fields it
+   * does understand, and never over one of them.
+   */
+  meta: metaSchema,
 });
 export type PlanNode = z.infer<typeof planNodeSchema>;
 

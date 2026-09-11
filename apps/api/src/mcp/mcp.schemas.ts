@@ -106,6 +106,13 @@ const agentNodePatchSchema = z.object({
   body: z.string().max(100_000).optional(),
   status: z.enum(planNodeStatuses).optional(),
   tags: z.array(z.string().min(1).max(40)).max(20).optional(),
+  meta: z
+    .record(z.string().min(1).max(64), z.string().max(500))
+    .optional()
+    .describe(
+      'Extra frontmatter to carry through the export untouched, for keys this product has ' +
+        'no opinion about. Not for anything it already has a field for',
+    ),
 });
 
 /**

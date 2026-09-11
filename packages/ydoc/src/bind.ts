@@ -83,6 +83,7 @@ function readNode(node: YNode): unknown {
     pinned: node.get('pinned') ?? false,
     size: node.get('size') ?? null,
     tags: node.get('tags') ?? [],
+    meta: node.get('meta') ?? {},
   };
 }
 
@@ -140,6 +141,7 @@ function writeNode(target: YNode, node: PlanNode): void {
   target.set('pinned', node.pinned);
   target.set('size', node.size);
   target.set('tags', node.tags);
+  target.set('meta', node.meta);
   setBody(target, node.body);
 }
 

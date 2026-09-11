@@ -44,6 +44,10 @@ function sentence(change: PlanChangeRecord): string {
       return change.detail === ''
         ? `cleared the tags on ${name}`
         : `tagged ${name} ${change.detail}`;
+    case 'node.meta':
+      return change.detail === ''
+        ? `cleared the extra fields on ${name}`
+        : `set ${change.detail} on ${name}`;
     case 'edge.added':
       return `connected ${name}`;
     case 'edge.removed':
