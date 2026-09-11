@@ -179,6 +179,13 @@ and emptying the trash is the only thing that deletes in bulk. Destroying a
 folder for good is the one case that destroys nothing else: its plans fall back
 to the project's top level rather than going with it.
 
+A share link outlives the trash, because the trash is reversible and a fresh
+token would not be the link people have already pasted around. That makes the
+trash the only screen the link can be turned off from — every other route to
+"stop sharing" runs through a plan page that reports a trashed plan as missing —
+so the trash marks which plans are still answering one, and offers the action
+there.
+
 ### Plan vocabulary
 
 `packages/schema` is the plan domain: the zod schemas every app imports, the graph
@@ -266,6 +273,20 @@ plan-export.zip
 ├── plan.canvas            Obsidian Canvas, original coordinates preserved
 └── plan.json              machine-readable source of the same content
 ```
+
+**A node cannot take a name the bundle has already written.** The overview is
+`README.md`, every container owns the `README.md` of its own directory, and the
+root also holds `plan.canvas` and `plan.json`. A zip keeps the last entry written
+for a path and says nothing, so a node titled `README` used to replace the
+overview silently. Those names are reserved per level now.
+
+**Titles and comment authors are escaped where the export builds a construct
+around them** — a Contents link, a `[[target|label]]`, a Notes blockquote. A
+node body is emitted verbatim, because a body is prose and prose is written in
+Markdown; a title dropped into the middle of a link is not, and a `]` or a
+newline in one ended the construct early and left a broken vault. This is
+tidiness, not a security measure: the body beside it can say anything, and is
+meant to.
 
 **A file is named after its title, not its slug.** The slug is the identity —
 stable, ASCII, safe in a URL — and it stays in frontmatter. It makes a poor
