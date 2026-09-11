@@ -41,6 +41,18 @@ export interface ProjectSummary {
   updatedAt: string;
 }
 
+/** An invitation to a workspace that has not been used or expired. */
+export interface WorkspaceInvite {
+  id: string;
+  /** The first characters of the link, so a list can say which one this is. */
+  prefix: string;
+  role: Role;
+  email: string | null;
+  createdBy: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
 export interface Member {
   role: Role;
   user: { id: string; name: string; email: string; avatarUrl: string | null };
@@ -295,6 +307,10 @@ export const workspaces = {
     api<{ ok: true }>(`/workspaces/${id}/members/${userId}`, { method: 'DELETE' }),
   invite: (id: string, role: Role) =>
     api<{ url: string }>(`/workspaces/${id}/invites`, { method: 'POST', ...json({ role }) }),
+  /** Only the ones that would still let somebody in. */
+  invites: (id: string) => api<WorkspaceInvite[]>(`/workspaces/${id}/invites`),
+  revokeInvite: (id: string, inviteId: string) =>
+    api<{ ok: true }>(`/workspaces/${id}/invites/${inviteId}`, { method: 'DELETE' }),
   acceptInvite: (token: string) =>
     api<{ workspace: { id: string; name: string } }>(`/invites/${token}/accept`, {
       method: 'POST',

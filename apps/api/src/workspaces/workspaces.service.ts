@@ -149,12 +149,57 @@ export class WorkspacesService {
         role: input.role,
         ...(input.email !== undefined && { email: input.email.toLowerCase() }),
         tokenHash: hashToken(token),
+        prefix: token.slice(0, 6),
         expiresAt: new Date(Date.now() + input.expiresInDays * 86_400_000),
       },
     });
 
     // The raw token is returned exactly once; only its hash is stored.
     return { url: `${this.config.appPublicUrl}/invite/${token}` };
+  }
+
+  /**
+   * The invitations that would still let somebody in.
+   *
+   * Spent and expired ones are not listed at all, following the instance's own
+   * invitation screen: a list of links that no longer work is a list nobody can
+   * act on, and the question being asked here is always "what is still open".
+   */
+  async listInvites(userId: string, workspaceId: string) {
+    await this.access.requireWorkspace(userId, workspaceId, 'ADMIN');
+
+    const invites = await this.prisma.invite.findMany({
+      where: { workspaceId, acceptedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+      include: { createdBy: { select: { name: true } } },
+    });
+
+    return invites.map((invite) => ({
+      id: invite.id,
+      prefix: invite.prefix,
+      role: invite.role,
+      email: invite.email,
+      createdBy: invite.createdBy.name,
+      createdAt: invite.createdAt,
+      expiresAt: invite.expiresAt,
+    }));
+  }
+
+  /**
+   * Withdrawn by removing the row, which is what makes the link stop working.
+   * There is no history to keep here the way there is for an instance
+   * invitation: this one is single use, and an unused link that was taken back
+   * has nothing left to say.
+   */
+  async revokeInvite(userId: string, workspaceId: string, inviteId: string) {
+    await this.access.requireWorkspace(userId, workspaceId, 'ADMIN');
+    // Scoped to the workspace, so an id from somewhere else cannot be used to
+    // reach past the check that was just made.
+    const removed = await this.prisma.invite.deleteMany({
+      where: { id: inviteId, workspaceId },
+    });
+    if (removed.count === 0) throw new NotFoundException('That invitation is not there');
+    return { ok: true };
   }
 
   async acceptInvite(userId: string, token: string) {

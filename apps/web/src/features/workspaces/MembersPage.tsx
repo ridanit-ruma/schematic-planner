@@ -1,4 +1,4 @@
-import { Check, Copy, UserPlus } from 'lucide-react';
+import { Check, Copy, Link2Off, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -8,8 +8,9 @@ import { Empty, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { Page } from '@/components/ui/page';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
-import { workspaces, type Member, type Role } from '@/lib/api';
+import { workspaces, type Member, type Role, type WorkspaceInvite } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
+import { formatWhen } from '@/lib/utils';
 import { useLiveList } from '@/lib/use-live-list';
 import { useWorkspace } from './workspace-context';
 
@@ -29,12 +30,19 @@ const ROLE_OPTIONS = ROLES.map((role) => ({
   hint: ROLE_HELP[role],
 }));
 
+/** Nobody may invite above their own role, so nobody is offered the option. */
+function invitableRoles(actor: Role): typeof ROLE_OPTIONS {
+  const ceiling = ROLES.indexOf(actor);
+  return ROLE_OPTIONS.filter((option) => ROLES.indexOf(option.value) <= ceiling);
+}
+
 export function MembersPage() {
   const { current } = useWorkspace();
   const me = useAuth((state) => state.user);
   const canManage = current.role === 'OWNER' || current.role === 'ADMIN';
 
   const [members, setMembers] = useState<Member[] | null>(null);
+  const [invites, setInvites] = useState<WorkspaceInvite[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [inviting, setInviting] = useState(false);
   const [inviteRole, setInviteRole] = useState<Role>('EDITOR');
@@ -43,6 +51,8 @@ export function MembersPage() {
 
   const reload = (): void => {
     workspaces.members(current.id).then(setMembers).catch(setError);
+    // Only an admin may read these, and only an admin is shown them.
+    if (canManage) workspaces.invites(current.id).then(setInvites).catch(() => setInvites([]));
   };
   useLiveList(reload, [current.id]);
 
@@ -150,6 +160,56 @@ export function MembersPage() {
         </Table>
       )}
 
+      {!canManage || invites.length === 0 ? null : (
+        <section className="mt-8">
+          <h2 className="rail-heading mb-2 text-ink-faint">Open invitations</h2>
+          <p className="mb-3 text-xs text-ink-muted">
+            Links that would still let somebody in. A spent or expired one is not listed;
+            withdrawing one stops it working immediately.
+          </p>
+          <Table>
+            <THead>
+              <TH>Link</TH>
+              <TH className="w-24">Role</TH>
+              <TH className="w-28 sm:w-36" align="right" hide="md">
+                Expires
+              </TH>
+              <TH className="w-10 sm:w-28" align="right">
+                <span className="sr-only">Actions</span>
+              </TH>
+            </THead>
+            <tbody>
+              {invites.map((invite) => (
+                <TR key={invite.id}>
+                  <TD>
+                    <span className="slug block truncate text-ink">
+                      {invite.prefix === '' ? 'issued earlier' : `${invite.prefix}…`}
+                    </span>
+                    <span className="block truncate text-xs text-ink-muted">
+                      {invite.email ?? `by ${invite.createdBy}`}
+                    </span>
+                  </TD>
+                  <TD className="text-xs text-ink-muted">{invite.role.toLowerCase()}</TD>
+                  <TD align="right" className="text-xs text-ink-muted" hide="md">
+                    {formatWhen(invite.expiresAt)}
+                  </TD>
+                  <TD align="right">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void act(workspaces.revokeInvite(current.id, invite.id))}
+                    >
+                      <Link2Off className="size-3.5" />
+                      Withdraw
+                    </Button>
+                  </TD>
+                </TR>
+              ))}
+            </tbody>
+          </Table>
+        </section>
+      )}
+
       <Modal
         open={inviting}
         onOpenChange={(open) => {
@@ -166,7 +226,12 @@ export function MembersPage() {
               event.preventDefault();
               void workspaces
                 .invite(current.id, inviteRole)
-                .then((result) => setInviteUrl(result.url))
+                .then((result) => {
+                  setInviteUrl(result.url);
+                  // The link is now one of the open ones, and the list below
+                  // is where it is withdrawn from.
+                  reload();
+                })
                 .catch(setError);
             }}
           >
@@ -177,7 +242,7 @@ export function MembersPage() {
               <Select
                 id="invite-role"
                 value={inviteRole}
-                options={ROLE_OPTIONS}
+                options={invitableRoles(current.role)}
                 onChange={setInviteRole}
               />
               <p className="text-xs text-ink-faint">{ROLE_HELP[inviteRole]}</p>

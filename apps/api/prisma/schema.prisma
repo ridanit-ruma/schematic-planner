@@ -146,6 +146,9 @@ model Invite {
   role        Role      @default(EDITOR)
   email       String?
   tokenHash   String    @unique
+  /// The first characters of the token, so a list can say which link is which.
+  /// Empty on anything issued before the list existed.
+  prefix      String    @default("")
   expiresAt   DateTime
   acceptedAt  DateTime?
   createdAt   DateTime  @default(now())

@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 
 import type { AppConfig } from '../config/env.js';
@@ -21,12 +21,24 @@ function service(actorRole: Role): {
   workspaces: WorkspacesService;
   removed: string[];
   revoked: string[];
+  asked: Record<string, unknown>[];
 } {
   const removed: string[] = [];
   const revoked: string[] = [];
+  const asked: Record<string, unknown>[] = [];
 
   const prisma = {
-    invite: { create: async () => ({ id: 'invite-1' }) },
+    invite: {
+      create: async () => ({ id: 'invite-1' }),
+      findMany: async ({ where }: { where: Record<string, unknown> }) => {
+        asked.push(where);
+        return [];
+      },
+      deleteMany: async ({ where }: { where: Record<string, unknown> }) => {
+        asked.push(where);
+        return { count: where['workspaceId'] === 'ws-1' ? 1 : 0 };
+      },
+    },
     membership: {
       deleteMany: async ({ where }: { where: { userId: string } }) => {
         removed.push(where.userId);
@@ -43,7 +55,12 @@ function service(actorRole: Role): {
   const collab = { revoke: (userId: string) => revoked.push(userId) } as unknown as CollabService;
   const config = { appPublicUrl: 'https://example.invalid' } as AppConfig;
 
-  return { workspaces: new WorkspacesService(prisma, access, collab, config), removed, revoked };
+  return {
+    workspaces: new WorkspacesService(prisma, access, collab, config),
+    removed,
+    revoked,
+    asked,
+  };
 }
 
 const invite = { role: 'OWNER' as Role, expiresInDays: 14 };
@@ -90,5 +107,36 @@ describe('removing a member', () => {
     });
     expect(removed).toEqual(['someone-else']);
     expect(revoked).toEqual(['someone-else']);
+  });
+});
+
+describe('the invitations a workspace has open', () => {
+  /* The instance's own invitation screen works this way and the user asked for
+     it there: a list of links that no longer work is a list nobody can act on. */
+  it('is only the ones that would still let somebody in', async () => {
+    const { workspaces, asked } = service('ADMIN');
+    await workspaces.listInvites('admin-1', 'ws-1');
+
+    const where = asked[0] ?? {};
+    expect(where['workspaceId']).toBe('ws-1');
+    expect(where['acceptedAt']).toBeNull();
+    expect(where['expiresAt']).toEqual({ gt: expect.any(Date) });
+  });
+
+  /* The id comes from the caller, so the workspace it was checked against has
+     to be part of the query and not just part of the check before it. */
+  it('is withdrawn only from the workspace it was checked against', async () => {
+    const { workspaces, asked } = service('ADMIN');
+    await expect(workspaces.revokeInvite('admin-1', 'ws-1', 'invite-9')).resolves.toEqual({
+      ok: true,
+    });
+    expect(asked[0]).toEqual({ id: 'invite-9', workspaceId: 'ws-1' });
+  });
+
+  it('reports an id that is not in this workspace as missing', async () => {
+    const { workspaces } = service('ADMIN');
+    await expect(
+      workspaces.revokeInvite('admin-1', 'elsewhere', 'invite-9'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

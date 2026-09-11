@@ -77,6 +77,20 @@ export class WorkspacesController {
     return this.workspaces.removeMember(user.id, id, memberId);
   }
 
+  @Get('workspaces/:id/invites')
+  invites(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.workspaces.listInvites(user.id, id);
+  }
+
+  @Delete('workspaces/:id/invites/:inviteId')
+  revokeInvite(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('inviteId') inviteId: string,
+  ) {
+    return this.workspaces.revokeInvite(user.id, id, inviteId);
+  }
+
   @Post('workspaces/:id/invites')
   invite(
     @CurrentUser() user: AuthUser,
