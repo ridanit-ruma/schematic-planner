@@ -11,6 +11,7 @@ import { Problem, Spinner } from '@/components/ui/feedback';
 import { config } from '@/lib/config';
 import { plans } from '@/lib/api';
 import { PlanCanvas } from './PlanCanvas';
+import { useDocumentTitle } from '@/lib/use-document-title';
 import { PlanSize } from './TitleBlock';
 import { createPlanStore } from './plan-store';
 import type { PlanConnection } from './use-plan-document';
@@ -66,6 +67,7 @@ function SharedCanvas({ plan, token }: { plan: PlanDoc; token: string }) {
   useEffect(() => () => connection.bound.destroy(), [connection]);
 
   const nodes = useStore(connection.bound.store, (state) => state.nodes);
+  useDocumentTitle(plan.title);
 
   return (
     <ReactFlowProvider>

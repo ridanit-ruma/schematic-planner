@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { useDocumentTitle } from '@/lib/use-document-title';
 import { cn } from '@/lib/utils';
 
 /**
@@ -23,6 +24,10 @@ export function Page({
   width?: 'wide' | 'narrow';
   children: ReactNode;
 }) {
+  // The heading and the tab are the same answer to the same question, so the
+  // screen only has to give it once.
+  useDocumentTitle(title);
+
   return (
     <div className={cn('mx-auto px-4 py-6 sm:px-6 sm:py-7', width === 'wide' ? 'max-w-5xl' : 'max-w-2xl')}>
       {/* Stacked until there is room: side by side on a phone the heading gets

@@ -19,6 +19,16 @@ export const metadata: Metadata = {
     siteName: 'Schematic Planner',
     title: 'Schematic Planner',
     description: 'Plan in the browser. Own the output.',
+    // A drawing is what this product makes, so the card shows one rather than
+    // describing it. Served from the site root, which is also where the
+    // application's own shell points: one file, one copy.
+    images: [{ url: '/og.png', width: 1440, height: 900, alt: 'A plan on the canvas' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Schematic Planner',
+    description: 'Plan in the browser. Own the output.',
+    images: ['/og.png'],
   },
   robots: { index: true, follow: true },
   icons: { icon: '/icon.svg' },

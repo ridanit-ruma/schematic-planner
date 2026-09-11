@@ -6,6 +6,34 @@
     <title>Schematic Planner</title>
     <meta name="description" content="Plan in the browser. Own the output." />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+
+    <!--
+      The card a link to the application unfurls into.
+
+      Deliberately the same for every address inside it, and deliberately says
+      nothing about what is there. A crawler cannot sign in, and an unfurl is
+      shown to everybody in the channel somebody pasted the link into — so a
+      plan's title in this card would hand it to people who cannot open the
+      plan. The marketing site says more, because everything on it is public.
+
+      Per-page titles are set by the application once it is running, which is
+      what makes the browser tab useful; a crawler does not get that far.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Schematic Planner" />
+    <meta property="og:title" content="Schematic Planner" />
+    <meta
+      property="og:description"
+      content="A plan on the canvas. You need an account on this instance to open it."
+    />
+    <meta property="og:image" content="/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Schematic Planner" />
+    <meta
+      name="twitter:description"
+      content="A plan on the canvas. You need an account on this instance to open it."
+    />
+    <meta name="twitter:image" content="/og.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

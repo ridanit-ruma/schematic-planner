@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/modal';
 import { Problem, Spinner } from '@/components/ui/feedback';
 import { downloadExport, plans } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
+import { useDocumentTitle } from '@/lib/use-document-title';
 import { EdgeInspector } from './EdgeInspector';
 import { HistoryPanel } from './HistoryPanel';
 import { Inspector } from './Inspector';
@@ -89,6 +90,8 @@ function PlanWorkspace({
     () => comments.filter((comment) => !comment.resolved),
     [comments],
   );
+
+  useDocumentTitle(title === '' ? 'Untitled plan' : title);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selected)?.data.node ?? null,
