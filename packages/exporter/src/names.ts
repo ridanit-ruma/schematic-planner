@@ -45,13 +45,23 @@ export function fileName(title: string, slug: string): string {
 }
 
 /**
- * The same names, made unique among themselves. Two notes may share a title —
- * "Overview", "Notes" — and two files in one directory may not share a name.
+ * The same names, made unique among themselves and against whatever the bundle
+ * has already claimed at this level.
+ *
+ * Two notes may share a title — "Overview", "Notes" — and two files in one
+ * directory may not share a name. `reserved` is the other half of that: the
+ * export writes files of its own, and a node titled `README` used to land on
+ * the same archive entry as the overview, where JSZip keeps the last one
+ * written and says nothing.
  */
 export function uniqueNames(
   entries: readonly { slug: string; title: string }[],
+  reserved: readonly string[] = [],
 ): ReadonlyMap<string, string> {
-  const taken = new Set<string>();
+  // Lowercase throughout: the archive key is case-sensitive but a great many
+  // filesystems are not, so two names that differ only in case are one file by
+  // the time anybody unpacks this.
+  const taken = new Set<string>(reserved.map((name) => name.toLowerCase()));
   const out = new Map<string, string>();
 
   for (const entry of entries) {

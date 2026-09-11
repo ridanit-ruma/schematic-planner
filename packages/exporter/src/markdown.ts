@@ -1,4 +1,6 @@
 import matter from 'gray-matter';
+
+import { oneLine, wikilinkLabel } from './inline.js';
 import { RESERVED_META_KEYS, type PlanComment, type PlanEdge, type PlanGraph, type PlanNode } from '@schematic/schema';
 
 /**
@@ -69,7 +71,7 @@ export function nodeToMarkdown(
   // The filename is the title now, and Obsidian shows it above the note. An H1
   // saying the same thing is the title twice. A container is the exception: its
   // file is the README of a folder, which does not say what it holds.
-  const sections = contains.length > 0 ? [`# ${node.title}`] : [];
+  const sections = contains.length > 0 ? [`# ${oneLine(node.title)}`] : [];
   if (body !== '') sections.push(body);
 
   // Frontmatter slugs are how a machine rebuilds the graph; these are how a
@@ -89,7 +91,7 @@ export function nodeToMarkdown(
 
 /** `[[path/to/file|Title]]`: a full path, because container notes are all README. */
 function wikilink(slug: string, graph: PlanGraph, fileOf: ReadonlyMap<string, string>): string {
-  const title = graph.nodes.get(slug)?.title ?? slug;
+  const title = wikilinkLabel(graph.nodes.get(slug)?.title ?? slug);
   const path = fileOf.get(slug);
   if (path === undefined) return title;
   const target = path.replace(/\.md$/, '');
@@ -144,7 +146,7 @@ function notesSection(slug: string, comments: readonly PlanComment[]): string | 
   if (about.length === 0) return null;
 
   const lines = about.map((comment) => {
-    const who = comment.author === '' ? 'Someone' : comment.author;
+    const who = comment.author === '' ? 'Someone' : oneLine(comment.author);
     const state = comment.resolved ? ' _(resolved)_' : '';
     const said = comment.body.trim() === '' ? '_(empty)_' : comment.body.trim();
     return `> **${who}**${state}\n>\n${said

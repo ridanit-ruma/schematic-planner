@@ -273,3 +273,102 @@ describe('frontmatter this product does not own', () => {
     ).toThrow();
   });
 });
+
+describe('what the bundle writes itself', () => {
+  const named = (title: string, kind = 'task'): PlanDoc =>
+    planDocSchema.parse({
+      id: 'plan-claim',
+      title: 'Claim',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [
+        { slug: 'mine', title, kind },
+        { slug: 'other', title: 'Other' },
+      ],
+      edges:
+        kind === 'group' ? [{ id: 'c', kind: 'contains', from: 'mine', to: 'other' }] : [],
+    });
+
+  /* JSZip keeps the last entry written for a key and says nothing, so this used
+     to replace the overview — table of contents, notes and warnings — with one
+     node's body. */
+  it('is not claimable by a node of the same name', () => {
+    const paths = exportPlan(named('README')).files.map((file) => file.path);
+    expect(paths).toContain('README.md');
+    expect(paths).toContain('README (mine).md');
+    expect(paths.filter((path) => path === 'README.md')).toHaveLength(1);
+  });
+
+  it('keeps the overview intact when one is tried', () => {
+    expect(fileAt(named('README'), 'README.md')).toContain('## Contents');
+  });
+
+  it('protects the two machine-readable files from a container of that name', () => {
+    const paths = exportPlan(named('plan.canvas', 'group')).files.map((file) => file.path);
+    expect(paths).toContain('plan.canvas');
+    // The container took a different directory, so nothing is both a file and a
+    // folder — an archive holding those does not extract.
+    expect(paths.some((path) => path.startsWith('plan.canvas/'))).toBe(false);
+  });
+
+  /* A container owns the README of its own directory, so a child may not. */
+  it('protects a container README from its own children', () => {
+    const nested = planDocSchema.parse({
+      id: 'plan-nested',
+      title: 'Nested',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [
+        { slug: 'box', title: 'Box', kind: 'group' },
+        { slug: 'child', title: 'README' },
+      ],
+      edges: [{ id: 'c', kind: 'contains', from: 'box', to: 'child' }],
+    });
+    const paths = exportPlan(nested).files.map((file) => file.path);
+    expect(paths.filter((path) => path === 'Box/README.md')).toHaveLength(1);
+    expect(paths).toContain('Box/README (child).md');
+  });
+});
+
+describe('text the export builds a construct around', () => {
+  const titled = (title: string): PlanDoc =>
+    planDocSchema.parse({
+      id: 'plan-inline',
+      title: 'Inline',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [
+        { slug: 'a', title },
+        { slug: 'b', title: 'Second' },
+      ],
+      edges: [{ id: 'r', kind: 'relates_to', from: 'a', to: 'b' }],
+    });
+
+  it('keeps a Contents entry a link when the title carries a bracket', () => {
+    const readme = fileAt(titled('Auth] (not a link)'), 'README.md');
+    expect(readme).toContain('- [Auth\\] (not a link)](');
+  });
+
+  it('keeps a wikilink whole when the label would have ended it', () => {
+    // A label is shown literally, so the characters that would close the
+    // construct come out rather than being escaped into view. The link in
+    // `Second.md` points back at the node with the awkward title.
+    expect(fileAt(titled('Esc]] | pipe'), 'Second.md')).toContain(
+      '- Related: [[Esc pipe|Esc  pipe]]',
+    );
+  });
+
+  it('keeps a heading and a note on one line', () => {
+    const multiline = planDocSchema.parse({
+      ...titled('Box'),
+      nodes: [
+        { slug: 'a', title: 'Holder', kind: 'group' },
+        { slug: 'b', title: 'Second' },
+      ],
+      edges: [{ id: 'c', kind: 'contains', from: 'a', to: 'b' }],
+      comments: [{ id: 'n', body: 'Fine.', author: 'alice\n\n## Notice', anchor: 'b' }],
+    });
+    const holder = fileAt(multiline, 'Holder/README.md');
+    expect(holder).toContain('# Holder');
+    const second = fileAt(multiline, 'Holder/Second.md');
+    expect(second).toContain('> **alice ## Notice**');
+    expect(second).not.toContain('\n## Notice');
+  });
+});

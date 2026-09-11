@@ -1,6 +1,7 @@
 import { buildPlanGraph, type PlanDoc } from '@schematic/schema';
 
 import { toCanvas } from './canvas.js';
+import { linkText, oneLine } from './inline.js';
 import { nodeToMarkdown } from './markdown.js';
 import { assignPaths } from './paths.js';
 
@@ -54,7 +55,7 @@ function tableOfContents(
       if (node === undefined || path === undefined) continue;
 
       const status = node.status === 'idea' ? '' : ` — \`${node.status}\``;
-      lines.push(`${'  '.repeat(depth)}- [${node.title}](${path})${status}`);
+      lines.push(`${'  '.repeat(depth)}- [${linkText(node.title)}](${path})${status}`);
       walk(childrenInOrder.get(slug) ?? [], depth + 1);
     }
   };
@@ -80,7 +81,7 @@ function overview(
     sections.push(
       `## Notes on this plan\n\n${loose
         .map((comment) => {
-          const who = comment.author === '' ? 'Someone' : comment.author;
+          const who = comment.author === '' ? 'Someone' : oneLine(comment.author);
           const state = comment.resolved ? ' _(resolved)_' : '';
           const said = comment.body.trim() === '' ? '_(empty)_' : comment.body.trim();
           return `- **${who}**${state} — ${said.replace(/\s+/g, ' ')}`;

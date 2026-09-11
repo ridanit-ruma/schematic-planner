@@ -45,8 +45,15 @@ export function assignPaths(doc: Pick<PlanDoc, 'nodes' | 'edges'>, graph?: PlanG
       [...(resolved.dependenciesOf.get(slug) ?? [])].some((need) => among.has(need)),
     );
 
+    // What the bundle writes here itself. Every directory holds the README of
+    // the node that owns it; the root also holds the overview and the two
+    // machine-readable files.
+    const claimed =
+      parentDir === '' ? ['README', 'plan.canvas', 'plan.json'] : ['README'];
+
     const names = uniqueNames(
       order.map((slug) => ({ slug, title: resolved.nodes.get(slug)?.title ?? slug })),
+      claimed,
     );
 
     const width = Math.max(2, String(order.length).length);
