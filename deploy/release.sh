@@ -83,7 +83,10 @@ for image in api web; do
   fi
 
   while ! built "$image"; do
-    if ! building "$image"; then
+    # Asked again before giving up: the two questions are two round trips, and a
+    # step that finishes between them has neither a process nor -- to the answer
+    # already in hand -- a result, which reads as a failure and is not one.
+    if ! building "$image" && ! built "$image"; then
       echo "the build of $image stopped without producing an image; its log is $log on $NODE" >&2
       ssh "$NODE" "tail -20 $log" >&2 || true
       exit 1
@@ -123,7 +126,7 @@ for image in api web; do
   fi
 
   while ! loaded "$image"; do
-    if ! loading "$image"; then
+    if ! loading "$image" && ! loaded "$image"; then
       echo "the import of $image stopped without landing; its log is $log on $NODE" >&2
       ssh "$NODE" "tail -20 $log" >&2 || true
       exit 1
