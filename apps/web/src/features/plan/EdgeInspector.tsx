@@ -30,6 +30,11 @@ const KIND_OPTIONS = planEdgeKinds.map((kind) => ({
  * Changing the kind is a delete and a create, because an edge is identified by
  * its endpoints and its kind. Both go in one batch, so the canvas never shows a
  * moment with no edge between the two nodes.
+ *
+ * Which means everything not named in that create is lost, and the two fields
+ * nobody thinks of when renaming a line are the two a person placed by hand:
+ * where its writing sits and the bends it runs through. They are carried across
+ * explicitly here for that reason.
  */
 export function EdgeInspector({
   edge,
@@ -48,6 +53,8 @@ export function EdgeInspector({
       label: next.label === undefined ? edge.label : next.label,
       via: next.via === undefined ? edge.via : next.via,
       carries: next.carries === undefined ? edge.carries : next.carries,
+      labelPosition: edge.labelPosition,
+      waypoints: edge.waypoints,
     };
 
     onApplyOps([

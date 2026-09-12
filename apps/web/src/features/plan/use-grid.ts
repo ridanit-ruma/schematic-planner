@@ -49,6 +49,18 @@ export function useGrid(): GridPreference {
   return useMemo(() => ({ on, step, toggle, choose }), [on, step, toggle, choose]);
 }
 
+/**
+ * The same preference, read without a hook.
+ *
+ * For the places that need it once, at the moment of a gesture, rather than as
+ * state to render from — a custom edge deciding where to put the bend somebody
+ * has just dropped. `localStorage` is the source of truth for it, so reading it
+ * there cannot go stale the way a second copy in React state would.
+ */
+export function readGrid(): { on: boolean; step: GridStep } {
+  return { on: readOn(), step: readStep() };
+}
+
 function remember(key: string, value: string): void {
   try {
     window.localStorage.setItem(key, value);

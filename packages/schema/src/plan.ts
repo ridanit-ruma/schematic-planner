@@ -36,6 +36,9 @@ export const slugSchema = z
   .max(SLUG_MAX_LENGTH)
   .regex(SLUG_PATTERN, 'must be lowercase alphanumeric words joined by single hyphens');
 
+/** As many bends as a line may be given by hand. */
+export const WAYPOINT_MAX = 8;
+
 export const positionSchema = z.object({
   x: z.number().finite(),
   y: z.number().finite(),
@@ -141,6 +144,18 @@ export const planEdgeSchema = z.object({
    * this out yet, and the drawing falls back to the midpoint.
    */
   labelPosition: positionSchema.nullable().default(null),
+  /**
+   * Bends the line is made to pass through, in order, in canvas coordinates.
+   *
+   * Unlike every other geometry here these are only ever put there by a person
+   * dragging the line: the router draws the shortest sensible path and has no
+   * opinion worth storing, so an empty list is not "not laid out yet" but "no
+   * bend asked for". That is why nothing on the server clears them.
+   *
+   * Capped because a line is a line. Past a handful of bends the picture is
+   * being drawn rather than read, and the honest answer is another node.
+   */
+  waypoints: z.array(positionSchema).max(WAYPOINT_MAX).default([]),
 });
 export type PlanEdge = z.infer<typeof planEdgeSchema>;
 
@@ -161,6 +176,8 @@ export const planEdgeInputSchema = z.object({
   carries: z.string().max(400).nullish(),
   /** Where the writing on the line goes. Layout output, like a node's position. */
   labelPosition: positionSchema.nullish(),
+  /** Bends the line passes through. Only a person puts these here. */
+  waypoints: z.array(positionSchema).max(WAYPOINT_MAX).nullish(),
 });
 export type PlanEdgeInput = z.input<typeof planEdgeInputSchema>;
 
@@ -174,6 +191,7 @@ export function normalizeEdge(input: z.infer<typeof planEdgeInputSchema>): PlanE
     via: input.via ?? null,
     carries: input.carries ?? null,
     labelPosition: input.labelPosition ?? null,
+    waypoints: input.waypoints ?? [],
   };
 }
 

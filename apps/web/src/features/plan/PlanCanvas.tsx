@@ -10,7 +10,7 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import { normalizeEdge, planEdgeInputSchema, type PlanOp, type Position } from '@schematic/schema';
-import { ORIGIN_LOCAL, commitLayout, commitNodePosition, nudgeLabels } from '@schematic/ydoc';
+import { ORIGIN_LOCAL, commitLayout, commitNodePosition, nudgeEdges } from '@schematic/ydoc';
 import { Grid2x2, MessageSquarePlus, Plus, Redo2, Trash2, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useStore } from 'zustand';
@@ -113,6 +113,7 @@ export function PlanCanvas({
   const edges = useStore(store, (state) => state.edges);
   const remoteDrag = useStore(store, (state) => state.remoteDrag);
   const onNodesChange = useStore(store, (state) => state.onNodesChange);
+  const setEditable = useStore(store, (state) => state.setEditable);
   const onEdgesChange = useStore(store, (state) => state.onEdgesChange);
   const select = useStore(store, (state) => state.select);
   const absolute = useStore(store, (state) => state.absolute);
@@ -130,6 +131,13 @@ export function PlanCanvas({
   const taken = useRef(false);
   useOpeningFit(doc, nodes.length, taken);
   const grid = useGrid();
+  // A line decides on its own whether to offer the handles that bend it, and
+  // React Flow hands it nothing but its data, so the answer goes through the
+  // store. It arrives here, with the socket.
+  useEffect(() => {
+    setEditable(!readOnly);
+  }, [readOnly, setEditable]);
+
   const { fitView, screenToFlowPosition } = useReactFlow();
   // Where the menu was opened, so what it adds lands under the pointer rather
   // than wherever the viewport happens to be centred.
@@ -240,12 +248,13 @@ export function PlanCanvas({
         }
       }
 
-      // The writing on every line these ends carry goes with them, or it is
+      // Everything placed along the lines these ends carry — the writing on them
+      // and any bend somebody dragged them through — goes with them, or it is
       // left standing where the line used to run.
       if (shift.x !== 0 || shift.y !== 0) {
         const carried = new Map<string, Position>([[node.id, shift]]);
         for (const slug of descendantsOf(node.id, parentOf)) carried.set(slug, shift);
-        nudgeLabels(doc, carried, ORIGIN_LOCAL);
+        nudgeEdges(doc, carried, ORIGIN_LOCAL);
       }
       const grown =
         drop.grow === null || drop.parent === null

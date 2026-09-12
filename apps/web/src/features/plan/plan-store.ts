@@ -2,7 +2,9 @@ import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } 
 import { buildPlanGraph, containmentDepth } from '@schematic/schema';
 import type { PlanComment, PlanDoc, PlanEdge, PlanNode, Position } from '@schematic/schema';
 import {
+  ORIGIN_LOCAL,
   commentsMap,
+  commitEdgeWaypoints,
   edgesMap,
   nodesMap,
   readPlanDoc,
@@ -12,7 +14,9 @@ import {
 import { createStore } from 'zustand/vanilla';
 import type * as Y from 'yjs';
 
+import { snapTo } from './snap';
 import type { PlanFlowEdge, PlanFlowNode } from './types';
+import { readGrid } from './use-grid';
 
 export interface PlanState {
   nodes: PlanFlowNode[];
@@ -85,6 +89,18 @@ export interface PlanState {
    */
   reading: Reading | null;
 
+  /**
+   * Whether this viewer may change the drawing.
+   *
+   * React Flow hands a custom edge its data and nothing else, so a line has no
+   * way of being told by a prop whether to offer the handles that bend it. The
+   * canvas, which is where the answer arrives, puts it here.
+   */
+  editable: boolean;
+  setEditable: (editable: boolean) => void;
+  /** The bends a line has been dragged through, on the grid if one is on. */
+  bendEdge: (id: string, waypoints: readonly Position[]) => void;
+
   onNodesChange: (changes: NodeChange<PlanFlowNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<PlanFlowEdge>[]) => void;
   select: (slug: string | null) => void;
@@ -153,6 +169,7 @@ function toFlowEdge(edge: PlanEdge, from: PlanNode | undefined): PlanFlowEdge {
 
 export function createPlanStore(doc: Y.Doc) {
   const store = createStore<PlanState>((set, get) => ({
+    editable: false,
     nodes: [],
     edges: [],
     title: '',
@@ -213,6 +230,17 @@ export function createPlanStore(doc: Y.Doc) {
       set({ related, relatedTo: id });
     },
     selectEdge: (selectedEdge) => set({ selectedEdge, selected: null, selectedComment: null }),
+    setEditable: (editable) => set({ editable }),
+    bendEdge: (id, waypoints) => {
+      if (!get().editable) return;
+      const grid = readGrid();
+      commitEdgeWaypoints(
+        doc,
+        id,
+        grid.on ? waypoints.map((point) => snapTo(point, grid.step)) : waypoints,
+        ORIGIN_LOCAL,
+      );
+    },
   }));
 
   const project = (): PlanDoc => readPlanDoc(doc).doc;

@@ -504,6 +504,42 @@ Screens are built from `Page`, `Panel` and `Table` in `apps/web/src/components/u
 a list is a list wherever it appears. Anything reaching for a raw `<select>`, a native
 `title` tooltip or a hand-rolled avatar has skipped a component that already exists.
 
+### A line can be bent round what is in the way
+
+Two cards with a third between them get a line drawn through it, and no amount of
+automatic routing knows which crossing a reader minds. So a line can be given bends
+by hand: select it and it offers a hollow handle in the middle of each straight run
+— drag one and it becomes a bend — and a solid handle on every bend it already has,
+which drags to move and takes `Delete` to straighten. Handles appear only on the
+selected line and only for someone who may edit the plan; every line showing them
+would put a row of dots across the drawing and make the picture about its own
+controls.
+
+`waypoints` on an edge is the only geometry in the document that **only** a person
+ever writes. A node has a position because something has to, and layout will happily
+compute one; there is no equivalent for a bend, because the router already draws the
+shortest sensible path and has no opinion worth storing. So an empty list means "no
+bend asked for" rather than "not laid out yet", and nothing on the server clears one.
+A line nobody has bent is still drawn by React Flow's own smooth-step router, which
+knows about the cards and the other lines; the hand-rolled route in `edge-path.ts`
+takes over only once there is a bend to pass through, and keeps every leg square and
+both ends head-on so the arrow sits flat against the card.
+
+When a node moves, everything placed along the lines it touches moves with it,
+weighted by how far along it sits: a point a fraction `t` of the way travels
+`from·(1−t) + to·t`. Drag one end and a bend in the middle goes half as far; drag
+both and it goes the whole way. That is the rule the writing on a line already
+followed at `t = ½`, generalised rather than replaced — `nudgeEdges` does both in one
+pass. The bends are why it cannot withdraw the points instead and let them fall back
+to a default: a person put them there.
+
+**Bends do not survive the export.** A JSON Canvas edge is `fromNode`, `toNode` and a
+side at each end; the format has no way to say "via here", and inventing one would
+produce a file Obsidian reads differently from every other canvas. They are a
+property of this drawing, like which notes are collapsed. They are also absent from
+the MCP surface, for the same reason the grid step is: that surface takes structure
+and never coordinates.
+
 ### The grid a drag lands on
 
 One switch turns both the lines and the snapping on: the grid is what the snapping

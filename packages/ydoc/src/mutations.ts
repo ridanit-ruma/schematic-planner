@@ -27,6 +27,34 @@ export function commitNodePosition(
 }
 
 /**
+ * The bends somebody has dragged a line through.
+ *
+ * Written whole rather than per point: the list is short, its order is the
+ * meaning, and two people bending the same line are disagreeing about its shape
+ * rather than editing separate fields of it. Last writer wins, which is what
+ * they would both expect to see.
+ */
+export function commitEdgeWaypoints(
+  doc: Y.Doc,
+  id: string,
+  waypoints: readonly Position[],
+  origin: unknown = ORIGIN_LOCAL,
+): void {
+  const edge = edgesMap(doc).get(id);
+  if (edge === undefined) return;
+  Y.transact(
+    doc,
+    () => {
+      edge.set(
+        'waypoints',
+        waypoints.map((point) => ({ x: Math.round(point.x), y: Math.round(point.y) })),
+      );
+    },
+    origin,
+  );
+}
+
+/**
  * Where a note sits, after somebody has moved it. Same reasoning as a node's
  * position: the drag itself is ephemeral and only the resting place is written.
  */
@@ -57,19 +85,21 @@ export interface NodeSize {
 }
 
 /**
- * Carries the writing on a line along with the ends that moved.
+ * Carries everything placed along a line — its writing and its bends — with the
+ * ends that moved.
  *
- * A label's stored point is absolute, chosen by the layout run that placed the
- * nodes — the only thing that knows what else is nearby, which is why it is
- * worth keeping. Move one end by hand and the line goes without it.
+ * Both are stored absolute, so a line whose end has been dragged goes without
+ * them unless they are brought along. A point a fraction `t` of the way from one
+ * end to the other travels `from·(1−t) + to·t`: the end it is nearer pulls it
+ * harder, and a point in the middle of a line with one end moving goes half as
+ * far. That is exactly the rule the writing already followed, which sat at
+ * `t = ½` — it kept the separation layout had worked out instead of letting
+ * every note drop back to its midpoint and land on top of the others.
  *
- * Moving one end moves the middle of a line by half as far, and moving both
- * moves it by the whole, so that is what the note is shifted by. It keeps the
- * separation layout worked out while staying on its own line; dropping the
- * point instead and letting every note fall to its midpoint put three of them
- * on top of each other.
+ * The bends are why this cannot simply withdraw the points instead. A person put
+ * them there; nothing on the server is entitled to decide they have gone stale.
  */
-export function nudgeLabels(
+export function nudgeEdges(
   doc: Y.Doc,
   moved: ReadonlyMap<string, Position>,
   origin: unknown,
@@ -78,23 +108,32 @@ export function nudgeLabels(
   const edges = edgesMap(doc);
   const shift = (slug: unknown): Position =>
     (typeof slug === 'string' ? moved.get(slug) : undefined) ?? { x: 0, y: 0 };
+  const carry = (point: Position, from: Position, to: Position, t: number): Position => ({
+    x: Math.round(point.x + from.x * (1 - t) + to.x * t),
+    y: Math.round(point.y + from.y * (1 - t) + to.y * t),
+  });
 
   Y.transact(
     doc,
     () => {
       for (const [, edge] of edges) {
-        const at = edge.get('labelPosition');
-        if (at === null || at === undefined) continue;
         const from = shift(edge.get('from'));
         const to = shift(edge.get('to'));
-        const dx = (from.x + to.x) / 2;
-        const dy = (from.y + to.y) / 2;
-        if (dx === 0 && dy === 0) continue;
-        const point = at as Position;
-        edge.set('labelPosition', {
-          x: Math.round(point.x + dx),
-          y: Math.round(point.y + dy),
-        });
+        if (from.x === 0 && from.y === 0 && to.x === 0 && to.y === 0) continue;
+
+        const at = edge.get('labelPosition');
+        if (at !== null && at !== undefined) {
+          edge.set('labelPosition', carry(at as Position, from, to, 0.5));
+        }
+
+        const bends = edge.get('waypoints');
+        if (Array.isArray(bends) && bends.length > 0) {
+          const points = bends as Position[];
+          edge.set(
+            'waypoints',
+            points.map((point, index) => carry(point, from, to, (index + 1) / (points.length + 1))),
+          );
+        }
       }
     },
     origin,
