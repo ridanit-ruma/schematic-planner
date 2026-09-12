@@ -504,6 +504,30 @@ Screens are built from `Page`, `Panel` and `Table` in `apps/web/src/components/u
 a list is a list wherever it appears. Anything reaching for a raw `<select>`, a native
 `title` tooltip or a hand-rolled avatar has skipped a component that already exists.
 
+### The grid a drag lands on
+
+One switch, on the canvas menu, turns both the lines and the snapping on: the grid is
+what the snapping *is*, and lines nothing lands on are decoration pretending to be a
+tool. The step is chosen from the same menu — 10, 20, 40 or 80 — and the fine lines are
+drawn at exactly that step with the coarse one every fifth, so the drawing never
+promises an intersection a node would not take. It is a preference of the person
+looking, kept in `localStorage` beside the plan rail's own state, because two people
+with the same plan open can disagree about it and both be right. 20 is the default,
+which is the fine division the canvas has always drawn.
+
+Snapping is applied to a node's **absolute** position, in `handleDragStop`, and not
+left to React Flow alone. React Flow quantises the position relative to whatever a
+node sits in, so a node inside a group that layout left off the grid would land on a
+lattice of its own; the absolute snap puts every node on one grid however deeply it is
+nested, and doing it before the drag's shift is measured is what carries the group's
+children and the writing on the lines by the same amount. React Flow's own
+`snapToGrid` stays on for the feel of it during the drag.
+
+**The clamp outranks the grid.** `resolveDrop` pulls a dropped node wholly inside the
+group it landed in, and that runs last — a node is never left straddling the edge of a
+group to save half a step, and where a group is barely larger than the card it holds
+there is no grid line inside it to take. `group-drop.test.ts` records this.
+
 ## Getting started
 
 Requires Node 20+ and pnpm 9+ (developed on Node 26 / pnpm 11).

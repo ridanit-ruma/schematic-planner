@@ -1,3 +1,4 @@
+import { Check, ChevronRight } from 'lucide-react';
 import { ContextMenu as Primitive } from 'radix-ui';
 import type { ReactNode } from 'react';
 
@@ -57,4 +58,52 @@ export function ContextAction({
 
 export function ContextSeparator() {
   return <Primitive.Separator className="my-1 h-px bg-rule" />;
+}
+
+/**
+ * A menu that opens another.
+ *
+ * For a choice among a few fixed values, which would otherwise take as many rows
+ * as it has options and push everything else off the bottom of the menu.
+ */
+export function ContextSub({ label, children }: { label: ReactNode; children: ReactNode }) {
+  return (
+    <Primitive.Sub>
+      <Primitive.SubTrigger className={cn(item, 'data-[state=open]:bg-surface-2')}>
+        <span className="flex flex-1 items-center gap-2">{label}</span>
+        <ChevronRight className="size-3.5 text-ink-faint" />
+      </Primitive.SubTrigger>
+      <Primitive.Portal>
+        <Primitive.SubContent className={content} sideOffset={2} alignOffset={-4}>
+          {children}
+        </Primitive.SubContent>
+      </Primitive.Portal>
+    </Primitive.Sub>
+  );
+}
+
+/** One of a set of values, the chosen one marked. */
+export function ContextChoice<T extends string>({
+  value,
+  onChoose,
+  options,
+}: {
+  value: T;
+  onChoose: (value: T) => void;
+  options: readonly { readonly value: T; readonly label: ReactNode }[];
+}) {
+  return (
+    <Primitive.RadioGroup value={value} onValueChange={(next) => onChoose(next as T)}>
+      {options.map((option) => (
+        <Primitive.RadioItem key={option.value} value={option.value} className={item}>
+          <span className="grid w-3.5 place-items-center">
+            <Primitive.ItemIndicator>
+              <Check className="size-3.5" />
+            </Primitive.ItemIndicator>
+          </span>
+          <span className="flex-1">{option.label}</span>
+        </Primitive.RadioItem>
+      ))}
+    </Primitive.RadioGroup>
+  );
 }

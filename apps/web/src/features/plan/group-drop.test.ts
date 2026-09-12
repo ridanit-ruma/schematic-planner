@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { resolveDrop, type DropTarget } from './group-drop';
+import { snapTo } from './snap';
 
 const group: DropTarget = {
   slug: 'group',
@@ -51,5 +52,39 @@ describe('resolveDrop', () => {
   it('refuses to drop a group into itself or into what it holds', () => {
     const drop = resolveDrop({ x: 150, y: 150, ...card }, [group, inner], new Set(['inner']));
     expect(drop.parent).toBe('group');
+  });
+});
+
+/**
+ * Snapping happens before the drop is resolved, never after.
+ *
+ * Both want the last word about where a node goes, and only one of them can have
+ * it. Being wholly inside the group it belongs to is an invariant — the picture
+ * would otherwise say a node is in a group while the plan says it is not —
+ * whereas sitting on a grid line is a convenience. So the clamp runs last, and
+ * these record what that costs.
+ */
+describe('a snapped position going through the clamp', () => {
+  const step = 20;
+
+  it('still ends up wholly inside the group', () => {
+    // Over the left edge, and off the grid on the way in.
+    const drop = resolveDrop({ ...snapTo({ x: -97, y: 203 }, step), ...card }, [group], none);
+    expect(drop.parent).toBe('group');
+    expect(drop.position.x).toBeGreaterThanOrEqual(16);
+    expect(drop.position.x + card.width).toBeLessThanOrEqual(600 - 16);
+  });
+
+  it('lands on a line when the clamp has nothing to say', () => {
+    const drop = resolveDrop({ ...snapTo({ x: 137, y: 151 }, step), ...card }, [group], none);
+    expect(drop.position).toEqual({ x: 140, y: 160 });
+  });
+
+  /* A group's own padding is 16 and 40, neither a multiple of every step. */
+  it('gives up the grid rather than the group at an edge', () => {
+    const drop = resolveDrop({ ...snapTo({ x: 0, y: 0 }, step), ...card }, [group], none);
+    expect(drop.parent).toBe('group');
+    expect(drop.position).toEqual({ x: 16, y: 40 });
+    expect(drop.position.x % step).not.toBe(0);
   });
 });

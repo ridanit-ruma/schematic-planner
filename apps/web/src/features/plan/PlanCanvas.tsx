@@ -15,7 +15,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import { useStore } from 'zustand';
 import type * as Y from 'yjs';
 
-import { ContextAction, ContextMenu, ContextSeparator } from '@/components/ui/context-menu';
+import {
+  ContextAction,
+  ContextChoice,
+  ContextMenu,
+  ContextSeparator,
+  ContextSub,
+} from '@/components/ui/context-menu';
 import { plural } from '@/lib/utils';
 import { resolveDrop, type DropTarget } from './group-drop';
 import type { PlanStore } from './plan-store';
@@ -27,6 +33,7 @@ import { PlanComments } from './PlanComments';
 import { PlanNodeCard } from './PlanNodeCard';
 import type { PlanConnection } from './use-plan-document';
 import type { PlanFlowNode } from './types';
+import { COARSE_MULTIPLE, GRID_STEPS, type GridStep, snapTo } from './snap';
 import { useGrid } from './use-grid';
 import type { Undo } from './use-undo';
 
@@ -121,7 +128,7 @@ export function PlanCanvas({
   // Set the first time the person moves the canvas or a node themselves.
   const taken = useRef(false);
   useOpeningFit(doc, nodes.length, taken);
-  const [grid, setGrid] = useGrid();
+  const grid = useGrid();
   const { fitView, screenToFlowPosition } = useReactFlow();
   // Where the menu was opened, so what it adds lands under the pointer rather
   // than wherever the viewport happens to be centred.
@@ -165,6 +172,15 @@ export function PlanCanvas({
         height: node.measured?.height ?? node.data.node.size?.height ?? 76,
       };
 
+      // Snapped in absolute coordinates rather than left to React Flow, which
+      // quantises the position relative to whatever a node sits in: a child of a
+      // group that layout left off the grid would otherwise land on a lattice of
+      // its own. Snapped here, before the drop is resolved, so that resolveDrop
+      // still has the last word — it clamps a node wholly inside the group it
+      // landed in, and a node is never left straddling the edge of one to save
+      // half a grid step.
+      const snapped = grid.on ? { ...dropped, ...snapTo(dropped, grid.step) } : dropped;
+
       // A group cannot be dropped into itself or into anything it holds.
       const forbidden = new Set<string>([node.id]);
       for (const [slug, holder] of Object.entries(parentOf)) {
@@ -192,7 +208,7 @@ export function PlanCanvas({
           depth: Math.round(((candidate.zIndex ?? 0) as number) / 10),
         }));
 
-      const drop = resolveDrop(dropped, targets, forbidden);
+      const drop = resolveDrop(snapped, targets, forbidden);
       const was = parentOf[node.id] ?? null;
 
       if (drop.parent !== was) {
@@ -238,7 +254,7 @@ export function PlanCanvas({
         commitLayout(doc, moved, ORIGIN_LOCAL, grown);
       }
     },
-    [absolute, connection, doc, nodes, onApplyOps, parentOf],
+    [absolute, connection, doc, grid, nodes, onApplyOps, parentOf],
   );
 
   const handleConnect = useCallback(
@@ -320,7 +336,21 @@ export function PlanCanvas({
         </>
       )}
       <ContextAction onSelect={() => void fitView(FIT_VIEW)}>Fit the whole plan</ContextAction>
-      <ContextAction onSelect={setGrid}>{grid ? 'Hide the grid' : 'Show the grid'}</ContextAction>
+      <ContextAction onSelect={grid.toggle}>
+        {grid.on ? 'Stop snapping to the grid' : 'Snap to the grid'}
+      </ContextAction>
+      {!grid.on ? null : (
+        <ContextSub label="Grid spacing">
+          <ContextChoice
+            value={String(grid.step)}
+            onChoose={(value) => grid.choose(Number(value) as GridStep)}
+            options={GRID_STEPS.map((step) => ({
+              value: String(step),
+              label: `${step} px`,
+            }))}
+          />
+        </ContextSub>
+      )}
       {settled === 0 ? null : (
         <ContextAction onSelect={() => setResolvedShown((shown) => !shown)}>
           {resolvedShown
@@ -358,6 +388,14 @@ export function PlanCanvas({
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        // React Flow quantises the drag itself, which is what makes a node feel
+        // magnetic rather than merely end up tidy. It works on the position
+        // relative to whatever a node sits in, so for a node at the top level —
+        // almost all of them — it agrees exactly with the absolute snap at the
+        // drop, and for one inside an off-grid group the drop corrects it by
+        // less than half a step.
+        snapToGrid={grid.on}
+        snapGrid={[grid.step, grid.step]}
         onNodeDrag={readOnly ? undefined : handleDrag}
         onNodeDragStop={readOnly ? undefined : handleDragStop}
         onConnect={readOnly ? undefined : handleConnect}
@@ -408,20 +446,21 @@ export function PlanCanvas({
           setPointer(screenToFlowPosition({ x: event.clientX, y: event.clientY }));
         }}
       >
-        {/* A drafting grid: a fine division inside a coarse one. */}
-        {!grid ? null : (
+        {/* A drafting grid: a fine division inside a coarse one. The fine one is
+            the step a drag lands on, so the lines are where the nodes go. */}
+        {!grid.on ? null : (
           <>
             <Background
               id="fine"
               variant={BackgroundVariant.Lines}
-              gap={20}
+              gap={grid.step}
               lineWidth={1}
               color="var(--grid-fine)"
             />
             <Background
               id="coarse"
               variant={BackgroundVariant.Lines}
-              gap={100}
+              gap={grid.step * COARSE_MULTIPLE}
               lineWidth={1}
               color="var(--grid-coarse)"
             />
@@ -432,6 +471,7 @@ export function PlanCanvas({
           doc={doc}
           readOnly={readOnly}
           showResolved={resolvedShown}
+          snap={grid.on ? grid.step : null}
           onSelect={selectComment}
         />
         <PeerCursors store={store} />

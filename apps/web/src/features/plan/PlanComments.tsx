@@ -13,6 +13,7 @@ import type * as Y from 'yjs';
 
 import { Tooltip } from '@/components/ui/tooltip';
 import { cn, formatWhen } from '@/lib/utils';
+import { snapTo } from './snap';
 import type { PlanStore } from './plan-store';
 import { useYText } from './use-y-text';
 
@@ -38,12 +39,15 @@ export function PlanComments({
   doc,
   readOnly,
   showResolved,
+  snap,
   onSelect,
 }: {
   store: PlanStore['store'];
   doc: Y.Doc;
   readOnly: boolean;
   showResolved: boolean;
+  /** The grid step a dragged note lands on, or null when nothing is snapping. */
+  snap: number | null;
   onSelect: (id: string | null) => void;
 }) {
   const comments = useStore(store, (state) => state.comments);
@@ -62,6 +66,7 @@ export function PlanComments({
           at={comment.position ?? placed[comment.id] ?? { x: 0, y: 0 }}
           doc={doc}
           readOnly={readOnly}
+          snap={snap}
           open={comment.id === selected}
           anchoredAt={comment.anchor === null ? null : (absolute[comment.anchor] ?? null)}
           onSelect={onSelect}
@@ -116,6 +121,7 @@ function Note({
   at: fallback,
   doc,
   readOnly,
+  snap,
   open,
   anchoredAt,
   onSelect,
@@ -125,6 +131,7 @@ function Note({
   at: Position;
   doc: Y.Doc;
   readOnly: boolean;
+  snap: number | null;
   open: boolean;
   /** Where the node this is about sits, so the tie can be drawn. */
   anchoredAt: Position | null;
@@ -156,10 +163,14 @@ function Note({
     const start = grab.current;
     if (start === null) return;
     const now = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-    setHeld({
+    const dragged = {
       x: start.from.x + (now.x - start.pointer.x),
       y: start.from.y + (now.y - start.pointer.y),
-    });
+    };
+    // Snapped while it moves rather than on release. Dragging a note is our own
+    // gesture rather than React Flow's, so there is nothing to fight: the note
+    // can simply be drawn where it is going to end up.
+    setHeld(snap === null ? dragged : snapTo(dragged, snap));
   };
 
   const onPointerUp = (): void => {
