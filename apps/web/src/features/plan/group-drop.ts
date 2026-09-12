@@ -27,9 +27,10 @@ export interface DropResolution {
 /**
  * Room a group keeps for its own label and margins. Mirrors CONTAINER_PADDING
  * in @schematic/layout; a node placed by hand should sit where the layout would
- * have put it.
+ * have put it. Every side is a multiple of the grid there, which is what leaves
+ * an intersection inside a group for a snapped drop to land on.
  */
-const PADDING = { top: 40, left: 16, bottom: 16, right: 16 };
+const PADDING = { top: 40, left: 20, bottom: 20, right: 20 };
 
 /**
  * Where a dropped node belongs.

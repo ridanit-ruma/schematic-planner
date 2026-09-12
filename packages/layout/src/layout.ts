@@ -39,11 +39,32 @@ export interface LayoutResult {
 }
 
 /**
+ * The lattice a laid-out drawing sits on.
+ *
+ * The canvas offers 10, 20, 40 and 80 to snap a drag to, and the layout has to
+ * pick one: it runs on the server, where nobody's preference is in scope. 20 is
+ * the default step and the fine division the canvas has always drawn, so a plan
+ * the server tidied and a plan a person tidied land on the same lines. Choosing
+ * a coarser step for yourself still works — every node the layout placed is then
+ * on every other line rather than every one.
+ *
+ * Not offered over MCP. The surface deliberately takes structure and never
+ * coordinates, and a grid step is a coordinate; an agent has nothing to decide
+ * it with.
+ */
+const GRID = 20;
+
+/**
  * Room along the top edge for a container's own label. Applied to every
  * container, not just the root: ELK reads padding per node, and a container
  * without it puts its first child straight over its own title.
+ *
+ * Every side is a multiple of GRID so that the room inside a container starts on
+ * the grid too. With 16 down the sides it did not, and a container drawn snugly
+ * around one card had no intersection inside it at all — the card could sit on
+ * the grid or inside its group, never both.
  */
-const CONTAINER_PADDING = '[top=40,left=16,bottom=16,right=16]';
+const CONTAINER_PADDING = `[top=40,left=${GRID},bottom=${GRID},right=${GRID}]`;
 
 /**
  * What a node actually measures on the canvas.
@@ -177,14 +198,25 @@ export async function layoutPlan(
   // ELK reports an edge's label against whatever node contains that edge, so
   // the same accumulation the nodes need is kept for the containers too.
   const origins = new Map<string, Position>([['root', { x: 0, y: 0 }]]);
+  // Snapped against the container a node sits in, not against the world, and the
+  // offset handed down is already snapped. Both matter: ELK reports a child's
+  // position relative to its parent, and rounding the two independently could
+  // move a child across the border of the container that holds it. Snapping the
+  // offset and the step into it separately keeps every node on the world grid —
+  // a sum of multiples is a multiple — while no child ever leaves its padding.
   const collect = (nodes: readonly ElkNode[] | undefined, offset: Position): void => {
     for (const node of nodes ?? []) {
-      const x = offset.x + (node.x ?? 0);
-      const y = offset.y + (node.y ?? 0);
+      const x = offset.x + snap(node.x ?? 0);
+      const y = offset.y + snap(node.y ?? 0);
       computed.set(node.id, { x, y });
       origins.set(node.id, { x, y });
       if ((node.children?.length ?? 0) > 0 && node.width !== undefined && node.height !== undefined) {
-        sizes.set(node.id, { width: Math.round(node.width), height: Math.round(node.height) });
+        // Up, never down: a container may end wider than its contents need, but
+        // never narrower than what ELK measured to fit inside it.
+        sizes.set(node.id, {
+          width: Math.ceil(node.width / GRID) * GRID,
+          height: Math.ceil(node.height / GRID) * GRID,
+        });
       }
       collect(node.children, { x, y });
     }
@@ -250,7 +282,15 @@ function translationKeepingPinned(
     }),
     { x: 0, y: 0 },
   );
-  return { x: sum.x / pairs.length, y: sum.y / pairs.length };
+  // Snapped, because everything this is added to is on the grid and a fractional
+  // translation would take all of it off again. Half a step is nothing against
+  // the purpose, which is to land the new work near the old.
+  return { x: snap(sum.x / pairs.length), y: snap(sum.y / pairs.length) };
+}
+
+/** The nearest line of the lattice the layout draws on. */
+function snap(value: number): number {
+  return Math.round(value / GRID) * GRID;
 }
 
 function round(positions: ReadonlyMap<string, Position>): Map<string, Position> {

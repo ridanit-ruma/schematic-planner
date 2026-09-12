@@ -1,6 +1,7 @@
 import {
   Background,
   BackgroundVariant,
+  ControlButton,
   Controls,
   ReactFlow,
   type Connection,
@@ -10,7 +11,7 @@ import {
 } from '@xyflow/react';
 import { normalizeEdge, planEdgeInputSchema, type PlanOp, type Position } from '@schematic/schema';
 import { ORIGIN_LOCAL, commitLayout, commitNodePosition, nudgeLabels } from '@schematic/ydoc';
-import { MessageSquarePlus, Plus, Redo2, Trash2, Undo2 } from 'lucide-react';
+import { Grid2x2, MessageSquarePlus, Plus, Redo2, Trash2, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useStore } from 'zustand';
 import type * as Y from 'yjs';
@@ -478,7 +479,19 @@ export function PlanCanvas({
         <Controls
           showInteractive={false}
           className="!border !border-rule !bg-surface !shadow-none [&_button]:!border-rule [&_button]:!bg-surface [&_button]:!fill-ink-muted hover:[&_button]:!bg-surface-2"
-        />
+        >
+          {/* The grid is a drafting aid and belongs with the other two, which are
+              also about looking rather than about the plan. Which step it uses
+              stays in the menu: this is the switch, not the settings. */}
+          <ControlButton
+            onClick={grid.toggle}
+            title={grid.on ? `Snapping to a ${grid.step}px grid` : 'Not snapping to the grid'}
+            aria-label={grid.on ? 'Stop snapping to the grid' : 'Snap to the grid'}
+            aria-pressed={grid.on}
+          >
+            <Grid2x2 className={grid.on ? '!fill-none stroke-accent' : '!fill-none stroke-ink-muted'} />
+          </ControlButton>
+        </Controls>
       </ReactFlow>
     </div>
     </ContextMenu>

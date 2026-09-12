@@ -506,9 +506,10 @@ a list is a list wherever it appears. Anything reaching for a raw `<select>`, a 
 
 ### The grid a drag lands on
 
-One switch, on the canvas menu, turns both the lines and the snapping on: the grid is
-what the snapping *is*, and lines nothing lands on are decoration pretending to be a
-tool. The step is chosen from the same menu — 10, 20, 40 or 80 — and the fine lines are
+One switch turns both the lines and the snapping on: the grid is what the snapping
+*is*, and lines nothing lands on are decoration pretending to be a tool. It is the
+fourth button under the zoom controls, and it is in the canvas menu as well. The step
+is chosen from that menu — 10, 20, 40 or 80 — and the fine lines are
 drawn at exactly that step with the coarse one every fifth, so the drawing never
 promises an intersection a node would not take. It is a preference of the person
 looking, kept in `localStorage` beside the plan rail's own state, because two people
@@ -524,9 +525,27 @@ children and the writing on the lines by the same amount. React Flow's own
 `snapToGrid` stays on for the feel of it during the drag.
 
 **The clamp outranks the grid.** `resolveDrop` pulls a dropped node wholly inside the
-group it landed in, and that runs last — a node is never left straddling the edge of a
-group to save half a step, and where a group is barely larger than the card it holds
-there is no grid line inside it to take. `group-drop.test.ts` records this.
+group it landed in, and that runs last: a node is never left straddling the edge of a
+group to save half a step. `group-drop.test.ts` records this.
+
+For that to cost nothing, there has to *be* a grid line inside a group, and that is why
+the layout draws on the same lattice. `packages/layout` snaps every position to a
+20-pixel grid, rounds container sizes up to it, and snaps the translation that anchors
+a fresh layout onto pinned work — a fractional one would take everything straight back
+off. Children are snapped against their container rather than against the world, so
+rounding can never carry one across the border of what holds it, and `CONTAINER_PADDING`
+is a multiple of the grid on every side so the room inside a container starts on it too.
+With 16 down the sides it did not, and a container drawn snugly around a single card had
+no intersection inside it at all: the card could be on the grid or inside its group,
+never both.
+
+The step is fixed at 20 there rather than offered. The layout runs on the server, where
+nobody's preference is in scope, and 20 is both the default and the fine division the
+canvas has always drawn — choosing 40 or 80 for yourself still works, it just puts the
+laid-out nodes on every other line. **It is deliberately not on the MCP surface**: that
+surface takes structure and never coordinates, and a grid step is a coordinate an agent
+has nothing to decide with. Positions already stored are left alone; they come onto the
+grid the next time the plan is laid out or the node is dragged.
 
 ## Getting started
 

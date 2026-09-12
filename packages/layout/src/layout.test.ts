@@ -91,6 +91,85 @@ describe('layoutPlan', () => {
     expect(positions.get('child-a')!.x).toBeGreaterThanOrEqual(positions.get('group')!.x);
   });
 
+  /**
+   * The canvas snaps a drag to the same lattice, so a plan the server tidied and
+   * a plan a person tidied have to agree about where the lines are. The step is
+   * fixed here rather than offered: the layout runs where nobody's preference is
+   * in scope, and a grid step is a coordinate the MCP surface does not take.
+   */
+  describe('the grid it draws on', () => {
+    const GRID = 20;
+    const onGrid = (p: { x: number; y: number }) => p.x % GRID === 0 && p.y % GRID === 0;
+
+    it('places every node on it', async () => {
+      const { positions } = await layoutPlan(plan());
+      expect([...positions.values()].every(onGrid)).toBe(true);
+    });
+
+    it('places a nested node on it too, not merely inside its container', async () => {
+      const doc = planDocSchema.parse({
+        id: 'plan-3',
+        title: 'Nested',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        nodes: [
+          { slug: 'group', title: 'Group' },
+          { slug: 'child-a', title: 'A' },
+          { slug: 'child-b', title: 'B' },
+        ],
+        edges: [
+          { id: 'c1', kind: 'contains', from: 'group', to: 'child-a' },
+          { id: 'c2', kind: 'contains', from: 'group', to: 'child-b' },
+        ],
+      });
+      const { positions, sizes } = await layoutPlan(doc);
+      expect([...positions.values()].every(onGrid)).toBe(true);
+
+      // And the container is sized in whole steps, so the room inside it starts
+      // and ends on the grid as well.
+      const box = sizes.get('group')!;
+      expect(box.width % GRID).toBe(0);
+      expect(box.height % GRID).toBe(0);
+    });
+
+    /* A child must not be rounded across the border of what holds it. */
+    it('keeps a nested node inside its container', async () => {
+      const doc = planDocSchema.parse({
+        id: 'plan-4',
+        title: 'Nested',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        nodes: [
+          { slug: 'group', title: 'Group' },
+          { slug: 'child', title: 'A' },
+        ],
+        edges: [{ id: 'c1', kind: 'contains', from: 'group', to: 'child' }],
+      });
+      const { positions, sizes } = await layoutPlan(doc);
+      const box = sizes.get('group')!;
+      const at = positions.get('group')!;
+      const child = positions.get('child')!;
+      expect(child.x).toBeGreaterThanOrEqual(at.x);
+      expect(child.y).toBeGreaterThanOrEqual(at.y);
+      expect(child.x).toBeLessThanOrEqual(at.x + box.width);
+      expect(child.y).toBeLessThanOrEqual(at.y + box.height);
+    });
+
+    /* The translation onto pinned work is a whole number of steps, or it would
+       carry every freshly placed node straight back off the grid. */
+    it('stays on it when the layout is anchored to pinned nodes', async () => {
+      const doc = plan({
+        nodes: planDocSchema.shape.nodes.parse([
+          // Deliberately off the grid, and off it on both axes.
+          { slug: 'db', title: 'Database', position: { x: 137, y: -43 }, pinned: true },
+          { slug: 'auth', title: 'Auth' },
+          { slug: 'ui', title: 'UI' },
+        ]),
+      });
+      const { positions } = await layoutPlan(doc);
+      expect(positions.has('db')).toBe(false);
+      expect([...positions.values()].every(onGrid)).toBe(true);
+    });
+  });
+
   describe('the writing on a line', () => {
     /** Four flows out of one node, all labelled, all heading the same way. */
     const busy = (): PlanDoc =>
