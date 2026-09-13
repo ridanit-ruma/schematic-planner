@@ -402,8 +402,14 @@ try {
       );
 
       // Still listed means still open: Task 5 drops anything taken or turned down.
+      // Matched back to the token this section minted, not to just any open
+      // invitation in the demo workspace — otherwise this passes whenever the
+      // workspace happens to have an unrelated invitation sitting open.
       const before = await call(`/workspaces/${workspaces[0].id}/invites`);
-      check('and has joined nobody yet', Array.isArray(before) && before.length > 0);
+      const stillOpen = Array.isArray(before)
+        ? before.find((entry) => entry.prefix !== '' && inviteToken.startsWith(entry.prefix))
+        : undefined;
+      check('and has joined nobody yet', stillOpen !== undefined);
     } finally {
       // Withdraw it no matter what went wrong above, the way the fixture below
       // destroys itself in its own finally. Looked up fresh here rather than
@@ -411,10 +417,13 @@ try {
       // otherwise skip cleanup and leak an open invitation into the demo
       // workspace. The create response carries the link, not the row's id, so
       // the row this minted is matched back to it by the prefix stored
-      // alongside the token's hash.
+      // alongside the token's hash. `prefix === ''` is the schema default for
+      // rows created before that column existed, so it must not match a
+      // startsWith('') that is true of every token — that would delete an
+      // unrelated live invitation instead of the one this section made.
       const open = await call(`/workspaces/${workspaces[0].id}/invites`);
       const minted = Array.isArray(open)
-        ? open.find((entry) => inviteToken.startsWith(entry.prefix))
+        ? open.find((entry) => entry.prefix !== '' && inviteToken.startsWith(entry.prefix))
         : undefined;
       check('and it can be withdrawn', minted !== undefined);
       if (minted !== undefined) {
