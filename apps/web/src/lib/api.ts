@@ -289,6 +289,15 @@ export const auth = {
   refresh: refreshAccessToken,
 };
 
+export interface InvitePreview {
+  readonly workspace: { readonly id: string; readonly name: string };
+  readonly role: Role;
+  readonly invitedBy: { readonly name: string };
+  /** The address it was sent to, when it was sent to one. */
+  readonly email: string | null;
+  readonly status: 'open' | 'accepted' | 'declined' | 'expired';
+}
+
 export const workspaces = {
   list: () => api<WorkspaceSummary[]>('/workspaces'),
   create: (name: string) =>
@@ -315,6 +324,10 @@ export const workspaces = {
     api<{ workspace: { id: string; name: string } }>(`/invites/${token}/accept`, {
       method: 'POST',
     }),
+  /** Readable without a session: the token is the capability, not the cookie. */
+  previewInvite: (token: string) => api<InvitePreview>(`/invites/${token}`),
+  declineInvite: (token: string) =>
+    api<{ ok: true }>(`/invites/${token}/decline`, { method: 'POST' }),
 };
 
 export const projects = {
