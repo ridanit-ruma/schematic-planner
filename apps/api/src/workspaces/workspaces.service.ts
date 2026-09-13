@@ -230,17 +230,49 @@ export class WorkspacesService {
     };
   }
 
+  /**
+   * Turning one down.
+   *
+   * Needs a session because the screen only offers it to somebody signed in, and
+   * because a public route here would let anyone who intercepted the link burn
+   * an invitation that was not theirs.
+   *
+   * Declining twice is one refusal. A second click is somebody making sure, not
+   * an error to show them.
+   */
+  async declineInvite(userId: string, token: string): Promise<{ ok: true }> {
+    const invite = await this.prisma.invite.findUnique({
+      where: { tokenHash: hashToken(token) },
+    });
+    if (invite === null) throw new NotFoundException('That invitation is not valid');
+
+    const status = inviteStatus(invite);
+    if (status === 'declined') return { ok: true };
+    if (status === 'accepted') {
+      throw new ForbiddenException('That invitation has already been accepted');
+    }
+    if (status === 'expired') throw new ForbiddenException('That invitation has expired');
+
+    await this.prisma.invite.update({
+      where: { id: invite.id },
+      data: { declinedAt: new Date() },
+    });
+    return { ok: true };
+  }
+
   async acceptInvite(userId: string, token: string) {
     const invite = await this.prisma.invite.findUnique({
       where: { tokenHash: hashToken(token) },
       include: { workspace: true },
     });
 
-    if (invite === null || invite.acceptedAt !== null) {
-      throw new NotFoundException('That invitation is not valid');
-    }
-    if (invite.expiresAt.getTime() < Date.now()) {
-      throw new ForbiddenException('That invitation has expired');
+    if (invite === null) throw new NotFoundException('That invitation is not valid');
+
+    const status = inviteStatus(invite);
+    if (status === 'accepted') throw new NotFoundException('That invitation is not valid');
+    if (status === 'expired') throw new ForbiddenException('That invitation has expired');
+    if (status === 'declined') {
+      throw new ForbiddenException('That invitation was declined. Ask for a new one.');
     }
 
     await this.prisma.$transaction([

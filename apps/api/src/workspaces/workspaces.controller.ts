@@ -107,6 +107,12 @@ export class WorkspacesController {
     return this.workspaces.acceptInvite(user.id, token);
   }
 
+  @StrictRateLimit()
+  @Post('invites/:token/decline')
+  decline(@CurrentUser() user: AuthUser, @Param('token') token: string) {
+    return this.workspaces.declineInvite(user.id, token);
+  }
+
   /**
    * No session needed: being asked to sign in before being told what for is the
    * thing this screen exists to fix.
