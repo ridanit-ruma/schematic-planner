@@ -372,47 +372,54 @@ try {
   check('an invitation can be minted', typeof inviteToken === 'string' && inviteToken !== '');
 
   if (typeof inviteToken === 'string' && inviteToken !== '') {
-    // Signed out, the page still has to say what the invitation is for.
-    const anonymous = await browser.createBrowserContext();
-    const visitor = await anonymous.newPage();
-    await visitor.goto(`${BASE}/invite/${inviteToken}`, { waitUntil: 'domcontentloaded' });
-    await wait(2500);
-    const signedOut = await visitor.evaluate(() => document.body.innerText);
-    check(
-      'it names the workspace without a session',
-      signedOut.includes('invited you to'),
-      signedOut.slice(0, 60).replace(/\n/g, ' '),
-    );
-    check('and offers a way in rather than a spinner', signedOut.includes('Sign in to accept'));
-    await anonymous.close();
+    try {
+      // Signed out, the page still has to say what the invitation is for.
+      const anonymous = await browser.createBrowserContext();
+      const visitor = await anonymous.newPage();
+      await visitor.goto(`${BASE}/invite/${inviteToken}`, { waitUntil: 'domcontentloaded' });
+      await wait(2500);
+      const signedOut = await visitor.evaluate(() => document.body.innerText);
+      check(
+        'it names the workspace without a session',
+        signedOut.includes('invited you to'),
+        signedOut.slice(0, 60).replace(/\n/g, ' '),
+      );
+      check('and offers a way in rather than a spinner', signedOut.includes('Sign in to accept'));
+      await anonymous.close();
 
-    // Signed in, nothing is joined until the button is pressed.
-    await page.goto(`${BASE}/invite/${inviteToken}`, { waitUntil: 'domcontentloaded' });
-    await wait(2500);
-    const offered = await page.evaluate(() => document.body.innerText);
-    // Accept/Decline is not reachable here: the gate has exactly one account,
-    // and it already owns the workspace it just invited itself into, so this
-    // is the already-a-member rendering — an offer to open it, not join it.
-    check(
-      'signed in as a member already, it offers to open the workspace rather than join it',
-      offered.includes('You are already in this workspace') &&
-        offered.includes(`Open ${workspaces[0].name}`) &&
-        !offered.includes('Accept'),
-    );
+      // Signed in, nothing is joined until the button is pressed.
+      await page.goto(`${BASE}/invite/${inviteToken}`, { waitUntil: 'domcontentloaded' });
+      await wait(2500);
+      const offered = await page.evaluate(() => document.body.innerText);
+      // Accept/Decline is not reachable here: the gate has exactly one account,
+      // and it already owns the workspace it just invited itself into, so this
+      // is the already-a-member rendering — an offer to open it, not join it.
+      check(
+        'signed in as a member already, it offers to open the workspace rather than join it',
+        offered.includes('You are already in this workspace') &&
+          offered.includes(`Open ${workspaces[0].name}`) &&
+          !offered.includes('Accept'),
+      );
 
-    // Still listed means still open: Task 5 drops anything taken or turned down.
-    const before = await call(`/workspaces/${workspaces[0].id}/invites`);
-    check('and has joined nobody yet', Array.isArray(before) && before.length > 0);
-
-    // Withdraw it, the way the fixture below destroys itself. The create
-    // response carries the link, not the row's id, so the row this minted is
-    // matched back to it by the prefix stored alongside the token's hash.
-    const minted = Array.isArray(before)
-      ? before.find((entry) => inviteToken.startsWith(entry.prefix))
-      : undefined;
-    check('and it can be withdrawn', minted !== undefined);
-    if (minted !== undefined) {
-      await call(`/workspaces/${workspaces[0].id}/invites/${minted.id}`, { method: 'DELETE' });
+      // Still listed means still open: Task 5 drops anything taken or turned down.
+      const before = await call(`/workspaces/${workspaces[0].id}/invites`);
+      check('and has joined nobody yet', Array.isArray(before) && before.length > 0);
+    } finally {
+      // Withdraw it no matter what went wrong above, the way the fixture below
+      // destroys itself in its own finally. Looked up fresh here rather than
+      // reused from the try, since a throw partway through the try would
+      // otherwise skip cleanup and leak an open invitation into the demo
+      // workspace. The create response carries the link, not the row's id, so
+      // the row this minted is matched back to it by the prefix stored
+      // alongside the token's hash.
+      const open = await call(`/workspaces/${workspaces[0].id}/invites`);
+      const minted = Array.isArray(open)
+        ? open.find((entry) => inviteToken.startsWith(entry.prefix))
+        : undefined;
+      check('and it can be withdrawn', minted !== undefined);
+      if (minted !== undefined) {
+        await call(`/workspaces/${workspaces[0].id}/invites/${minted.id}`, { method: 'DELETE' });
+      }
     }
   }
 
