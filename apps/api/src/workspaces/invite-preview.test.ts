@@ -64,3 +64,27 @@ describe('previewInvite', () => {
     });
   });
 });
+
+describe('listInvites', () => {
+  it('asks only for the ones that would still let somebody in', async () => {
+    const asked: Record<string, unknown>[] = [];
+    const prisma = {
+      invite: {
+        findMany: async ({ where }: { where: Record<string, unknown> }) => {
+          asked.push(where);
+          return [];
+        },
+      },
+    } as unknown as PrismaService;
+
+    const workspaces = new WorkspacesService(
+      prisma,
+      { requireWorkspace: async () => 'ADMIN' } as unknown as AccessService,
+      {} as CollabService,
+      {} as AppConfig,
+    );
+
+    await workspaces.listInvites('user-1', 'ws-1');
+    expect(asked[0]).toMatchObject({ acceptedAt: null, declinedAt: null });
+  });
+});

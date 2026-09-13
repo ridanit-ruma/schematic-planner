@@ -170,7 +170,14 @@ export class WorkspacesService {
     await this.access.requireWorkspace(userId, workspaceId, 'ADMIN');
 
     const invites = await this.prisma.invite.findMany({
-      where: { workspaceId, acceptedAt: null, expiresAt: { gt: new Date() } },
+      where: {
+        workspaceId,
+        acceptedAt: null,
+        // Turned down is as closed as taken. The rule this list follows is
+        // "what would still let somebody in", not "what was ever sent".
+        declinedAt: null,
+        expiresAt: { gt: new Date() },
+      },
       orderBy: { createdAt: 'desc' },
       include: { createdBy: { select: { name: true } } },
     });
