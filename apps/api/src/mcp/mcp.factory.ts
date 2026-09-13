@@ -16,6 +16,7 @@ import { PlansService } from '../plans/plans.service.js';
 import { ProjectsService } from '../projects/projects.service.js';
 import { WorkspacesService } from '../workspaces/workspaces.service.js';
 import type { McpIdentity } from '../auth/api-key.service.js';
+import { agentAuthor, signComments } from './authorship.js';
 import { renderPlan, renderPlanList, renderTrace } from './render.js';
 import {
   applyOpsShape,
@@ -537,8 +538,12 @@ export class McpFactory {
       async ({ planId, ops }) => {
         try {
           // Validated narrow, then widened into the internal union. The agent
-          // never sees the placement fields the internal one carries.
-          const doc = await this.plans.applyOps(identity.userId, planId, planOpsSchema.parse(ops), {
+          // never sees the placement fields the internal one carries — which is
+          // also why the notes are signed here and not by the caller: there is
+          // nothing an agent could put in an author field that is worth
+          // trusting, and the server already knows whose key this is.
+          const signed = signComments(planOpsSchema.parse(ops), agentAuthor(identity.name));
+          const doc = await this.plans.applyOps(identity.userId, planId, signed, {
             userId: identity.userId,
             apiKeyId: identity.keyId,
           });
