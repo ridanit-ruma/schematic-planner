@@ -390,7 +390,15 @@ try {
     await page.goto(`${BASE}/invite/${inviteToken}`, { waitUntil: 'domcontentloaded' });
     await wait(2500);
     const offered = await page.evaluate(() => document.body.innerText);
-    check('signed in, it offers both answers', offered.includes('Accept') && offered.includes('Decline'));
+    // Accept/Decline is not reachable here: the gate has exactly one account,
+    // and it already owns the workspace it just invited itself into, so this
+    // is the already-a-member rendering — an offer to open it, not join it.
+    check(
+      'signed in as a member already, it offers to open the workspace rather than join it',
+      offered.includes('You are already in this workspace') &&
+        offered.includes(`Open ${workspaces[0].name}`) &&
+        !offered.includes('Accept'),
+    );
 
     // Still listed means still open: Task 5 drops anything taken or turned down.
     const before = await call(`/workspaces/${workspaces[0].id}/invites`);
