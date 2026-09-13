@@ -54,6 +54,14 @@ describe('declineInvite', () => {
     );
   });
 
+  it('refuses to decline one that has expired', async () => {
+    const expired = new Date(Date.now() - 86_400_000);
+    const { workspaces } = service({ ...stored, expiresAt: expired });
+    await expect(workspaces.declineInvite('user-1', 'tok')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
   it('refuses a token it does not know', async () => {
     const { workspaces } = service(null);
     await expect(workspaces.declineInvite('user-1', 'nope')).rejects.toBeInstanceOf(

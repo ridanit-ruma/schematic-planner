@@ -221,7 +221,15 @@ export class WorkspacesService {
   async previewInvite(token: string) {
     const invite = await this.prisma.invite.findUnique({
       where: { tokenHash: hashToken(token) },
-      include: {
+      // A top-level select, not include, so tokenHash never leaves the
+      // database for this public route — narrowed by the query itself, not
+      // by trusting the object literal built below to leave it out.
+      select: {
+        role: true,
+        email: true,
+        acceptedAt: true,
+        declinedAt: true,
+        expiresAt: true,
         workspace: { select: { id: true, name: true } },
         createdBy: { select: { name: true } },
       },
@@ -240,9 +248,9 @@ export class WorkspacesService {
   /**
    * Turning one down.
    *
-   * Needs a session because the screen only offers it to somebody signed in, and
-   * because a public route here would let anyone who intercepted the link burn
-   * an invitation that was not theirs.
+   * Needs a session, which stops an unauthenticated drive-by rather than
+   * limiting who can decline: the token is still the capability, so any
+   * signed-in holder of the link can turn it down, same as accepting it.
    *
    * Declining twice is one refusal. A second click is somebody making sure, not
    * an error to show them.
@@ -250,6 +258,9 @@ export class WorkspacesService {
   async declineInvite(userId: string, token: string): Promise<{ ok: true }> {
     const invite = await this.prisma.invite.findUnique({
       where: { tokenHash: hashToken(token) },
+      // See previewInvite: select, not the findUnique default of every
+      // column, so tokenHash stays out of memory on this path too.
+      select: { id: true, acceptedAt: true, declinedAt: true, expiresAt: true },
     });
     if (invite === null) throw new NotFoundException('That invitation is not valid');
 
