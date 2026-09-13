@@ -747,6 +747,124 @@ try {
       topmost.includes('handle'),
       topmost.slice(0, 60),
     );
+    // Both of these shipped looking finished and doing nothing. A line could
+    // be bent only by finding an eight-pixel dot on a line you had already
+    // worked out was selectable, and a note took no pointer events at all --
+    // it inherited pointer-events: none from the portal it is drawn in and
+    // never said otherwise. Neither is reachable by a unit test, and both are
+    // one CSS property away from being decorative again.
+    console.log('\nhandling what is drawn');
+
+    const edgeMid = async () =>
+      page.evaluate(() => {
+        const p = document.querySelector('.react-flow__edge-path');
+        if (p === null) return null;
+        const at = p.getPointAtLength(p.getTotalLength() / 2);
+        const pt = p.ownerSVGElement.createSVGPoint();
+        pt.x = at.x;
+        pt.y = at.y;
+        const screen = pt.matrixTransform(p.getScreenCTM());
+        return { x: screen.x, y: screen.y };
+      });
+
+    const bendsOn = async () => {
+      const doc = await call(`/plans/${fixture.id}`);
+      return (doc.edges ?? []).reduce((most, edge) => Math.max(most, edge.waypoints?.length ?? 0), 0);
+    };
+
+    const grab = await edgeMid();
+    check('a line offers itself to the pointer', grab !== null, JSON.stringify(grab));
+    if (grab !== null) {
+      const before = await bendsOn();
+      await page.mouse.move(grab.x, grab.y);
+      await page.mouse.down();
+      await page.mouse.move(grab.x + 25, grab.y - 95, { steps: 14 });
+      await page.mouse.up();
+      await wait(1600);
+      const after = await bendsOn();
+      check('and dragging it bends it, with no selecting first', after > before, `${before} -> ${after}`);
+    }
+
+    // A note, created the way an agent would and then handled the way a person does.
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          {
+            op: 'upsert_comment',
+            comment: { id: 'gate-note', body: 'Reachable?', author: 'Check', position: { x: 120, y: 320 } },
+          },
+        ],
+      },
+    });
+    await wait(1500);
+
+    // Scoped to the note this section made, never to "the first note": the
+    // fixture already carries one, so the first is somebody else's and the
+    // checks silently drag and delete the wrong thing.
+    const MINE = 'Reachable?';
+    const noteBox = await page.evaluate((body) => {
+      const el = [...document.querySelectorAll('div')].find(
+        (d) => (d.className || '').toString().includes('nopan nodrag absolute') && d.textContent.includes(body),
+      );
+      if (el === undefined) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height, pe: getComputedStyle(el).pointerEvents };
+    }, MINE);
+    check('a note is drawn', noteBox !== null);
+    check(
+      'and takes pointer events rather than being a picture of one',
+      noteBox?.pe === 'auto',
+      noteBox?.pe,
+    );
+
+    if (noteBox !== null) {
+      await page.mouse.click(noteBox.x + noteBox.w / 2, noteBox.y + noteBox.h * 0.55);
+      await wait(900);
+      const editing = await page.evaluate(() => document.querySelectorAll('textarea').length);
+      check('clicking it opens its editor', editing > 0, `${editing} textarea`);
+
+      const noteAt = async () => {
+        const doc = await call(`/plans/${fixture.id}`);
+        return (doc.comments ?? []).find((c) => c.id === 'gate-note')?.position ?? null;
+      };
+      const was = await noteAt();
+      await page.mouse.move(noteBox.x + noteBox.w / 2, noteBox.y + 8);
+      await page.mouse.down();
+      await page.mouse.move(noteBox.x + noteBox.w / 2 + 90, noteBox.y + 68, { steps: 12 });
+      await page.mouse.up();
+      await wait(1600);
+      check('and dragging its head moves it', JSON.stringify(was) !== JSON.stringify(await noteAt()));
+
+      // Found and clicked inside the note that owns it, in one step: committing
+      // the drag re-renders, so a handle taken beforehand can point at a
+      // detached button and clicking it does nothing at all.
+      const clicked = await page.evaluate((body) => {
+        const note = [...document.querySelectorAll('div')].find(
+          (d) => (d.className || '').toString().includes('nopan nodrag absolute') && d.textContent.includes(body),
+        );
+        const button = note === undefined
+          ? undefined
+          : [...note.querySelectorAll('button')].find((b) => b.textContent.includes('Delete note'));
+        if (button === undefined) return false;
+        button.click();
+        return true;
+      }, MINE);
+      check('the note offers a delete button of its own', clicked);
+
+      if (clicked) {
+        // Polled rather than waited on: the read model is a debounced
+        // projection, and a fixed pause calls a slow write a failure.
+        let gone = false;
+        for (let i = 0; i < 12 && !gone; i += 1) {
+          await wait(500);
+          const doc = await call(`/plans/${fixture.id}`);
+          gone = !(doc.comments ?? []).some((c) => c.id === 'gate-note');
+        }
+        check('and it deletes that note', gone);
+      }
+    }
+
     console.log('\nopening a plan');
     // The document arrives over a socket after the canvas has mounted, so a
     // frame taken at init is a frame around whichever handful had landed. And

@@ -190,3 +190,53 @@ export function insertionPoints(
     return { at: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, index };
   });
 }
+
+/**
+ * Which straight run of a line a point belongs to, as an insertion index.
+ *
+ * For dragging the line itself. A bend has to go in at the place it was grabbed,
+ * not appended: put a new bend after the ones it should come before and the line
+ * doubles back through itself to reach it.
+ *
+ * The answer is the run whose own span the point is nearest to, measured to the
+ * segment rather than to its ends — nearest-endpoint gets it wrong exactly in the
+ * middle of a long run, which is where most grabs land.
+ */
+export function segmentAt(
+  source: Position,
+  sourceSide: Side,
+  target: Position,
+  targetSide: Side,
+  waypoints: readonly Position[],
+  at: Position,
+): number {
+  const out = outward(sourceSide);
+  const into = outward(targetSide);
+  const stops = [
+    { x: source.x + out.x * STUB, y: source.y + out.y * STUB },
+    ...waypoints,
+    { x: target.x + into.x * STUB, y: target.y + into.y * STUB },
+  ];
+
+  let best = 0;
+  let nearest = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < stops.length - 1; index += 1) {
+    const span = distanceToSegment(at, stops[index] as Position, stops[index + 1] as Position);
+    if (span < nearest) {
+      nearest = span;
+      best = index;
+    }
+  }
+  return best;
+}
+
+/** How far a point sits from a segment, not from its nearer end. */
+function distanceToSegment(point: Position, a: Position, b: Position): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const length = dx * dx + dy * dy;
+  if (length === 0) return Math.hypot(point.x - a.x, point.y - a.y);
+  // How far along ab the point projects, clamped to the segment itself.
+  const along = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / length));
+  return Math.hypot(point.x - (a.x + along * dx), point.y - (a.y + along * dy));
+}

@@ -1,6 +1,6 @@
 import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
-import { planDocSchema } from '@schematic/schema';
+import { WAYPOINT_MAX, planDocSchema } from '@schematic/schema';
 
 import { applyOps, initializePlan, readPlanDoc } from './bind.js';
 import {
@@ -240,5 +240,38 @@ describe('notes in the shared document', () => {
     commitCommentPosition(doc, 'n', { x: 12.4, y: -3.8 });
 
     expect(readPlanDoc(doc).doc.comments[0]?.position).toEqual({ x: 12, y: -4 });
+  });
+});
+
+/**
+ * An over-long list is not a drawing mistake, it is a lost edge.
+ *
+ * `planEdgeSchema` caps waypoints, and the projection parses the whole document:
+ * write one bend too many and the edge stops parsing, disappears from the read
+ * model, and the line is gone from the canvas with no way back. A UI bug did
+ * exactly that — every pointer move appended instead of replacing — so the write
+ * itself refuses rather than trusting its callers.
+ */
+describe('commitEdgeWaypoints against a caller that has lost count', () => {
+  it('keeps the line rather than writing a list that would delete it', () => {
+    const { ydoc, id } = lined();
+    const far = Array.from({ length: WAYPOINT_MAX + 12 }, (_, at) => ({ x: at * 10, y: at * 10 }));
+    commitEdgeWaypoints(ydoc, id, far);
+
+    const edge = readPlanDoc(ydoc).doc.edges[0];
+    expect(edge).toBeDefined();
+    expect(edge?.waypoints).toHaveLength(WAYPOINT_MAX);
+    // The ones kept are the first, so the line still runs the way it was drawn.
+    expect(edge?.waypoints[0]).toEqual({ x: 0, y: 0 });
+  });
+
+  it('leaves a list within the cap exactly as given', () => {
+    const { ydoc, id } = lined();
+    const few = [
+      { x: 10, y: 10 },
+      { x: 20, y: 20 },
+    ];
+    commitEdgeWaypoints(ydoc, id, few);
+    expect(readPlanDoc(ydoc).doc.edges[0]?.waypoints).toEqual(few);
   });
 });

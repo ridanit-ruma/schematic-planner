@@ -18,6 +18,9 @@ import type { PlanStore } from './plan-store';
 import { useYText } from './use-y-text';
 
 /** Wide enough for a sentence, narrow enough not to cover what it is about. */
+/** Pointer travel, in canvas units, before a press on a note becomes a drag. */
+const DRAG_SLOP = 3;
+
 const WIDTH = 216;
 /** How far clear of the drawing an unplaced note sits. */
 const ABOVE = 150;
@@ -142,7 +145,7 @@ function Note({
   const zoom = useFlowStore((state) => state.transform[2]);
   // Where it is while being dragged. The document hears about it once, at the end.
   const [held, setHeld] = useState<Position | null>(null);
-  const grab = useRef<{ pointer: Position; from: Position } | null>(null);
+  const grab = useRef<{ pointer: Position; from: Position; moved: boolean } | null>(null);
 
   const at = held ?? comment.position ?? fallback;
 
@@ -155,14 +158,28 @@ function Note({
       // From where it is drawn, not from the origin: picking up a note that has
       // never been placed must not teleport it first.
       from: at,
+      moved: false,
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // Capture is NOT taken here. Every part of a note except the words is a
+    // button -- the head opens it, the body opens it, the footer resolves and
+    // deletes it -- and a pointer captured on the way down never lets the press
+    // become a click on any of them. So the note stayed open-able only in
+    // theory. Capture is taken on the first real movement instead, below.
   };
 
   const onPointerMove = (event: React.PointerEvent): void => {
     const start = grab.current;
     if (start === null) return;
     const now = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    if (!start.moved) {
+      // A press that has not travelled is still a click, and the buttons need
+      // it. Past the slop it is a drag, and only then is the pointer taken --
+      // which is what lets it keep following outside the note.
+      const travelled = Math.abs(now.x - start.pointer.x) + Math.abs(now.y - start.pointer.y);
+      if (travelled < DRAG_SLOP) return;
+      start.moved = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
     const dragged = {
       x: start.from.x + (now.x - start.pointer.x),
       y: start.from.y + (now.y - start.pointer.y),
@@ -219,7 +236,12 @@ function Note({
       <div
         // `nopan` and `nodrag` keep React Flow's own gestures off the note.
         className={cn(
-          'nopan nodrag absolute top-0 left-0 rounded-md border bg-surface-3 text-left elevated',
+          // The portal this is drawn in takes no pointer events, and
+          // pointer-events is inherited, so a note that does not say otherwise
+          // is a picture of a note: visible, and unable to be opened, dragged or
+          // deleted. The cursors layer next door wants exactly that and says
+          // pointer-events-none out loud; this one has to say the opposite.
+          'pointer-events-auto nopan nodrag absolute top-0 left-0 rounded-md border bg-surface-3 text-left elevated',
           comment.resolved
             ? 'border-rule opacity-60'
             : 'border-collab/45 shadow-[0_0_0_1px_rgb(139_92_246/0.12)]',

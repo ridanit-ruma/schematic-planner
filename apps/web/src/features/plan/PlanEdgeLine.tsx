@@ -11,7 +11,7 @@ import { memo, useRef, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 
-import { bentPath, insertionPoints, type Side } from './edge-path';
+import { bentPath, insertionPoints, segmentAt, type Side } from './edge-path';
 import { snapTo } from './snap';
 import { usePlanStore } from './store-context';
 import type { PlanFlowEdge } from './types';
@@ -56,6 +56,9 @@ const NOTE_ROOM = 130;
  * to reassemble it; a drawing annotates a wire beside it, not across it. Half
  * the chip's height plus a hair is enough to clear it.
  */
+/** Pointer travel, in canvas units, before a grab on a line counts as a drag. */
+const GRAB_SLOP = 3;
+
 const NOTE_LIFT = 13;
 
 
@@ -82,6 +85,9 @@ function Line({
   // the same bargain as a node's position and a note's.
   const [held, setHeld] = useState<Position[] | null>(null);
   const grab = useRef<{ pointer: Position; from: Position; index: number } | null>(null);
+  // Kept apart from the dots' own grab: the two surfaces overlap, and a bend
+  // being moved must not also be read as the line being grabbed under it.
+  const grabbing = useRef<{ pointer: Position; index: number; moved: boolean } | null>(null);
 
   const edgeData = data?.edge;
   const bends: readonly Position[] = held ?? edgeData?.waypoints ?? [];
@@ -166,6 +172,80 @@ function Line({
         }}
         markerEnd={style.marker ? 'url(#schematic-arrow)' : undefined}
       />
+      {/*
+        The line itself is the handle.
+
+        A dot on a selected line is precise and undiscoverable: it is eight
+        pixels of sixty-percent-opacity sitting on a one-and-a-half pixel line,
+        and it only exists after you have worked out that a line can be
+        selected at all. Dragging the line is the gesture people actually try,
+        and it used to do nothing whatsoever -- not even pan.
+
+        Invisible, sixteen pixels wide, and `stroke` rather than `all` so only
+        the run of the line takes the pointer and not the box around it. Drawn
+        before the dots so a bend that already exists wins the grab.
+      */}
+      {!editable ? null : (
+        <path
+          d={path}
+          fill="none"
+          stroke="transparent"
+          strokeWidth={16}
+          style={{ pointerEvents: "stroke", cursor: grabbing.current === null ? "grab" : "grabbing" }}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            // Panning the canvas and bending the line are the same gesture
+            // otherwise, and the pane wins.
+            event.stopPropagation();
+            // A line has as many bends as it is allowed and no more; grabbing it
+            // again would build a list the document refuses.
+            if ((edgeData?.waypoints ?? []).length >= WAYPOINT_MAX) return;
+            const from = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+            grabbing.current = {
+              pointer: from,
+              index: segmentAt(ends.source, ends.sourceSide, ends.target, ends.targetSide, bends, from),
+              moved: false,
+            };
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            const start = grabbing.current;
+            if (start === null) return;
+            const now = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+            // A click is a drag of no distance. Without this, selecting a line
+            // would put a bend in it.
+            if (!start.moved && Math.abs(now.x - start.pointer.x) + Math.abs(now.y - start.pointer.y) < GRAB_SLOP) {
+              return;
+            }
+            start.moved = true;
+            // Spliced into the COMMITTED list, never into `bends` -- which is
+            // the held list once a drag is under way, so inserting into it again
+            // added a bend on every pointer move. Sixteen moves put sixteen
+            // bends on the line, past the cap the schema allows, and the whole
+            // edge then failed to parse and vanished from the drawing.
+            const committed = edgeData?.waypoints ?? [];
+            const next = [...committed];
+            next.splice(start.index, 0, preview(now));
+            setHeld(next);
+          }}
+          onPointerUp={() => {
+            const start = grabbing.current;
+            const shape = held;
+            grabbing.current = null;
+            setHeld(null);
+            if (start === null) return;
+            if (start.moved && shape !== null) {
+              bendEdge(id, shape);
+              return;
+            }
+            // A grab that never moved was a click. This surface swallows the
+            // one React Flow would have turned into onEdgeClick, so the
+            // selection it was going to make is made here instead -- otherwise
+            // laying a hand on a line stops opening its inspector.
+            selectEdge(id);
+          }}
+        />
+      )}
       {/* Drawn over the line for as long as it takes to appear, then gone. The
           line itself keeps its own colour and dash pattern underneath. */}
       {arrivedAt === undefined ? null : (

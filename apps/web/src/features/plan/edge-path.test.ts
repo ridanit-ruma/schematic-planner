@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { bentPath, insertionPoints, midpoint, type Side } from './edge-path';
+import { bentPath, insertionPoints, midpoint, segmentAt, type Side } from './edge-path';
 
 const source = { x: 0, y: 0 };
 const target = { x: 400, y: 200 };
@@ -124,5 +124,45 @@ describe('where a new bend can be grabbed', () => {
       { x: 300, y: 160 },
     ]);
     expect(points.map((p) => p.index)).toEqual([0, 1, 2]);
+  });
+});
+
+/**
+ * Grabbing the line itself has to know which run was grabbed, or a bend lands
+ * out of order and the line doubles back on itself.
+ */
+describe('which run of a line a grab lands on', () => {
+  it('is the only run there is, on a line with no bends', () => {
+    expect(segmentAt(source, 'right', target, 'left', [], { x: 200, y: 100 })).toBe(0);
+  });
+
+  it('is the run nearest the grab, not the nearest bend', () => {
+    const bends = [
+      { x: 120, y: 40 },
+      { x: 300, y: 160 },
+    ];
+    // Between the two bends: the middle run, which becomes index 1.
+    expect(segmentAt(source, 'right', target, 'left', bends, { x: 210, y: 100 })).toBe(1);
+    // Before the first bend.
+    expect(segmentAt(source, 'right', target, 'left', bends, { x: 30, y: 10 })).toBe(0);
+    // After the last.
+    expect(segmentAt(source, 'right', target, 'left', bends, { x: 380, y: 190 })).toBe(2);
+  });
+
+  /* A grab is never outside the line: it came from the line. */
+  it('still answers for a point nowhere near the line', () => {
+    const index = segmentAt(source, 'right', target, 'left', [], { x: -900, y: 900 });
+    expect(Number.isInteger(index)).toBe(true);
+    expect(index).toBeGreaterThanOrEqual(0);
+  });
+
+  it('never answers past the end, however many bends there are', () => {
+    const bends = [
+      { x: 100, y: 20 },
+      { x: 200, y: 60 },
+      { x: 300, y: 140 },
+    ];
+    const index = segmentAt(source, 'right', target, 'left', bends, { x: 9999, y: 9999 });
+    expect(index).toBeLessThanOrEqual(bends.length);
   });
 });

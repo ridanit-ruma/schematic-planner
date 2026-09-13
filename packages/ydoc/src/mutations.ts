@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import type { Position } from '@schematic/schema';
+import { WAYPOINT_MAX, type Position } from '@schematic/schema';
 
 import { commentsMap, edgesMap, nodesMap } from './bind.js';
 import { ORIGIN_LOCAL } from './keys.js';
@@ -33,6 +33,12 @@ export function commitNodePosition(
  * meaning, and two people bending the same line are disagreeing about its shape
  * rather than editing separate fields of it. Last writer wins, which is what
  * they would both expect to see.
+ *
+ * Clamped to the cap here rather than trusted from the caller, because the cost
+ * of exceeding it is not a cluttered line: the projection parses the whole
+ * document, so one bend too many stops the edge parsing and it disappears from
+ * the read model altogether. A caller that has lost count should draw a line
+ * with fewer bends than it asked for, never no line at all.
  */
 export function commitEdgeWaypoints(
   doc: Y.Doc,
@@ -47,7 +53,9 @@ export function commitEdgeWaypoints(
     () => {
       edge.set(
         'waypoints',
-        waypoints.map((point) => ({ x: Math.round(point.x), y: Math.round(point.y) })),
+        waypoints
+          .slice(0, WAYPOINT_MAX)
+          .map((point) => ({ x: Math.round(point.x), y: Math.round(point.y) })),
       );
     },
     origin,
