@@ -767,22 +767,98 @@ try {
         return { x: screen.x, y: screen.y };
       });
 
-    const bendsOn = async () => {
+    /** The corners stored on whichever line has any. */
+    const routeOn = async () => {
       const doc = await call(`/plans/${fixture.id}`);
-      return (doc.edges ?? []).reduce((most, edge) => Math.max(most, edge.waypoints?.length ?? 0), 0);
+      const bent = (doc.edges ?? []).find((edge) => (edge.waypoints?.length ?? 0) > 0);
+      return bent?.waypoints ?? [];
+    };
+
+    /** Where the writing on that line sits, if it has been placed. */
+    const labelOn = async () => {
+      const doc = await call(`/plans/${fixture.id}`);
+      const bent = (doc.edges ?? []).find((edge) => (edge.waypoints?.length ?? 0) > 0);
+      return bent?.labelPosition ?? null;
+    };
+
+    // Press, drag sideways, let go. Sideways only: a vertical run moves on one
+    // axis, and a Firefox pointer that leaves the window is refused outright
+    // rather than clamped.
+    const pushRun = async (at, by) => {
+      await page.mouse.move(at.x, at.y);
+      await page.mouse.down();
+      await page.mouse.move(at.x + by, at.y, { steps: 8 });
+      await page.mouse.up();
+      await wait(1600);
     };
 
     const grab = await edgeMid();
     check('a line offers itself to the pointer', grab !== null, JSON.stringify(grab));
+
     if (grab !== null) {
-      const before = await bendsOn();
-      await page.mouse.move(grab.x, grab.y);
-      await page.mouse.down();
-      await page.mouse.move(grab.x + 25, grab.y - 95, { steps: 14 });
-      await page.mouse.up();
-      await wait(1600);
-      const after = await bendsOn();
-      check('and dragging it bends it, with no selecting first', after > before, `${before} -> ${after}`);
+      await pushRun(grab, 60);
+      const first = await routeOn();
+
+      check(
+        'dragging a run of a line stores a route, with no selecting first',
+        first.length >= 2,
+        `${first.length} corners`,
+      );
+      check(
+        'and the route is square -- the run it moved shares one x',
+        first.length >= 2 && first[0].x === first[1].x,
+        JSON.stringify(first.slice(0, 2)),
+      );
+
+      // An untouched line has no corner to compare against, so which way it went
+      // is only provable between two drags.
+      const labelBefore = await labelOn();
+      const again = await edgeMid();
+      if (again !== null && first.length >= 2) {
+        await pushRun(again, -80);
+        const second = await routeOn();
+
+        check(
+          'and the run goes the way the pointer goes',
+          second.length >= 1 && second[0].x < first[0].x,
+          `${first[0]?.x} -> ${second[0]?.x}`,
+        );
+        check(
+          'without ever growing a corner',
+          second.length === first.length,
+          `${first.length} -> ${second.length}`,
+        );
+
+        const labelAfter = await labelOn();
+        if (labelBefore !== null && labelAfter !== null && second.length >= 1) {
+          const moved = labelAfter.x - labelBefore.x;
+          const run = second[0].x - first[0].x;
+          check(
+            'and the writing on the run travels with it',
+            moved === 0 || moved === run,
+            `writing ${moved}, run ${run}`,
+          );
+        }
+      }
+
+      // A grab that does not move is a click, and the inspector is where a line
+      // is put back now that there are no dots to press Delete on.
+      const settled = await edgeMid();
+      if (settled !== null) {
+        await page.mouse.click(settled.x, settled.y);
+        await wait(900);
+        const pressed = await page.evaluate(() => {
+          const button = [...document.querySelectorAll('button')].find(
+            (candidate) => (candidate.textContent ?? '').trim() === 'Straighten',
+          );
+          if (button === undefined) return false;
+          button.click();
+          return true;
+        });
+        check('taking hold of a line without moving it opens its inspector', pressed);
+        await wait(1400);
+        check('and Straighten puts the line back', (await routeOn()).length === 0);
+      }
     }
 
     // A note, created the way an agent would and then handled the way a person does.
