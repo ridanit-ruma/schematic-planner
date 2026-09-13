@@ -535,31 +535,39 @@ a list is a list wherever it appears. Anything reaching for a raw `<select>`, a 
 ### A line can be bent round what is in the way
 
 Two cards with a third between them get a line drawn through it, and no amount of
-automatic routing knows which crossing a reader minds. So a line can be given bends
-by hand: select it and it offers a hollow handle in the middle of each straight run
-— drag one and it becomes a bend — and a solid handle on every bend it already has,
-which drags to move and takes `Delete` to straighten. Handles appear only on the
-selected line and only for someone who may edit the plan; every line showing them
-would put a row of dots across the drawing and make the picture about its own
-controls.
+automatic routing knows which crossing a reader minds. So a line can be pushed aside
+by hand: take hold of one of its straight runs and move it. A vertical run goes
+sideways, a horizontal one up and down, and the cursor says which before anything is
+clicked. The two runs that touch a card are pinned to their handles and offer no
+grip, which is why two cards at the same height have a line with nothing to take
+hold of — there is nothing there to move.
+
+This replaced dropping points on a line one at a time. Points were more expressive
+and worse in every other way: three overlapping hit areas, a shape that jumped the
+instant a line was grabbed, and a staircase where a person had asked for a bend.
 
 `waypoints` on an edge is the only geometry in the document that **only** a person
 ever writes. A node has a position because something has to, and layout will happily
-compute one; there is no equivalent for a bend, because the router already draws the
-shortest sensible path and has no opinion worth storing. So an empty list means "no
-bend asked for" rather than "not laid out yet", and nothing on the server clears one.
-A line nobody has bent is still drawn by React Flow's own smooth-step router, which
-knows about the cards and the other lines; the hand-rolled route in `edge-path.ts`
-takes over only once there is a bend to pass through, and keeps every leg square and
-both ends head-on so the arrow sits flat against the card.
+compute one; there is no equivalent here, because the router already draws the
+shortest sensible path and has no opinion worth storing. So an empty list means "not
+pushed aside" rather than "not laid out yet", and nothing on the server clears one.
 
-When a node moves, everything placed along the lines it touches moves with it,
-weighted by how far along it sits: a point a fraction `t` of the way travels
-`from·(1−t) + to·t`. Drag one end and a bend in the middle goes half as far; drag
-both and it goes the whole way. That is the rule the writing on a line already
-followed at `t = ½`, generalised rather than replaced — `nudgeEdges` does both in one
-pass. The bends are why it cannot withdraw the points instead and let them fall back
-to a default: a person put them there.
+What is stored is the corners of the route, and `legalize` in `edge-path.ts` turns
+whatever is stored into a legal one. Every node has one target handle on its left and
+one source handle on its right, so a line always leaves rightwards and arrives
+leftwards, and every route is an alternation — horizontal, vertical, horizontal —
+beginning and ending horizontal. The two corners that touch a card are pinned to the
+handle heights as the line is drawn, which is what keeps a route square when a node
+moves, and it is also how the free points of the older gesture are read without
+migrating anything. One router draws every line, bent or not.
+
+When a node moves, the writing on the lines it touches moves with it, weighted by how
+far along it sits: a point a fraction `t` of the way travels `from·(1−t) + to·t`, and
+the writing sits at `t = ½`. The route is deliberately left alone. A run somebody
+placed stays where they put it — which is what every other drawing tool does — and
+the pinning above keeps the line square without `nudgeEdges` doing arithmetic on it.
+Straightening a line is a button in its inspector, because a straight line has no run
+to push back and the control cannot live on the line itself.
 
 **Bends do not survive the export.** A JSON Canvas edge is `fromNode`, `toNode` and a
 side at each end; the format has no way to say "via here", and inventing one would
