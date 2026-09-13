@@ -820,12 +820,15 @@ Still missing:
 - [ ] GitHub and Google sign-in callbacks
 - [ ] Email: invitations, address changes, password reset
 - [ ] Plan version history and restore
-- [ ] Import: a vault read straight back in, rather than redrawn by an agent
 
 ## Non-goals
 
 Deliberately out of scope, so nobody spends time proposing them:
 
+- **No importer.** A vault comes back in through an agent over MCP, reading the
+  Markdown and drawing the plan, rather than through a `packages/importer` that
+  would have to guess at structure the export never promised to round-trip. The
+  export is a handover to Obsidian, not a serialisation of this document.
 - **Not an issue tracker.** Plans hand off to Jira, Linear or GitHub Issues; they do not
   replace them.
 - **Not a general diagramming tool.** The graph carries plan semantics. If you want
