@@ -341,6 +341,31 @@ not this one's — and with nowhere to put them an import has to throw them away
 They are written back beside the fields the export does understand and can never
 shadow one.
 
+### An invitation is shown before it is accepted
+
+Opening the link used to be the whole of accepting it: `InvitePage` called
+`acceptInvite` from a `useEffect`, and a link forwarded into a chat joined
+whoever clicked it while signed in. It is a screen now — what workspace, from
+whom, as what — and Accept is the only thing on it that writes.
+
+`GET /invites/:token` is **public**, which looks wrong and is not: the token is
+already the capability, so whoever holds it can accept and then read the whole
+workspace. Naming it first gives away nothing the button does not, and being
+asked to sign in before being told what for is what the screen exists to fix.
+
+**The proxy's unfurl matcher stays on `/share/*` and must not grow to cover
+`/invite/*`.** A share link is handed out deliberately; an invitation is
+addressed to one person, and a card rendered for everybody in the channel it was
+pasted into would name a workspace to people who were never asked. The two look
+alike and are opposites.
+
+An address that does not match the account signed in is a **warning, not a
+block** — a work address and a sign-in address differ often enough that refusing
+would strand somebody holding a good invitation. Declining writes
+`Invite.declinedAt`, which takes it out of the workspace's open list: that list
+answers "what would still let somebody in", and a refusal is as closed as a
+membership.
+
 ### The export has to open as a vault, not as a directory
 
 Obsidian builds its graph view, its backlinks and its unlinked mentions out of
