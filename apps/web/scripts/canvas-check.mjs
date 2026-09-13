@@ -1033,7 +1033,10 @@ try {
 
     const inside = await page.evaluate(() => ({
       heading: document.querySelector('h1')?.textContent ?? '',
+      // Leaf elements only: each crumb is a wrapper span around a span or a
+      // link, so taking both levels reads every name twice.
       crumbs: [...document.querySelectorAll('header a, header span')]
+        .filter((el) => el.children.length === 0)
         .map((el) => (el.textContent ?? '').trim())
         .filter((text) => text !== ''),
       titles: [...document.querySelectorAll('tbody tr')].map((tr) =>
@@ -1053,18 +1056,24 @@ try {
       inside.titles.join(' | ').slice(0, 120),
     );
 
-    // The row menu is how a plan leaves a folder without the rail's drag.
-    const menu = await page.evaluate(() => {
+    // The row menu is how a plan leaves a folder without the rail's drag. It has
+    // to be opened with a real pointer: the menu listens for pointerdown, and a
+    // synthetic click() never reaches it.
+    const menuAt = await page.evaluate(() => {
       const button = document.querySelector('tbody tr button[aria-label^="Actions for"]');
       if (button === null) return null;
-      button.click();
-      return true;
+      const box = button.getBoundingClientRect();
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     });
-    await wait(700);
-    const offered = await page.evaluate(() => document.body.textContent ?? '');
-    check('a plan offers to be moved to a folder', menu === true && offered.includes('Move to folder'));
-    await page.keyboard.press('Escape');
-    await wait(400);
+    check('a plan row has a menu', menuAt !== null, JSON.stringify(menuAt));
+    if (menuAt !== null) {
+      await page.mouse.click(menuAt.x, menuAt.y);
+      await wait(900);
+      const offered = await page.evaluate(() => document.body.textContent ?? '');
+      check('and it offers to move the plan to a folder', offered.includes('Move to folder'));
+      await page.keyboard.press('Escape');
+      await wait(400);
+    }
   }
 
   await call(`/plans/${filed.id}`, { method: 'DELETE' });
