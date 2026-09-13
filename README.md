@@ -352,6 +352,9 @@ whom, as what — and Accept is the only thing on it that writes.
 already the capability, so whoever holds it can accept and then read the whole
 workspace. Naming it first gives away nothing the button does not, and being
 asked to sign in before being told what for is what the screen exists to fix.
+The response carries `workspace.id` alongside its name — load-bearing for the
+already-a-member row below, not an access grant, since every workspace route
+still runs through `AccessService` regardless of who knows the id.
 
 **The proxy's unfurl matcher stays on `/share/*` and must not grow to cover
 `/invite/*`.** A share link is handed out deliberately; an invitation is
