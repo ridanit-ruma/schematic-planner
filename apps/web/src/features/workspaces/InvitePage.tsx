@@ -52,10 +52,12 @@ export function InvitePage() {
   }, [token]);
 
   // Whether this is somewhere they are already, which turns Accept into a
-  // button that would do nothing and should not be offered. Skipped once the
-  // invitation is settled: nothing on that render needs memberSlug either.
+  // button that would do nothing and should not be offered. Runs regardless
+  // of invite.status: the case that needs the answer most is an already-
+  // accepted invitation reopened by the person who accepted it, where
+  // memberSlug is what turns "already used" into "open your workspace".
   useEffect(() => {
-    if (invite === null || invite.status !== 'open' || status !== 'signed-in') return;
+    if (invite === null || status !== 'signed-in') return;
     let live = true;
     void workspaces.list().then((list) => {
       const already = list.find((entry) => entry.id === invite.workspace.id);
@@ -66,7 +68,7 @@ export function InvitePage() {
     };
     // Keyed on the workspace id, not the whole invite object, so decline()
     // replacing that object with a copy does not re-fire this read.
-  }, [invite?.workspace.id, invite?.status, status]);
+  }, [invite?.workspace.id, status]);
 
   const accept = async (): Promise<void> => {
     setBusy(true);
