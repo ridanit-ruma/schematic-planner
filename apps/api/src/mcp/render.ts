@@ -1,5 +1,6 @@
 import { exportPlan } from '@schematic/exporter';
 import { buildPlanGraph, type PlanDoc, type TraceResult } from '@schematic/schema';
+import type { NamedFolder } from './workspace-scope.js';
 
 export type PlanView = 'outline' | 'graph' | 'markdown';
 
@@ -180,5 +181,57 @@ export function renderTrace(result: TraceResult): string {
     lines.push('Stopped at the step budget. Trace from a node further along, or lower the depth.');
   }
 
+  return lines.join('\n');
+}
+
+export interface ListedPlan {
+  readonly id: string;
+  readonly title: string;
+  readonly nodeCount: number;
+  readonly folderId: string | null;
+}
+
+export interface ListedProject {
+  readonly workspace: string;
+  readonly project: string;
+  readonly folders: readonly NamedFolder[];
+  readonly plans: readonly ListedPlan[];
+}
+
+/**
+ * What an agent sees when it asks what is there.
+ *
+ * Indented by where a plan is filed, because an agent that cannot see folders
+ * cannot use them: it piles everything at the top level of a project and makes
+ * a second folder of a name that already exists. An empty folder is listed for
+ * the same reason.
+ */
+export function renderPlanList(
+  projects: readonly ListedProject[],
+  url: (planId: string) => string,
+): string {
+  const lines: string[] = [];
+
+  for (const entry of projects) {
+    if (entry.plans.length === 0 && entry.folders.length === 0) continue;
+    lines.push(`${entry.workspace} / ${entry.project}`);
+
+    const write = (plan: ListedPlan, indent: string): void => {
+      lines.push(`${indent}${plan.title} — ${plan.nodeCount} nodes — ${url(plan.id)}`);
+      lines.push(`${indent}  id ${plan.id}`);
+    };
+
+    for (const folder of entry.folders) {
+      lines.push(`  ${folder.name}`);
+      for (const plan of entry.plans.filter((held) => held.folderId === folder.id)) {
+        write(plan, '    ');
+      }
+    }
+    for (const plan of entry.plans.filter((held) => held.folderId === null)) {
+      write(plan, '  ');
+    }
+  }
+
+  if (lines.length === 0) return 'No plans yet. Use create_plan to make one.';
   return lines.join('\n');
 }
