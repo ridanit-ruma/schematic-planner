@@ -810,6 +810,39 @@ try {
         JSON.stringify(first.slice(0, 2)),
       );
 
+      // The writing has to be sitting on the run for carrying it to mean
+      // anything. Left where layout put it, it is on some other leg and the
+      // check passes by doing nothing, which is not a check.
+      const bent = ((await call(`/plans/${fixture.id}`)).edges ?? []).find(
+        (edge) => (edge.waypoints?.length ?? 0) > 0,
+      );
+      if (bent !== undefined && first.length >= 2) {
+        await call(`/plans/${fixture.id}/ops`, {
+          method: 'POST',
+          body: {
+            ops: [
+              {
+                op: 'upsert_edge',
+                edge: {
+                  from: bent.from,
+                  to: bent.to,
+                  kind: bent.kind,
+                  via: bent.via ?? null,
+                  label: bent.label ?? null,
+                  carries: bent.carries ?? null,
+                  waypoints: bent.waypoints,
+                  labelPosition: {
+                    x: first[0].x,
+                    y: Math.round((first[0].y + first[1].y) / 2),
+                  },
+                },
+              },
+            ],
+          },
+        });
+        await wait(1600);
+      }
+
       // An untouched line has no corner to compare against, so which way it went
       // is only provable between two drags.
       const labelBefore = await labelOn();
@@ -830,12 +863,17 @@ try {
         );
 
         const labelAfter = await labelOn();
+        check(
+          'the writing was put on the run that moves',
+          labelBefore !== null && labelAfter !== null,
+          JSON.stringify(labelBefore),
+        );
         if (labelBefore !== null && labelAfter !== null && second.length >= 1) {
           const moved = labelAfter.x - labelBefore.x;
           const run = second[0].x - first[0].x;
           check(
             'and the writing on the run travels with it',
-            moved === 0 || moved === run,
+            moved === run && run !== 0,
             `writing ${moved}, run ${run}`,
           );
         }
