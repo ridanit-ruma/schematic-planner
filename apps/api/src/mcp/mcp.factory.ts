@@ -10,25 +10,31 @@ import {
 import { READING_STEP_MS } from '@schematic/ydoc';
 
 import { CollabService } from '../collab/collab.service.js';
+import { FoldersService } from '../folders/folders.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { PlansService } from '../plans/plans.service.js';
 import { ProjectsService } from '../projects/projects.service.js';
 import { WorkspacesService } from '../workspaces/workspaces.service.js';
 import type { McpIdentity } from '../auth/api-key.service.js';
-import { renderPlan, renderTrace } from './render.js';
+import { renderPlan, renderPlanList, renderTrace } from './render.js';
 import {
   applyOpsShape,
+  createFolderShape,
   createPlanShape,
   createProjectShape,
+  deleteFolderShape,
   deletePlanShape,
   exportPlanShape,
   getPlanShape,
   traceShape,
   layoutShape,
+  listFoldersShape,
   listPlansShape,
   listProjectsShape,
+  movePlanShape,
+  renameFolderShape,
 } from './mcp.schemas.js';
-import { reachable, resolveWorkspace } from './workspace-scope.js';
+import { chooseFolder, reachable, resolveWorkspace } from './workspace-scope.js';
 
 const text = (value: string) => ({ content: [{ type: 'text' as const, text: value }] });
 const failure = (value: string) => ({ ...text(value), isError: true });
@@ -42,6 +48,7 @@ export class McpFactory {
   constructor(
     private readonly plans: PlansService,
     private readonly projects: ProjectsService,
+    private readonly folders: FoldersService,
     private readonly workspaces: WorkspacesService,
     private readonly collab: CollabService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
@@ -59,6 +66,25 @@ export class McpFactory {
    */
   private planUrl(planId: string): string {
     return `${this.config.appPublicUrl}/plan/${planId}`;
+  }
+
+  /**
+   * Which project a call means.
+   *
+   * The same answer create_plan has always worked out for itself, in one place
+   * now that six other tools need it too.
+   */
+  private async resolveProject(
+    identity: McpIdentity,
+    workspace: string | undefined,
+    projectSlug: string | undefined,
+  ): Promise<{ workspaceId: string; workspaceSlug: string; projectId: string }> {
+    const target = await resolveWorkspace(this.workspaces, identity, workspace);
+    const projectId =
+      projectSlug === undefined
+        ? await this.projects.defaultFor(target.id)
+        : (await this.projects.bySlug(identity.userId, target.id, projectSlug)).id;
+    return { workspaceId: target.id, workspaceSlug: target.slug, projectId };
   }
 
   build(identity: McpIdentity): McpServer {
@@ -115,22 +141,29 @@ export class McpFactory {
         const options = await reachable(this.workspaces, identity);
         const scope =
           workspace === undefined ? options : options.filter((w) => w.slug === workspace);
-        const lines: string[] = [];
+        const listing = [];
 
         for (const target of scope) {
           for (const project of await this.projects.list(identity.userId, target.id)) {
-            const plans = await this.plans.list(identity.userId, project.id);
-            if (plans.length === 0) continue;
-            lines.push(`${target.slug} / ${project.slug}`);
-            for (const plan of plans) {
-              lines.push(`  ${plan.title} — ${plan.nodeCount} nodes — ${this.planUrl(plan.id)}`);
-              lines.push(`    id ${plan.id}`);
-            }
+            const [plans, drawers] = await Promise.all([
+              this.plans.list(identity.userId, project.id),
+              this.folders.list(identity.userId, project.id),
+            ]);
+            listing.push({
+              workspace: target.slug,
+              project: project.slug,
+              folders: drawers.map((drawer) => ({ id: drawer.id, name: drawer.name })),
+              plans: plans.map((plan) => ({
+                id: plan.id,
+                title: plan.title,
+                nodeCount: plan.nodeCount,
+                folderId: plan.folderId,
+              })),
+            });
           }
         }
 
-        if (lines.length === 0) return text('No plans yet. Use create_plan to make one.');
-        return text(lines.join('\n'));
+        return text(renderPlanList(listing, (id) => this.planUrl(id)));
       },
     );
 
@@ -258,18 +291,18 @@ export class McpFactory {
           'draw that.',
         inputSchema: createPlanShape,
       },
-      async ({ title, description, workspace, projectSlug }) => {
+      async ({ title, description, workspace, projectSlug, folder }) => {
         try {
-          const target = await resolveWorkspace(this.workspaces, identity, workspace);
-          const projectId =
-            projectSlug === undefined
-              ? await this.projects.defaultFor(target.id)
-              : (await this.projects.bySlug(identity.userId, target.id, projectSlug)).id;
+          const { projectId } = await this.resolveProject(identity, workspace, projectSlug);
+          const filed =
+            folder === undefined
+              ? null
+              : chooseFolder(await this.folders.list(identity.userId, projectId), folder).id;
 
           const doc = await this.plans.create(
             identity.userId,
             projectId,
-            { title, description },
+            { title, description, folderId: filed },
             { userId: identity.userId, apiKeyId: identity.keyId },
           );
           return text(
@@ -300,6 +333,154 @@ export class McpFactory {
             description,
           });
           return text(`Created project ${project.slug} in ${target.slug}.`);
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'list_folders',
+      {
+        title: 'List folders',
+        description:
+          'The drawers inside a project, and how many plans are in each. A folder does not ' +
+          'nest, and a plan does not have to be in one.',
+        inputSchema: listFoldersShape,
+      },
+      async ({ workspace, projectSlug }) => {
+        try {
+          const { projectId } = await this.resolveProject(identity, workspace, projectSlug);
+          const drawers = await this.folders.list(identity.userId, projectId);
+          if (drawers.length === 0) {
+            return text('No folders in this project. Everything sits at its top level.');
+          }
+          return text(
+            drawers.map((drawer) => `${drawer.name} — ${drawer.planCount} plans`).join('\n'),
+          );
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'create_folder',
+      {
+        title: 'Create a folder',
+        description:
+          'A drawer inside a project, for grouping plans that belong together. Folders do not ' +
+          'nest. Asking for one that is already there gives back the one that is there rather ' +
+          'than making a second of the same name.',
+        inputSchema: createFolderShape,
+      },
+      async ({ name, workspace, projectSlug }) => {
+        try {
+          const { projectId } = await this.resolveProject(identity, workspace, projectSlug);
+          const drawers = await this.folders.list(identity.userId, projectId);
+          const already = drawers.find(
+            (drawer) => drawer.name.trim().toLowerCase() === name.trim().toLowerCase(),
+          );
+          if (already !== undefined) {
+            return text(`"${already.name}" is already there, holding ${already.planCount} plans.`);
+          }
+          const made = await this.folders.create(identity.userId, projectId, { name });
+          return text(`Created folder "${made.name}". File plans in it with move_plan.`);
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'rename_folder',
+      {
+        title: 'Rename a folder',
+        description: 'Changes what a drawer is called. Nothing inside it moves.',
+        inputSchema: renameFolderShape,
+      },
+      async ({ folder, to, workspace, projectSlug }) => {
+        try {
+          const { projectId } = await this.resolveProject(identity, workspace, projectSlug);
+          const chosen = chooseFolder(await this.folders.list(identity.userId, projectId), folder);
+          const renamed = await this.folders.update(identity.userId, chosen.id, { name: to });
+          return text(`"${chosen.name}" is now "${renamed.name}".`);
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'delete_folder',
+      {
+        title: 'Delete a folder',
+        description:
+          'Moves a folder to the workspace trash, and the plans filed in it go with it — a ' +
+          'person can restore the folder and get them back. The exact name must be given as ' +
+          'well, so a wrong name cannot take the wrong drawer.',
+        inputSchema: deleteFolderShape,
+        annotations: { destructiveHint: true },
+      },
+      async ({ folder, confirmName, workspace, projectSlug }) => {
+        try {
+          const { projectId } = await this.resolveProject(identity, workspace, projectSlug);
+          const chosen = chooseFolder(await this.folders.list(identity.userId, projectId), folder);
+          if (chosen.name !== confirmName) {
+            return failure(
+              `That folder is called "${chosen.name}", not "${confirmName}". Nothing was deleted.`,
+            );
+          }
+          await this.folders.remove(identity.userId, chosen.id);
+          return text(
+            `Moved "${chosen.name}" to the trash, with the plans in it. ` +
+              'A person can restore it from there.',
+          );
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'move_plan',
+      {
+        title: 'Move a plan',
+        description:
+          'Files a plan somewhere else: another drawer of the same project, another project, ' +
+          'or a project in another workspace.\n\n' +
+          'Naming only a folder moves it within the project it is already in. Passing null for ' +
+          'the folder takes it out to the project top level. Moving a plan to another workspace ' +
+          'drops any share link it had, because the link was handed out on the understanding of ' +
+          'who could reach it.',
+        inputSchema: movePlanShape,
+      },
+      async ({ planId, workspace, projectSlug, folder }) => {
+        try {
+          const where = await this.plans.navigation(identity.userId, planId);
+          // Naming no destination project means the one it is already in, so a
+          // plan can be filed in a drawer without an agent having to look up
+          // where it lives first.
+          const destination =
+            workspace === undefined && projectSlug === undefined
+              ? { projectId: where.projectId, workspaceSlug: where.workspace.slug }
+              : await this.resolveProject(identity, workspace, projectSlug);
+
+          const filed =
+            folder === undefined || folder === null
+              ? null
+              : chooseFolder(
+                  await this.folders.list(identity.userId, destination.projectId),
+                  folder,
+                ).id;
+
+          await this.plans.move(identity.userId, planId, destination.projectId, filed);
+
+          const crossed = destination.workspaceSlug !== where.workspace.slug;
+          return text(
+            `Moved. It is now ${filed === null ? 'at the top level of' : `in "${folder}" in`} ` +
+              `that project.${crossed ? ' Any share link it had has been dropped.' : ''}`,
+          );
         } catch (error) {
           return failure(reason(error));
         }
