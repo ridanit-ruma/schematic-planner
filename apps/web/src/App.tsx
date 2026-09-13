@@ -61,6 +61,9 @@ export function App() {
         <Route path="/share/:token" element={<SharedPlanPage />} />
         <Route path="/login" element={<AuthPage mode="sign-in" />} />
         <Route path="/register" element={<AuthPage mode="sign-up" />} />
+        {/* An invitation says what it is before it asks for a session, so this
+            sits outside RequireAuth with the shared link and the sign-in form. */}
+        <Route path="/invite/:token" element={<InvitePage />} />
 
         <Route
           path="/plan/:planId"
@@ -91,8 +94,6 @@ export function App() {
             <Route index element={<AccountSettingsPage />} />
             <Route path="agents" element={<AgentsPage />} />
           </Route>
-          <Route path="/invite/:token" element={<InvitePage />} />
-
           {/* Owner only, and the API says so too — a route that is merely not
               linked to is not a route that is closed. */}
           <Route path="/admin" element={<AdminLayout />}>
