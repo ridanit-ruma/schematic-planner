@@ -4,7 +4,7 @@ import type { PlanComment, PlanDoc, PlanEdge, PlanNode, Position } from '@schema
 import {
   ORIGIN_LOCAL,
   commentsMap,
-  commitEdgeWaypoints,
+  commitEdgeRoute,
   edgesMap,
   nodesMap,
   readPlanDoc,
@@ -14,9 +14,7 @@ import {
 import { createStore } from 'zustand/vanilla';
 import type * as Y from 'yjs';
 
-import { snapTo } from './snap';
 import type { PlanFlowEdge, PlanFlowNode } from './types';
-import { readGrid } from './use-grid';
 
 export interface PlanState {
   nodes: PlanFlowNode[];
@@ -99,7 +97,11 @@ export interface PlanState {
   editable: boolean;
   setEditable: (editable: boolean) => void;
   /** The bends a line has been dragged through, on the grid if one is on. */
-  bendEdge: (id: string, waypoints: readonly Position[]) => void;
+  routeEdge: (
+    id: string,
+    corners: readonly Position[],
+    labelPosition?: Position | null,
+  ) => void;
 
   onNodesChange: (changes: NodeChange<PlanFlowNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<PlanFlowEdge>[]) => void;
@@ -231,15 +233,13 @@ export function createPlanStore(doc: Y.Doc) {
     },
     selectEdge: (selectedEdge) => set({ selectedEdge, selected: null, selectedComment: null }),
     setEditable: (editable) => set({ editable }),
-    bendEdge: (id, waypoints) => {
+    routeEdge: (id, corners, labelPosition) => {
+      // No snapping here. The drag is the only thing that writes a route and it
+      // has already put the moved run on the grid, on the one axis it moved;
+      // rounding both axes again would pull a corner off the handle height the
+      // renderer pins it to.
       if (!get().editable) return;
-      const grid = readGrid();
-      commitEdgeWaypoints(
-        doc,
-        id,
-        grid.on ? waypoints.map((point) => snapTo(point, grid.step)) : waypoints,
-        ORIGIN_LOCAL,
-      );
+      commitEdgeRoute(doc, id, corners, labelPosition, ORIGIN_LOCAL);
     },
   }));
 

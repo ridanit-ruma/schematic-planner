@@ -65,6 +65,7 @@ function PlanWorkspace({
   const select = useStore(store, (state) => state.select);
   const selectedEdge = useStore(store, (state) => state.selectedEdge);
   const selectEdge = useStore(store, (state) => state.selectEdge);
+  const routeEdge = useStore(store, (state) => state.routeEdge);
   const edges = useStore(store, (state) => state.edges);
   const comments = useStore(store, (state) => state.comments);
   const selectComment = useStore(store, (state) => state.selectComment);
@@ -271,6 +272,7 @@ function PlanWorkspace({
             edge={selectedEdgeData}
             readOnly={false}
             onApplyOps={apply}
+            onStraighten={() => routeEdge(selectedEdgeData.id, [])}
             onClose={() => selectEdge(null)}
           />
         ) : historyOpen ? (

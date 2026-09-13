@@ -25,38 +25,45 @@ export function commitNodePosition(
     origin,
   );
 }
-
 /**
- * The bends somebody has dragged a line through.
+ * The route somebody has dragged a line into, and where its writing sits.
  *
- * Written whole rather than per point: the list is short, its order is the
- * meaning, and two people bending the same line are disagreeing about its shape
+ * Written whole rather than per corner: the list is short, its order is the
+ * meaning, and two people moving the same line are disagreeing about its shape
  * rather than editing separate fields of it. Last writer wins, which is what
  * they would both expect to see.
  *
+ * The writing goes in the same transaction. Two writes would let a collaborator
+ * see the line move and the words catch up a beat later. Omitting it leaves it
+ * where it is, which is the ordinary case: a run was moved that the writing was
+ * not sitting on.
+ *
  * Clamped to the cap here rather than trusted from the caller, because the cost
  * of exceeding it is not a cluttered line: the projection parses the whole
- * document, so one bend too many stops the edge parsing and it disappears from
+ * document, so one corner too many stops the edge parsing and it disappears from
  * the read model altogether. A caller that has lost count should draw a line
- * with fewer bends than it asked for, never no line at all.
+ * with fewer corners than it asked for, never no line at all.
  */
-export function commitEdgeWaypoints(
+export function commitEdgeRoute(
   doc: Y.Doc,
   id: string,
-  waypoints: readonly Position[],
+  corners: readonly Position[],
+  labelPosition?: Position | null,
   origin: unknown = ORIGIN_LOCAL,
 ): void {
   const edge = edgesMap(doc).get(id);
   if (edge === undefined) return;
+  const round = (point: Position): Position => ({
+    x: Math.round(point.x),
+    y: Math.round(point.y),
+  });
   Y.transact(
     doc,
     () => {
-      edge.set(
-        'waypoints',
-        waypoints
-          .slice(0, WAYPOINT_MAX)
-          .map((point) => ({ x: Math.round(point.x), y: Math.round(point.y) })),
-      );
+      edge.set('waypoints', corners.slice(0, WAYPOINT_MAX).map(round));
+      if (labelPosition !== undefined) {
+        edge.set('labelPosition', labelPosition === null ? null : round(labelPosition));
+      }
     },
     origin,
   );
@@ -93,19 +100,19 @@ export interface NodeSize {
 }
 
 /**
- * Carries everything placed along a line — its writing and its bends — with the
- * ends that moved.
+ * Carries the writing on a line with the ends that moved.
  *
- * Both are stored absolute, so a line whose end has been dragged goes without
- * them unless they are brought along. A point a fraction `t` of the way from one
- * end to the other travels `from·(1−t) + to·t`: the end it is nearer pulls it
- * harder, and a point in the middle of a line with one end moving goes half as
- * far. That is exactly the rule the writing already followed, which sat at
- * `t = ½` — it kept the separation layout had worked out instead of letting
- * every note drop back to its midpoint and land on top of the others.
+ * It is stored absolute, so a line whose end has been dragged goes without it
+ * unless it is brought along. A point a fraction `t` of the way from one end to
+ * the other travels `from·(1−t) + to·t`: the end it is nearer pulls it harder,
+ * and a point in the middle of a line with one end moving goes half as far. The
+ * writing sits at `t = ½`, which keeps the separation layout worked out instead
+ * of letting every note drop back to its midpoint and land on top of the others.
  *
- * The bends are why this cannot simply withdraw the points instead. A person put
- * them there; nothing on the server is entitled to decide they have gone stale.
+ * The route is deliberately not carried. A run somebody placed stays where they
+ * put it — which is what every other drawing tool does — and the renderer pins
+ * the corners that touch a card to the new handle heights, so the line stays
+ * square without anything here having to do arithmetic on it.
  */
 export function nudgeEdges(
   doc: Y.Doc,
@@ -132,15 +139,6 @@ export function nudgeEdges(
         const at = edge.get('labelPosition');
         if (at !== null && at !== undefined) {
           edge.set('labelPosition', carry(at as Position, from, to, 0.5));
-        }
-
-        const bends = edge.get('waypoints');
-        if (Array.isArray(bends) && bends.length > 0) {
-          const points = bends as Position[];
-          edge.set(
-            'waypoints',
-            points.map((point, index) => carry(point, from, to, (index + 1) / (points.length + 1))),
-          );
         }
       }
     },

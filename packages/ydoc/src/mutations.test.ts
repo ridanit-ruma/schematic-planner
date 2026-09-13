@@ -6,7 +6,7 @@ import { applyOps, initializePlan, readPlanDoc } from './bind.js';
 import {
   commentBodyText,
   commitCommentPosition,
-  commitEdgeWaypoints,
+  commitEdgeRoute,
   commitLayout,
   commitNodePosition,
   nodeBodyText,
@@ -88,10 +88,10 @@ function lined() {
   return { ydoc, id };
 }
 
-describe('commitEdgeWaypoints', () => {
-  it('stores the bends, rounded, in the order given', () => {
+describe('commitEdgeRoute', () => {
+  it('stores the corners, rounded, in the order given', () => {
     const { ydoc, id } = lined();
-    commitEdgeWaypoints(ydoc, id, [
+    commitEdgeRoute(ydoc, id, [
       { x: 10.4, y: 20.6 },
       { x: 30.5, y: 40.2 },
     ]);
@@ -104,74 +104,72 @@ describe('commitEdgeWaypoints', () => {
 
   it('straightens a line when given none', () => {
     const { ydoc, id } = lined();
-    commitEdgeWaypoints(ydoc, id, [{ x: 10, y: 10 }]);
-    commitEdgeWaypoints(ydoc, id, []);
+    commitEdgeRoute(ydoc, id, [{ x: 10, y: 10 }]);
+    commitEdgeRoute(ydoc, id, []);
     expect(readPlanDoc(ydoc).doc.edges[0]?.waypoints).toEqual([]);
+  });
+
+  it('writes the route and the writing on it in one go', () => {
+    const { ydoc, id } = lined();
+    commitEdgeRoute(ydoc, id, [{ x: 40, y: 0 }], { x: 44, y: 12 });
+
+    const edge = readPlanDoc(ydoc).doc.edges[0];
+    expect(edge?.waypoints).toEqual([{ x: 40, y: 0 }]);
+    expect(edge?.labelPosition).toEqual({ x: 44, y: 12 });
+  });
+
+  it('leaves the writing where it is when it is not given one', () => {
+    const { ydoc, id } = lined();
+    commitEdgeRoute(ydoc, id, [{ x: 40, y: 0 }], { x: 44, y: 12 });
+    commitEdgeRoute(ydoc, id, [{ x: 90, y: 0 }]);
+    expect(readPlanDoc(ydoc).doc.edges[0]?.labelPosition).toEqual({ x: 44, y: 12 });
   });
 
   it('ignores a line that is no longer there', () => {
     const { ydoc } = lined();
-    expect(() => commitEdgeWaypoints(ydoc, 'gone', [{ x: 0, y: 0 }])).not.toThrow();
+    expect(() => commitEdgeRoute(ydoc, 'gone', [{ x: 0, y: 0 }])).not.toThrow();
   });
 });
 
 /**
- * A point placed along a line is carried by the ends that moved, weighted by how
- * far along it sits. The rule has to keep agreeing with the one the writing
- * already followed, which sat at the halfway mark.
+ * The writing on a line is carried by the ends that moved. The route is not: a
+ * run somebody placed stays where they put it, and the renderer pins the corners
+ * that touch a card to the new handle heights.
  */
 describe('nudgeEdges', () => {
-  it('moves a single bend by the average of both ends, as the writing does', () => {
+  it('moves the writing by the average of both ends', () => {
     const { ydoc, id } = lined();
-    commitEdgeWaypoints(ydoc, id, [{ x: 100, y: 100 }]);
     commitLayout(ydoc, new Map(), 'test', undefined, new Map([[id, { x: 100, y: 100 }]]));
 
-    // Only one end moves, so both the bend and the writing go half as far.
+    // Only one end moves, so the writing goes half as far.
     nudgeEdges(ydoc, new Map([['a', { x: 40, y: 0 }]]), 'test');
 
-    const edge = readPlanDoc(ydoc).doc.edges[0];
-    expect(edge?.waypoints).toEqual([{ x: 120, y: 100 }]);
-    expect(edge?.labelPosition).toEqual({ x: 120, y: 100 });
+    expect(readPlanDoc(ydoc).doc.edges[0]?.labelPosition).toEqual({ x: 120, y: 100 });
   });
 
-  it('pulls each bend towards whichever end it is nearer', () => {
+  it('leaves the route alone', () => {
     const { ydoc, id } = lined();
-    commitEdgeWaypoints(ydoc, id, [
-      { x: 0, y: 0 },
-      { x: 0, y: 0 },
-      { x: 0, y: 0 },
+    commitEdgeRoute(ydoc, id, [
+      { x: 100, y: 0 },
+      { x: 100, y: 200 },
     ]);
-    // The far end moves 400; the three bends sit a quarter, a half and three
-    // quarters of the way along.
-    nudgeEdges(ydoc, new Map([['b', { x: 400, y: 0 }]]), 'test');
+
+    nudgeEdges(ydoc, new Map([['a', { x: 400, y: 0 }]]), 'test');
 
     expect(readPlanDoc(ydoc).doc.edges[0]?.waypoints).toEqual([
       { x: 100, y: 0 },
-      { x: 200, y: 0 },
-      { x: 300, y: 0 },
+      { x: 100, y: 200 },
     ]);
-  });
-
-  it('moves a bend the whole way when both ends go together', () => {
-    const { ydoc, id } = lined();
-    commitEdgeWaypoints(ydoc, id, [{ x: 10, y: 10 }]);
-    nudgeEdges(ydoc, new Map([['a', { x: 5, y: 7 }], ['b', { x: 5, y: 7 }]]), 'test');
-    expect(readPlanDoc(ydoc).doc.edges[0]?.waypoints).toEqual([{ x: 15, y: 17 }]);
-  });
-
-  /* A person put them there; nothing is entitled to decide they are stale. */
-  it('never withdraws a bend', () => {
-    const { ydoc, id } = lined();
-    commitEdgeWaypoints(ydoc, id, [{ x: 10, y: 10 }]);
-    nudgeEdges(ydoc, new Map([['a', { x: 900, y: 900 }]]), 'test');
-    expect(readPlanDoc(ydoc).doc.edges[0]?.waypoints).toHaveLength(1);
   });
 
   it('leaves a line alone when neither of its ends moved', () => {
     const { ydoc, id } = lined();
-    commitEdgeWaypoints(ydoc, id, [{ x: 10, y: 10 }]);
+    commitEdgeRoute(ydoc, id, [{ x: 10, y: 10 }], { x: 10, y: 10 });
     nudgeEdges(ydoc, new Map([['elsewhere', { x: 50, y: 50 }]]), 'test');
-    expect(readPlanDoc(ydoc).doc.edges[0]?.waypoints).toEqual([{ x: 10, y: 10 }]);
+
+    const edge = readPlanDoc(ydoc).doc.edges[0];
+    expect(edge?.waypoints).toEqual([{ x: 10, y: 10 }]);
+    expect(edge?.labelPosition).toEqual({ x: 10, y: 10 });
   });
 });
 
@@ -252,11 +250,11 @@ describe('notes in the shared document', () => {
  * exactly that — every pointer move appended instead of replacing — so the write
  * itself refuses rather than trusting its callers.
  */
-describe('commitEdgeWaypoints against a caller that has lost count', () => {
+describe('commitEdgeRoute against a caller that has lost count', () => {
   it('keeps the line rather than writing a list that would delete it', () => {
     const { ydoc, id } = lined();
     const far = Array.from({ length: WAYPOINT_MAX + 12 }, (_, at) => ({ x: at * 10, y: at * 10 }));
-    commitEdgeWaypoints(ydoc, id, far);
+    commitEdgeRoute(ydoc, id, far);
 
     const edge = readPlanDoc(ydoc).doc.edges[0];
     expect(edge).toBeDefined();
@@ -271,7 +269,7 @@ describe('commitEdgeWaypoints against a caller that has lost count', () => {
       { x: 10, y: 10 },
       { x: 20, y: 20 },
     ];
-    commitEdgeWaypoints(ydoc, id, few);
+    commitEdgeRoute(ydoc, id, few);
     expect(readPlanDoc(ydoc).doc.edges[0]?.waypoints).toEqual(few);
   });
 });

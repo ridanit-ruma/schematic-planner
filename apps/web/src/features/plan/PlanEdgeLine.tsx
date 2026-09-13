@@ -1,18 +1,25 @@
 import {
   BaseEdge,
   EdgeLabelRenderer,
-  getSmoothStepPath,
   useReactFlow,
   useStore,
   type EdgeProps,
 } from '@xyflow/react';
-import { WAYPOINT_MAX, edgeNote, type Position } from '@schematic/schema';
+import { edgeNote, type Position } from '@schematic/schema';
 import { memo, useRef, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 
-import { bentPath, insertionPoints, segmentAt, type Side } from './edge-path';
-import { snapTo } from './snap';
+import {
+  dragSegment,
+  midpoint,
+  movableSegments,
+  pathOf,
+  routeOf,
+  segmentOfLabel,
+  type Side,
+} from './edge-path';
+import { snapValue } from './snap';
 import { usePlanStore } from './store-context';
 import type { PlanFlowEdge } from './types';
 import { readGrid } from './use-grid';
@@ -84,48 +91,40 @@ function Line({
   // The shape while it is being dragged. The document hears once, at the end —
   // the same bargain as a node's position and a note's.
   const [held, setHeld] = useState<Position[] | null>(null);
-  const grab = useRef<{ pointer: Position; from: Position; index: number } | null>(null);
-  // Kept apart from the dots' own grab: the two surfaces overlap, and a bend
-  // being moved must not also be read as the line being grabbed under it.
-  const grabbing = useRef<{ pointer: Position; index: number; moved: boolean } | null>(null);
+  const [heldLabel, setHeldLabel] = useState<Position | null>(null);
+  // One drag, one place to keep it. The old arrangement had three hit areas
+  // overlapping and two refs kept apart so that a bend being moved was not also
+  // read as the line being grabbed underneath it.
+  const drag = useRef<{
+    index: number;
+    axis: 'x' | 'y';
+    origin: number;
+    pointer: Position;
+    route: Position[];
+    label: Position | null;
+    carries: boolean;
+    moved: boolean;
+  } | null>(null);
 
   const edgeData = data?.edge;
-  const bends: readonly Position[] = held ?? edgeData?.waypoints ?? [];
-
-  // React Flow's router until somebody bends the line: it knows about the other
-  // lines and the cards in the way, and a plan nobody has touched should keep
-  // every bit of that. Once there is a bend, the line has to go through it, and
-  // that is a different question with a different answer.
-  const straight = getSmoothStepPath({
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-    borderRadius: 2,
-  });
   const ends = {
     source: { x: sourceX, y: sourceY },
     target: { x: targetX, y: targetY },
     sourceSide: sourcePosition as Side,
     targetSide: targetPosition as Side,
   };
-  const bent =
-    bends.length === 0
-      ? null
-      : bentPath(ends.source, ends.sourceSide, ends.target, ends.targetSide, bends);
-  const path = bent?.path ?? straight[0];
-  const labelX = bent?.label.x ?? straight[1];
-  const labelY = bent?.label.y ?? straight[2];
+
+  // One router, always. Drawing an untouched line with React Flow's smooth-step
+  // and a touched one with this meant the shape changed the instant a line was
+  // grabbed, for no reason the person dragging it could see.
+  const chain: readonly Position[] = held ?? edgeData?.waypoints ?? [];
+  const route = routeOf(ends.source, ends.sourceSide, ends.target, ends.targetSide, chain);
+  const path = pathOf(route);
+  const middle = midpoint(route);
 
   const selectEdge = usePlanStore((state) => state.selectEdge);
   const editable = usePlanStore((state) => state.editable);
-  const bendEdge = usePlanStore((state) => state.bendEdge);
-  // This plan's own selection, not React Flow's. Clicking the writing on a line
-  // opens the inspector for it through the store, and React Flow never hears
-  // about that, so its own selected flag is false for the line being worked on.
-  const chosen = usePlanStore((state) => state.selectedEdge === id);
+  const routeEdge = usePlanStore((state) => state.routeEdge);
   const highlight = usePlanStore((state) => state.highlight);
 
   const kind = data?.edge.kind ?? 'depends_on';
@@ -149,8 +148,8 @@ function Line({
   //
   // The midpoint is exactly where parallel lines pile their notes up, so a line
   // too short to hold one keeps quiet until it has somewhere of its own.
-  const placed = edge?.labelPosition ?? null;
-  const at = placed ?? { x: labelX, y: labelY };
+  const placed = heldLabel ?? edge?.labelPosition ?? null;
+  const at = placed ?? middle;
   const show = note !== '' && (placed !== null || legible);
 
   return (
@@ -173,79 +172,102 @@ function Line({
         markerEnd={style.marker ? 'url(#schematic-arrow)' : undefined}
       />
       {/*
-        The line itself is the handle.
+        One invisible hit area per run of the line that can actually be moved.
 
-        A dot on a selected line is precise and undiscoverable: it is eight
-        pixels of sixty-percent-opacity sitting on a one-and-a-half pixel line,
-        and it only exists after you have worked out that a line can be
-        selected at all. Dragging the line is the gesture people actually try,
-        and it used to do nothing whatsoever -- not even pan.
+        Not the whole path: the runs that touch a card are pinned to their
+        handles, and a hit area over them would be a control that does nothing.
+        Leaving them bare is also how the cursor tells a reader which parts of a
+        line move, before anything is clicked.
 
-        Invisible, sixteen pixels wide, and `stroke` rather than `all` so only
-        the run of the line takes the pointer and not the box around it. Drawn
-        before the dots so a bend that already exists wins the grab.
+        `stroke` rather than `all` so only the run itself takes the pointer and
+        not the box around it.
       */}
-      {!editable ? null : (
-        <path
-          d={path}
-          fill="none"
-          stroke="transparent"
-          strokeWidth={16}
-          style={{ pointerEvents: "stroke", cursor: grabbing.current === null ? "grab" : "grabbing" }}
-          onPointerDown={(event) => {
-            if (event.button !== 0) return;
-            // Panning the canvas and bending the line are the same gesture
-            // otherwise, and the pane wins.
-            event.stopPropagation();
-            // A line has as many bends as it is allowed and no more; grabbing it
-            // again would build a list the document refuses.
-            if ((edgeData?.waypoints ?? []).length >= WAYPOINT_MAX) return;
-            const from = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-            grabbing.current = {
-              pointer: from,
-              index: segmentAt(ends.source, ends.sourceSide, ends.target, ends.targetSide, bends, from),
-              moved: false,
-            };
-            event.currentTarget.setPointerCapture(event.pointerId);
-          }}
-          onPointerMove={(event) => {
-            const start = grabbing.current;
-            if (start === null) return;
-            const now = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-            // A click is a drag of no distance. Without this, selecting a line
-            // would put a bend in it.
-            if (!start.moved && Math.abs(now.x - start.pointer.x) + Math.abs(now.y - start.pointer.y) < GRAB_SLOP) {
-              return;
-            }
-            start.moved = true;
-            // Spliced into the COMMITTED list, never into `bends` -- which is
-            // the held list once a drag is under way, so inserting into it again
-            // added a bend on every pointer move. Sixteen moves put sixteen
-            // bends on the line, past the cap the schema allows, and the whole
-            // edge then failed to parse and vanished from the drawing.
-            const committed = edgeData?.waypoints ?? [];
-            const next = [...committed];
-            next.splice(start.index, 0, preview(now));
-            setHeld(next);
-          }}
-          onPointerUp={() => {
-            const start = grabbing.current;
-            const shape = held;
-            grabbing.current = null;
-            setHeld(null);
-            if (start === null) return;
-            if (start.moved && shape !== null) {
-              bendEdge(id, shape);
-              return;
-            }
-            // A grab that never moved was a click. This surface swallows the
-            // one React Flow would have turned into onEdgeClick, so the
-            // selection it was going to make is made here instead -- otherwise
-            // laying a hand on a line stops opening its inspector.
-            selectEdge(id);
-          }}
-        />
-      )}
+      {!editable
+        ? null
+        : movableSegments(route).map((run) => (
+            <path
+              key={`run-${run.index}`}
+              d={`M ${run.a.x},${run.a.y} L ${run.b.x},${run.b.y}`}
+              fill="none"
+              stroke="transparent"
+              strokeWidth={16}
+              style={{
+                pointerEvents: 'stroke',
+                cursor: run.axis === 'x' ? 'col-resize' : 'row-resize',
+              }}
+              onPointerDown={(event) => {
+                if (event.button !== 0) return;
+                // Panning the canvas and moving the run are the same gesture
+                // otherwise, and the pane wins.
+                event.stopPropagation();
+                const committed = routeOf(
+                  ends.source,
+                  ends.sourceSide,
+                  ends.target,
+                  ends.targetSide,
+                  edgeData?.waypoints ?? [],
+                );
+                const label = edge?.labelPosition ?? null;
+                drag.current = {
+                  index: run.index,
+                  axis: run.axis,
+                  origin: run.axis === 'x' ? run.a.x : run.a.y,
+                  pointer: screenToFlowPosition({ x: event.clientX, y: event.clientY }),
+                  route: committed,
+                  label,
+                  // Only the writing sitting on this run travels with it.
+                  carries: label !== null && segmentOfLabel(committed, label) === run.index,
+                  moved: false,
+                };
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                const start = drag.current;
+                if (start === null) return;
+                const now = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+                const travelled =
+                  start.axis === 'x' ? now.x - start.pointer.x : now.y - start.pointer.y;
+                // A click is a drag of no distance. Without this, taking hold of
+                // a line to select it would also move it.
+                if (!start.moved && Math.abs(travelled) < GRAB_SLOP) return;
+                start.moved = true;
+
+                const grid = readGrid();
+                const loose = start.origin + travelled;
+                const to = grid.on ? snapValue(loose, grid.step) : loose;
+                setHeld(dragSegment(start.route, start.index, to));
+
+                if (start.carries && start.label !== null) {
+                  const shift = to - start.origin;
+                  setHeldLabel(
+                    start.axis === 'x'
+                      ? { x: start.label.x + shift, y: start.label.y }
+                      : { x: start.label.x, y: start.label.y + shift },
+                  );
+                }
+              }}
+              onPointerUp={() => {
+                const start = drag.current;
+                const shape = held;
+                const label = heldLabel;
+                drag.current = null;
+                setHeld(null);
+                setHeldLabel(null);
+                if (start === null) return;
+                if (start.moved && shape !== null) {
+                  // `undefined` and not `null`: null means "put the writing back
+                  // at the midpoint", and a run moved out from under a label that
+                  // was sitting somewhere else must not take its place away.
+                  routeEdge(id, shape, label ?? undefined);
+                  return;
+                }
+                // A grab that never moved was a click. This surface swallows the
+                // one React Flow would have turned into onEdgeClick, so the
+                // selection it was going to make is made here instead.
+                selectEdge(id);
+              }}
+            />
+          ))}
       {/* Drawn over the line for as long as it takes to appear, then gone. The
           line itself keeps its own colour and dash pattern underneath. */}
       {arrivedAt === undefined ? null : (
@@ -258,126 +280,6 @@ function Line({
           stroke="var(--accent)"
           strokeWidth={2}
         />
-      )}
-      {/*
-        Handles only on the line that is selected. Every line having them would
-        put a row of dots across a busy plan and make the drawing about its own
-        controls; the line being worked on is the only one where they are worth
-        the ink.
-      */}
-      {!(chosen || selected === true) || !editable ? null : (
-        <EdgeLabelRenderer>
-          {bends.map((bend, index) => (
-            <div
-              key={`bend-${index}`}
-              role="button"
-              tabIndex={0}
-              aria-label={`Bend ${index + 1} of ${bends.length}. Drag to move, or press Delete to straighten.`}
-              onPointerDown={(event) => {
-                if (event.button !== 0) return;
-                // Otherwise this is also a canvas pan and a click on the pane.
-                event.stopPropagation();
-                grab.current = {
-                  pointer: screenToFlowPosition({ x: event.clientX, y: event.clientY }),
-                  from: bend,
-                  index,
-                };
-                setHeld([...bends]);
-                event.currentTarget.setPointerCapture(event.pointerId);
-              }}
-              onPointerMove={(event) => {
-                const start = grab.current;
-                if (start === null) return;
-                const now = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-                const moved = {
-                  x: start.from.x + (now.x - start.pointer.x),
-                  y: start.from.y + (now.y - start.pointer.y),
-                };
-                setHeld(
-                  bends.map((point, at) => (at === start.index ? preview(moved) : point)),
-                );
-              }}
-              onPointerUp={() => {
-                const shape = held;
-                grab.current = null;
-                setHeld(null);
-                if (shape !== null) bendEdge(id, shape);
-              }}
-              onKeyDown={(event) => {
-                if (event.key !== 'Delete' && event.key !== 'Backspace') return;
-                event.preventDefault();
-                bendEdge(
-                  id,
-                  bends.filter((_, at) => at !== index),
-                );
-              }}
-              className={
-                'pointer-events-auto absolute size-2.5 cursor-grab rounded-full ' +
-                'border border-accent bg-accent shadow-[0_0_0_2px_var(--ground)]'
-              }
-              style={{ transform: `translate(-50%, -50%) translate(${bend.x}px, ${bend.y}px)` }}
-            />
-          ))}
-
-          {/*
-            Where a new bend would go: the middle of each straight run. Hollow,
-            because nothing is there yet until it is dragged.
-          */}
-          {bends.length >= WAYPOINT_MAX
-            ? null
-            : insertionPoints(
-                ends.source,
-                ends.sourceSide,
-                ends.target,
-                ends.targetSide,
-                bends,
-              ).map((spot) => (
-                <div
-                  key={`add-${spot.index}`}
-                  role="button"
-                  tabIndex={-1}
-                  aria-label="Drag to bend this line here"
-                  onPointerDown={(event) => {
-                    if (event.button !== 0) return;
-                    event.stopPropagation();
-                    const next = [...bends];
-                    next.splice(spot.index, 0, spot.at);
-                    grab.current = {
-                      pointer: screenToFlowPosition({ x: event.clientX, y: event.clientY }),
-                      from: spot.at,
-                      index: spot.index,
-                    };
-                    setHeld(next);
-                    event.currentTarget.setPointerCapture(event.pointerId);
-                  }}
-                  onPointerMove={(event) => {
-                    const start = grab.current;
-                    if (start === null || held === null) return;
-                    const now = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-                    const moved = {
-                      x: start.from.x + (now.x - start.pointer.x),
-                      y: start.from.y + (now.y - start.pointer.y),
-                    };
-                    setHeld(
-                      held.map((point, at) => (at === start.index ? preview(moved) : point)),
-                    );
-                  }}
-                  onPointerUp={() => {
-                    const shape = held;
-                    grab.current = null;
-                    setHeld(null);
-                    if (shape !== null) bendEdge(id, shape);
-                  }}
-                  className={
-                    'pointer-events-auto absolute size-2 cursor-grab rounded-full ' +
-                    'border border-accent bg-ground opacity-60 hover:opacity-100'
-                  }
-                  style={{
-                    transform: `translate(-50%, -50%) translate(${spot.at.x}px, ${spot.at.y}px)`,
-                  }}
-                />
-              ))}
-        </EdgeLabelRenderer>
       )}
 
       {!show ? null : (
@@ -420,18 +322,6 @@ function Line({
       )}
     </>
   );
-}
-
-/**
- * Where a bend being dragged is drawn.
- *
- * The store snaps again when the drag is let go, so this is the same answer
- * shown early rather than a second rule: a dot that floats free of the grid and
- * then jumps on release would be the handle disagreeing with the line.
- */
-function preview(at: Position): Position {
-  const grid = readGrid();
-  return grid.on ? snapTo(at, grid.step) : at;
 }
 
 export const PlanEdgeLine = memo(Line);

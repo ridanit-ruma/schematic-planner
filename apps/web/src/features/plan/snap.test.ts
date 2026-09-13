@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_STEP, GRID_STEPS, asStep, snapTo } from './snap';
+import { DEFAULT_STEP, GRID_STEPS, asStep, snapTo, snapValue } from './snap';
 
 describe('snapping a position to the grid', () => {
   it('leaves a position that is already on a line where it is', () => {
@@ -55,5 +55,17 @@ describe('believing a stored step', () => {
   it('refuses zero', () => {
     expect(asStep(0)).toBe(DEFAULT_STEP);
     expect(snapTo({ x: 137, y: 43 }, asStep(0))).toEqual({ x: 140, y: 40 });
+  });
+});
+
+describe('one coordinate on the grid', () => {
+  it('rounds to the nearest line rather than down to the last one', () => {
+    expect(snapValue(27, 20)).toBe(20);
+    expect(snapValue(31, 20)).toBe(40);
+  });
+
+  it('treats a negative coordinate the same way', () => {
+    expect(snapValue(-27, 20)).toBe(-20);
+    expect(snapValue(-31, 20)).toBe(-40);
   });
 });

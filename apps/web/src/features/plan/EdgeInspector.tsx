@@ -1,5 +1,5 @@
 import { planEdgeKinds, type PlanEdge, type PlanEdgeKind, type PlanOp } from '@schematic/schema';
-import { Trash2 } from 'lucide-react';
+import { Spline, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
@@ -40,11 +40,14 @@ export function EdgeInspector({
   edge,
   readOnly,
   onApplyOps,
+  onStraighten,
   onClose,
 }: {
   edge: PlanEdge;
   readOnly: boolean;
   onApplyOps: (ops: PlanOp[]) => void;
+  /** Back to the route the renderer would have chosen. */
+  onStraighten: () => void;
   onClose: () => void;
 }) {
   const change = (next: Partial<Pick<PlanEdge, 'kind' | 'label' | 'via' | 'carries'>>): void => {
@@ -138,7 +141,23 @@ export function EdgeInspector({
       </div>
 
       {!readOnly && (
-        <div className="border-t border-rule p-3">
+        <div className="space-y-2 border-t border-rule p-3">
+          {/*
+            A line is bent by pushing one of its runs sideways, and a straight
+            line has no run to push back, so undoing it cannot live on the line
+            itself. Here it is findable, and it is the only control that says a
+            line remembers a shape at all.
+          */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full"
+            disabled={edge.waypoints.length === 0}
+            onClick={onStraighten}
+          >
+            <Spline className="size-3.5" />
+            Straighten
+          </Button>
           <Button
             variant="danger"
             size="sm"

@@ -26,10 +26,18 @@ export const COARSE_MULTIPLE = 5;
  * ordinary here — the origin is wherever the first card was laid, not a corner.
  */
 export function snapTo(position: Position, step: number): Position {
-  return {
-    x: Math.round(position.x / step) * step,
-    y: Math.round(position.y / step) * step,
-  };
+  return { x: snapValue(position.x, step), y: snapValue(position.y, step) };
+}
+
+/**
+ * One coordinate on the nearest grid line.
+ *
+ * Separated from `snapTo` because a run of a line moves on one axis only, and
+ * snapping the axis it is not moving on would drag it off the corner it shares
+ * with its neighbour.
+ */
+export function snapValue(value: number, step: number): number {
+  return Math.round(value / step) * step;
 }
 
 /**
