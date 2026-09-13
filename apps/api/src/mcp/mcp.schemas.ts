@@ -54,6 +54,19 @@ const workspaceArg = z
   .optional()
   .describe('Workspace slug. Omit when the account has only one');
 
+const projectArg = z
+  .string()
+  .min(1)
+  .max(64)
+  .optional()
+  .describe('Project slug. Omitted, the workspace default is used');
+
+const folderArg = z
+  .string()
+  .min(1)
+  .max(80)
+  .describe('Folder name, as list_folders gives it. Folders do not nest');
+
 export const listProjectsShape = { workspace: workspaceArg };
 export const listPlansShape = { workspace: workspaceArg };
 
@@ -68,12 +81,12 @@ export const listPlansShape = { workspace: workspaceArg };
 export const createPlanShape = {
   title: z.string().min(1).max(200),
   workspace: workspaceArg,
-  projectSlug: z
-    .string()
-    .min(1)
-    .max(64)
+  projectSlug: projectArg.describe(
+    'Which project to draw in. Omitted, the workspace default is used',
+  ),
+  folder: folderArg
     .optional()
-    .describe('Which project to draw in. Omitted, the workspace default is used'),
+    .describe('Which drawer of the project to file it in. Omitted, the top level'),
   description: z.string().max(2000).default(''),
 };
 
@@ -206,4 +219,45 @@ export const deletePlanShape = {
     .string()
     .min(1)
     .describe('The plan\'s exact title. Required so a wrong id cannot delete the wrong plan'),
+};
+
+export const listFoldersShape = { workspace: workspaceArg, projectSlug: projectArg };
+
+export const createFolderShape = {
+  name: z.string().min(1).max(80).describe('What to call the drawer'),
+  workspace: workspaceArg,
+  projectSlug: projectArg,
+};
+
+export const renameFolderShape = {
+  folder: folderArg,
+  to: z.string().min(1).max(80).describe('The new name'),
+  workspace: workspaceArg,
+  projectSlug: projectArg,
+};
+
+export const deleteFolderShape = {
+  folder: folderArg,
+  confirmName: z
+    .string()
+    .min(1)
+    .describe("The folder's exact name. Required so a wrong name cannot take the wrong drawer"),
+  workspace: workspaceArg,
+  projectSlug: projectArg,
+};
+
+/**
+ * Where a plan should live.
+ *
+ * Every part of the destination is optional because most moves change one thing.
+ * Naming no project means the one the plan is already in, so a plan can be filed
+ * in a drawer without an agent having to look up where it lives first.
+ */
+export const movePlanShape = {
+  planId: z.string().min(1),
+  workspace: workspaceArg,
+  projectSlug: projectArg,
+  folder: folderArg
+    .nullish()
+    .describe('Which drawer to file it in. Pass null for the project top level'),
 };

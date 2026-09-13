@@ -51,3 +51,57 @@ describe('renderPlan', () => {
     expect(renderPlan(empty, 'outline')).toContain('_empty plan_');
   });
 });
+
+import { renderPlanList } from './render.js';
+
+const url = (id: string) => `https://example.test/plan/${id}`;
+
+describe('renderPlanList', () => {
+  const listing = [
+    {
+      workspace: 'demo',
+      project: 'billing',
+      folders: [
+        { id: 'f1', name: 'Architecture' },
+        { id: 'f2', name: 'Spikes' },
+      ],
+      plans: [
+        { id: 'p1', title: 'Billing rework', nodeCount: 8, folderId: null },
+        { id: 'p2', title: 'Invoice rendering', nodeCount: 12, folderId: 'f1' },
+      ],
+    },
+  ];
+
+  it('files each plan under the folder it is in', () => {
+    const lines = renderPlanList(listing, url).split('\n');
+    const folder = lines.findIndex((line) => line.trim() === 'Architecture');
+    const filed = lines.findIndex((line) => line.includes('Invoice rendering'));
+    expect(folder).toBeGreaterThan(-1);
+    expect(filed).toBeGreaterThan(folder);
+    expect(lines[filed]?.startsWith('    ')).toBe(true);
+  });
+
+  it('leaves a plan in no folder at the project level', () => {
+    const line = renderPlanList(listing, url)
+      .split('\n')
+      .find((candidate) => candidate.includes('Billing rework'));
+    expect(line?.startsWith('  ')).toBe(true);
+    expect(line?.startsWith('    ')).toBe(false);
+  });
+
+  /* An empty folder is a place somebody made; an agent that cannot see it will
+     make a second one with the same name. */
+  it('shows a folder with nothing in it', () => {
+    expect(renderPlanList(listing, url)).toContain('Spikes');
+  });
+
+  it('gives every plan its id and its address', () => {
+    const out = renderPlanList(listing, url);
+    expect(out).toContain('id p2');
+    expect(out).toContain('https://example.test/plan/p2');
+  });
+
+  it('says so when there is nothing at all', () => {
+    expect(renderPlanList([], url)).toMatch(/no plans/i);
+  });
+});

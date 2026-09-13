@@ -60,3 +60,43 @@ export async function resolveWorkspace(
       .join(', ')}`,
   );
 }
+
+export interface NamedFolder {
+  readonly id: string;
+  readonly name: string;
+}
+
+/**
+ * Which folder a name means.
+ *
+ * Folders are addressed by name here rather than by id, because a folder has no
+ * slug and an agent asked to carry an opaque id between calls will sooner or
+ * later carry the wrong one. The cost is that two folders of one name are
+ * ambiguous — which is why create_folder returns the folder that is already
+ * there rather than making a second.
+ *
+ * Takes the folders already fetched rather than the service, so the rule can be
+ * tested for what it is: which folder a name means, not how the list was got.
+ */
+export function chooseFolder(drawers: readonly NamedFolder[], name: string): NamedFolder {
+  if (drawers.length === 0) {
+    throw new NotFoundException('This project has no folders. Make one with create_folder.');
+  }
+
+  const wanted = name.trim().toLowerCase();
+  const found = drawers.filter((drawer) => drawer.name.trim().toLowerCase() === wanted);
+
+  const only = found[0];
+  if (found.length === 1 && only !== undefined) return only;
+
+  if (found.length > 1) {
+    throw new NotFoundException(
+      `There are two folders called "${name}" in this project. Rename one of them from the ` +
+        'project screen, then try again.',
+    );
+  }
+
+  throw new NotFoundException(
+    `No folder "${name}". This project has: ${drawers.map((drawer) => drawer.name).join(', ')}`,
+  );
+}
