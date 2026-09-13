@@ -361,6 +361,53 @@ try {
   check('a plan to drive', typeof fixture.id === 'string', fixture.error ?? fixture.id);
   await call(`/plans/${fixture.id}/layout`, { method: 'POST', body: { scope: 'all' } });
 
+  console.log('\nan invitation');
+  const invited = await call(`/workspaces/${workspaces[0].id}/invites`, {
+    method: 'POST',
+    body: { role: 'VIEWER', expiresInDays: 1 },
+  });
+  // createInvite answers with the whole link, not the token: the token is the
+  // last segment of it.
+  const inviteToken = typeof invited.url === 'string' ? invited.url.split('/').pop() : null;
+  check('an invitation can be minted', typeof inviteToken === 'string' && inviteToken !== '');
+
+  if (typeof inviteToken === 'string' && inviteToken !== '') {
+    // Signed out, the page still has to say what the invitation is for.
+    const anonymous = await browser.createBrowserContext();
+    const visitor = await anonymous.newPage();
+    await visitor.goto(`${BASE}/invite/${inviteToken}`, { waitUntil: 'domcontentloaded' });
+    await wait(2500);
+    const signedOut = await visitor.evaluate(() => document.body.innerText);
+    check(
+      'it names the workspace without a session',
+      signedOut.includes('invited you to'),
+      signedOut.slice(0, 60).replace(/\n/g, ' '),
+    );
+    check('and offers a way in rather than a spinner', signedOut.includes('Sign in to accept'));
+    await anonymous.close();
+
+    // Signed in, nothing is joined until the button is pressed.
+    await page.goto(`${BASE}/invite/${inviteToken}`, { waitUntil: 'domcontentloaded' });
+    await wait(2500);
+    const offered = await page.evaluate(() => document.body.innerText);
+    check('signed in, it offers both answers', offered.includes('Accept') && offered.includes('Decline'));
+
+    // Still listed means still open: Task 5 drops anything taken or turned down.
+    const before = await call(`/workspaces/${workspaces[0].id}/invites`);
+    check('and has joined nobody yet', Array.isArray(before) && before.length > 0);
+
+    // Withdraw it, the way the fixture below destroys itself. The create
+    // response carries the link, not the row's id, so the row this minted is
+    // matched back to it by the prefix stored alongside the token's hash.
+    const minted = Array.isArray(before)
+      ? before.find((entry) => inviteToken.startsWith(entry.prefix))
+      : undefined;
+    check('and it can be withdrawn', minted !== undefined);
+    if (minted !== undefined) {
+      await call(`/workspaces/${workspaces[0].id}/invites/${minted.id}`, { method: 'DELETE' });
+    }
+  }
+
   const rectOf = (slug) =>
     page
       .$eval(`.react-flow__node[data-id="${slug}"]`, (el) => {
