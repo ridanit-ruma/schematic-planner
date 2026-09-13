@@ -136,8 +136,14 @@ Folders do not nest, and a plan does not have to be in one — `folderId` is nul
 for every plan at a project's own top level, which is where they all were before
 folders existed. Two levels of grouping is what a project of a few dozen plans
 needs; each level past that multiplies the places a plan can be hiding without
-adding a way to find it. A folder is rearranged from the rail beside the canvas:
-right-click for the menu, drag a plan from one drawer to another.
+adding a way to find it.
+
+A folder is a place in both screens that list plans. In the rail beside the
+canvas it opens and closes in line, and a plan is dragged from one drawer to
+another. On the project index it is a row like any other — its name, how many
+plans it holds, when it last changed — and clicking it goes into a screen of that
+folder's own, at `project/<slug>/folder/<id>`, which is an address that can be
+handed to somebody. A plan is filed from the row menu on either screen.
 
 A workspace and a project are addressed by a readable slug; a plan is not, and
 sits at the top level:

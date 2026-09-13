@@ -17,6 +17,7 @@ import { PlanSettingsPage } from '@/features/plan/PlanSettingsPage';
 import { SharedPlanPage } from '@/features/plan/SharedPlanPage';
 import { AgentsPage } from '@/features/settings/AgentsPage';
 import { RecentPage } from '@/features/recent/RecentPage';
+import { FolderPage } from '@/features/workspaces/FolderPage';
 import { InvitePage } from '@/features/workspaces/InvitePage';
 import { MembersPage } from '@/features/workspaces/MembersPage';
 import { PlanIndexPage } from '@/features/workspaces/PlanIndexPage';
@@ -105,6 +106,7 @@ export function App() {
           <Route path="/workspace/:workspaceSlug" element={<WorkspaceLayout />}>
             <Route index element={<ProjectIndexPage />} />
             <Route path="project/:projectSlug" element={<PlanIndexPage />} />
+            <Route path="project/:projectSlug/folder/:folderId" element={<FolderPage />} />
             <Route path="project/:projectSlug/settings" element={<ProjectSettingsPage />} />
             <Route path="members" element={<MembersPage />} />
             <Route path="settings" element={<WorkspaceSettingsPage />} />

@@ -1086,6 +1086,114 @@ try {
   await call(`/plans/${elsewhere.id}`, { method: 'DELETE' });
   await call(`/trash/plans/${elsewhere.id}`, { method: 'DELETE' });
 
+  console.log('\nfolders as places');
+  // A folder used to be a heading spliced into the middle of the plan table: a
+  // raw `td` with none of the padding every other cell has, so its name sat
+  // eleven pixels left of every plan title, and nothing to click. Neither of
+  // those is visible from the protocol.
+  const drawerName = `Gate ${Date.now()}`;
+  const drawer = await call(`/projects/${projectList[0].id}/folders`, {
+    method: 'POST',
+    body: { name: drawerName },
+  });
+  const filedTitle = `Filed ${Date.now()}`;
+  const filed = await call(`/projects/${projectList[0].id}/plans`, {
+    method: 'POST',
+    body: { title: filedTitle, description: '', folderId: drawer.id },
+  });
+
+  await page.goto(`${BASE}/workspace/${workspaces[0].slug}/project/${projectList[0].slug}`, {
+    waitUntil: 'domcontentloaded',
+  });
+  await wait(2500);
+
+  const rows = await page.evaluate(() =>
+    [...document.querySelectorAll('tbody tr')].map((tr) => ({
+      x: Math.round(tr.children[0]?.getBoundingClientRect().x ?? -1),
+      cells: tr.children.length,
+      link: tr.querySelector('a')?.getAttribute('href') ?? null,
+      text: (tr.textContent ?? '').trim().slice(0, 40),
+    })),
+  );
+
+  check('the project index lists rows', rows.length > 0, `${rows.length} rows`);
+  check(
+    'and every row starts its first cell at the same place',
+    new Set(rows.map((row) => row.x)).size === 1,
+    rows.map((row) => row.x).join(', '),
+  );
+  check(
+    'and every row spans the same columns',
+    new Set(rows.map((row) => row.cells)).size === 1,
+    rows.map((row) => row.cells).join(', '),
+  );
+  check(
+    'and the plans inside a folder are not also listed at the top level',
+    rows.every((row) => !row.text.startsWith(filedTitle)),
+    rows.map((row) => row.text).join(' | ').slice(0, 120),
+  );
+
+  const folderRow = rows.find((row) => row.text.startsWith(drawerName));
+  check('a folder is one of the rows', folderRow !== undefined, JSON.stringify(folderRow));
+  check(
+    'and it can be opened',
+    folderRow?.link?.includes(`/folder/${drawer.id}`) === true,
+    folderRow?.link ?? 'no link',
+  );
+
+  if (folderRow?.link != null) {
+    await page.goto(`${BASE}${folderRow.link}`, { waitUntil: 'domcontentloaded' });
+    await wait(2500);
+
+    const inside = await page.evaluate(() => ({
+      heading: document.querySelector('h1')?.textContent ?? '',
+      // Leaf elements only: each crumb is a wrapper span around a span or a
+      // link, so taking both levels reads every name twice.
+      crumbs: [...document.querySelectorAll('header a, header span')]
+        .filter((el) => el.children.length === 0)
+        .map((el) => (el.textContent ?? '').trim())
+        .filter((text) => text !== ''),
+      titles: [...document.querySelectorAll('tbody tr')].map((tr) =>
+        (tr.textContent ?? '').trim().slice(0, 40),
+      ),
+    }));
+
+    check('the folder screen is titled after the folder', inside.heading === drawerName, inside.heading);
+    check(
+      'and the trail says which folder you are in',
+      inside.crumbs.some((crumb) => crumb === drawerName),
+      inside.crumbs.join(' > '),
+    );
+    check(
+      'and it holds the plan filed in it',
+      inside.titles.some((title) => title.startsWith(filedTitle)),
+      inside.titles.join(' | ').slice(0, 120),
+    );
+
+    // The row menu is how a plan leaves a folder without the rail's drag. It has
+    // to be opened with a real pointer: the menu listens for pointerdown, and a
+    // synthetic click() never reaches it.
+    const menuAt = await page.evaluate(() => {
+      const button = document.querySelector('tbody tr button[aria-label^="Actions for"]');
+      if (button === null) return null;
+      const box = button.getBoundingClientRect();
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    });
+    check('a plan row has a menu', menuAt !== null, JSON.stringify(menuAt));
+    if (menuAt !== null) {
+      await page.mouse.click(menuAt.x, menuAt.y);
+      await wait(900);
+      const offered = await page.evaluate(() => document.body.textContent ?? '');
+      check('and it offers to move the plan to a folder', offered.includes('Move to folder'));
+      await page.keyboard.press('Escape');
+      await wait(400);
+    }
+  }
+
+  await call(`/plans/${filed.id}`, { method: 'DELETE' });
+  await call(`/trash/plans/${filed.id}`, { method: 'DELETE' });
+  await call(`/folders/${drawer.id}`, { method: 'DELETE' });
+
   console.log('\na phone');
     // Nothing on this page may push the page sideways: a canvas you have to
     // scroll the chrome of is a canvas you cannot pan.

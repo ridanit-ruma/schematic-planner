@@ -31,6 +31,7 @@ import {
 import { Tooltip } from './ui/tooltip';
 import { canAdminister, workspaces } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
+import { CrumbProvider, useTrailingCrumb } from '@/lib/use-crumb';
 import { useWorkspaces } from '@/features/workspaces/workspace-context';
 import { cn } from '@/lib/utils';
 
@@ -53,15 +54,19 @@ export function AppShell() {
     all.find((workspace) => workspace.slug === workspaceSlug) ?? resting;
 
   return (
-    <div className="flex h-dvh min-h-0 bg-ground">
-      <Rail current={current} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar current={current} />
-        <main className="min-h-0 flex-1 overflow-y-auto">
-          <Outlet />
-        </main>
+    // Wraps the trail and the screen that sets one, so a screen whose address
+    // cannot spell its own name can hand it to the bar above it.
+    <CrumbProvider>
+      <div className="flex h-dvh min-h-0 bg-ground">
+        <Rail current={current} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <TopBar current={current} />
+          <main className="min-h-0 flex-1 overflow-y-auto">
+            <Outlet />
+          </main>
+        </div>
       </div>
-    </div>
+    </CrumbProvider>
   );
 }
 
@@ -244,6 +249,7 @@ const SECTION_LABEL: { suffix: string; label: string }[] = [
 function TopBar({ current }: { current: Workspace | undefined }) {
   const { projectSlug } = useParams();
   const { pathname } = useLocation();
+  const trailing = useTrailingCrumb();
 
   // A plan is addressed on its own, so its settings screen is not under a
   // workspace path even though the plan is in one.
@@ -275,6 +281,10 @@ function TopBar({ current }: { current: Workspace | undefined }) {
             : []),
         ];
 
+  // A screen that knows its own name — a folder, whose address is an id — hands
+  // it over rather than making the bar go and look it up.
+  const trail = trailing === null ? crumbs : [...crumbs, { label: trailing }];
+
   return (
     <header className="flex h-11 shrink-0 items-center gap-1 border-b border-rule bg-surface px-2 sm:px-3">
       {current === undefined ? null : (
@@ -288,14 +298,14 @@ function TopBar({ current }: { current: Workspace | undefined }) {
         </>
       )}
 
-      {crumbs.map((crumb, index) => (
+      {trail.map((crumb, index) => (
         <span key={crumb.label} className="flex min-w-0 items-center gap-1">
           {index > 0 ? <ChevronRight className="size-3.5 shrink-0 text-ink-faint" /> : null}
           {crumb.to === undefined ? (
             <span
               className={cn(
                 'truncate px-1.5 py-1 text-sm',
-                index === crumbs.length - 1 ? 'text-ink' : 'text-ink-muted',
+                index === trail.length - 1 ? 'text-ink' : 'text-ink-muted',
               )}
             >
               {crumb.label}
