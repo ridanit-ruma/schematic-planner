@@ -52,9 +52,10 @@ export function InvitePage() {
   }, [token]);
 
   // Whether this is somewhere they are already, which turns Accept into a
-  // button that would do nothing and should not be offered.
+  // button that would do nothing and should not be offered. Skipped once the
+  // invitation is settled: nothing on that render needs memberSlug either.
   useEffect(() => {
-    if (invite === null || status !== 'signed-in') return;
+    if (invite === null || invite.status !== 'open' || status !== 'signed-in') return;
     let live = true;
     void workspaces.list().then((list) => {
       const already = list.find((entry) => entry.id === invite.workspace.id);
@@ -63,7 +64,9 @@ export function InvitePage() {
     return () => {
       live = false;
     };
-  }, [invite, status]);
+    // Keyed on the workspace id, not the whole invite object, so decline()
+    // replacing that object with a copy does not re-fire this read.
+  }, [invite?.workspace.id, invite?.status, status]);
 
   const accept = async (): Promise<void> => {
     setBusy(true);
@@ -126,11 +129,13 @@ export function InvitePage() {
         {ROLE_MEANING[invite.role] ?? 'take part in it'}.
       </p>
 
-      {settled !== null ? (
-        <p className="mt-6 rounded-md border border-rule bg-surface-3 px-3 py-2 text-sm text-ink-muted">
-          {settled} Ask {invite.invitedBy.name} for a new one.
-        </p>
-      ) : memberSlug !== null ? (
+      {/*
+        memberSlug wins over settled: somebody who accepted this invitation and
+        later reopens the link from their chat history is a member now, and
+        that is more true than "this invitation has already been used" — which
+        reads like a dead end instead of the membership it actually is.
+      */}
+      {memberSlug !== null ? (
         <div className="mt-6">
           <p className="text-sm text-ink-muted">You are already in this workspace.</p>
           <Button
@@ -140,6 +145,18 @@ export function InvitePage() {
           >
             Open {invite.workspace.name}
           </Button>
+        </div>
+      ) : settled !== null ? (
+        <p className="mt-6 rounded-md border border-rule bg-surface-3 px-3 py-2 text-sm text-ink-muted">
+          {settled} Ask {invite.invitedBy.name} for a new one.
+        </p>
+      ) : status === 'loading' ? (
+        // auth.me() usually has not resolved by the time the public preview
+        // has, and showing the signed-out branch here sends a signed-in
+        // visitor through /login, which drops state.from and loses the
+        // invitation.
+        <div className="mt-6 grid place-items-center py-4">
+          <Spinner />
         </div>
       ) : status !== 'signed-in' ? (
         <div className="mt-6 space-y-2">
