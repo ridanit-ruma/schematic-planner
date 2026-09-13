@@ -151,6 +151,10 @@ model Invite {
   prefix      String    @default("")
   expiresAt   DateTime
   acceptedAt  DateTime?
+  /// Turned down, so the sender stops waiting for an answer already given. A
+  /// Decline that only navigated away would leave the invitation sitting in the
+  /// open list looking like a question nobody had answered.
+  declinedAt  DateTime?
   createdAt   DateTime  @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
