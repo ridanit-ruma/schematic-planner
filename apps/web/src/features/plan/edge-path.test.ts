@@ -179,3 +179,65 @@ describe('where the writing goes', () => {
     expect(midpoint([])).toEqual({ x: 0, y: 0 });
   });
 });
+
+import { dragSegment, movableSegments, segmentOfLabel } from './edge-path';
+
+describe('which runs of a line can be moved', () => {
+  it('offers none on a line with nothing to turn', () => {
+    expect(movableSegments(route([], level))).toEqual([]);
+  });
+
+  it('offers the one vertical run of a Z, moving sideways', () => {
+    const runs = movableSegments(route([]));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.axis).toBe('x');
+    expect(runs[0]?.index).toBe(1);
+  });
+
+  it('offers three on a line that doubles back, the middle one moving up and down', () => {
+    const runs = movableSegments(route([], { x: -300, y: 200 }));
+    expect(runs.map((run) => run.axis)).toEqual(['x', 'y', 'x']);
+  });
+
+  it('never offers a run that touches a card', () => {
+    const drawn = route([]);
+    const runs = movableSegments(drawn);
+    expect(runs.every((run) => run.index > 0 && run.index < drawn.length - 2)).toBe(true);
+  });
+});
+
+describe('moving a run', () => {
+  it('takes both ends of a vertical run sideways and leaves everything else', () => {
+    expect(dragSegment(route([]), 1, 260)).toEqual([
+      { x: 260, y: 0 },
+      { x: 260, y: 200 },
+    ]);
+  });
+
+  it('takes both ends of a horizontal run up and down', () => {
+    const after = dragSegment(route([], { x: -300, y: 200 }), 2, 160);
+    expect(after[1]).toEqual({ x: 12, y: 160 });
+    expect(after[2]).toEqual({ x: -312, y: 160 });
+  });
+
+  it('never changes how many corners there are', () => {
+    const drawn = route([]);
+    expect(dragSegment(drawn, 1, 999)).toHaveLength(drawn.length - 2);
+  });
+});
+
+describe('which run the writing belongs to', () => {
+  it('is the run it sits on, measured to the run and not to its ends', () => {
+    const drawn = route([]);
+    // The middle of the vertical run at x = 200.
+    expect(segmentOfLabel(drawn, { x: 205, y: 100 })).toBe(1);
+    // Out along the first horizontal leg.
+    expect(segmentOfLabel(drawn, { x: 60, y: 4 })).toBe(0);
+  });
+
+  it('answers for a point nowhere near the line', () => {
+    const index = segmentOfLabel(route([]), { x: -9000, y: 9000 });
+    expect(Number.isInteger(index)).toBe(true);
+    expect(index).toBeGreaterThanOrEqual(0);
+  });
+});

@@ -248,3 +248,76 @@ export function midpoint(corners: readonly Position[]): Position {
   }
   return corners[corners.length - 1] ?? { x: 0, y: 0 };
 }
+
+/**
+ * The runs of a route somebody may take hold of.
+ *
+ * Not the first and not the last: those two touch a card and their position is
+ * the handle's, so a hit area over them would be a control that does nothing.
+ * Leaving them bare is also how the cursor says which parts of a line move.
+ */
+export function movableSegments(route: readonly Position[]): Run[] {
+  const runs: Run[] = [];
+  for (let index = 1; index < route.length - 2; index += 1) {
+    const a = route[index] as Position;
+    const b = route[index + 1] as Position;
+    if (a.x === b.x && a.y === b.y) continue;
+    runs.push({ index, axis: a.x === b.x ? 'x' : 'y', a, b });
+  }
+  return runs;
+}
+
+/**
+ * One run moved to `to` on its own axis, as interior corners ready to store.
+ *
+ * Both ends of the run go together and nothing is inserted or removed, so the
+ * number of corners is the same before and after. That is what lets a drag hold
+ * on to the same hit area from the moment it starts to the moment it is let go.
+ *
+ * `to` is a position rather than a distance so that the grid can be applied to
+ * it directly, and so a long drag cannot accumulate rounding error.
+ */
+export function dragSegment(route: readonly Position[], index: number, to: number): Position[] {
+  const moved = route.map((point) => ({ ...point }));
+  const a = moved[index];
+  const b = moved[index + 1];
+  if (a === undefined || b === undefined) return moved.slice(1, -1);
+  if (a.x === b.x) {
+    a.x = to;
+    b.x = to;
+  } else {
+    a.y = to;
+    b.y = to;
+  }
+  return moved.slice(1, -1);
+}
+
+/**
+ * Which run a point belongs to — the writing on a line, in practice.
+ *
+ * Measured to the run itself rather than to its ends: nearest-endpoint gets it
+ * wrong exactly in the middle of a long run, which is where a label usually is.
+ */
+export function segmentOfLabel(route: readonly Position[], at: Position): number {
+  let best = 0;
+  let nearest = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < route.length - 1; index += 1) {
+    const span = distanceToSegment(at, route[index] as Position, route[index + 1] as Position);
+    if (span < nearest) {
+      nearest = span;
+      best = index;
+    }
+  }
+  return best;
+}
+
+/** How far a point sits from a segment, not from its nearer end. */
+function distanceToSegment(point: Position, a: Position, b: Position): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const length = dx * dx + dy * dy;
+  if (length === 0) return Math.hypot(point.x - a.x, point.y - a.y);
+  // How far along ab the point projects, clamped to the segment itself.
+  const along = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / length));
+  return Math.hypot(point.x - (a.x + along * dx), point.y - (a.y + along * dy));
+}
