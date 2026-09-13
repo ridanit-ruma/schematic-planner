@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post } from '@nestjs/common';
 
 import { CurrentUser } from '../auth/current-user.decorator.js';
+import { Public } from '../auth/public.decorator.js';
 import type { AuthUser } from '../auth/auth.types.js';
 import { StrictRateLimit } from '../common/throttle.js';
 import { ZodPipe } from '../common/zod.pipe.js';
@@ -104,5 +105,18 @@ export class WorkspacesController {
   @Post('invites/:token/accept')
   accept(@CurrentUser() user: AuthUser, @Param('token') token: string) {
     return this.workspaces.acceptInvite(user.id, token);
+  }
+
+  /**
+   * No session needed: being asked to sign in before being told what for is the
+   * thing this screen exists to fix.
+   */
+  @Public()
+  @StrictRateLimit()
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Robots-Tag', 'noindex')
+  @Get('invites/:token')
+  preview(@Param('token') token: string) {
+    return this.workspaces.previewInvite(token);
   }
 }

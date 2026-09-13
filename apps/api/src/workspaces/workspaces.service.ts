@@ -12,6 +12,7 @@ import { PrismaService } from '../common/prisma.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { CollabService } from '../collab/collab.service.js';
 import { AccessService } from './access.service.js';
+import { inviteStatus } from './invite-status.js';
 import type {
   CreateInviteInput,
   CreateWorkspaceInput,
@@ -200,6 +201,33 @@ export class WorkspacesService {
     });
     if (removed.count === 0) throw new NotFoundException('That invitation is not there');
     return { ok: true };
+  }
+
+  /**
+   * What an invitation says, before anybody takes it.
+   *
+   * Public on purpose. The token is already the capability: whoever holds it can
+   * accept and then read the whole workspace, so naming it first gives away
+   * nothing the button does not. What it buys is that the person is told what
+   * they are joining while they can still decide not to.
+   */
+  async previewInvite(token: string) {
+    const invite = await this.prisma.invite.findUnique({
+      where: { tokenHash: hashToken(token) },
+      include: {
+        workspace: { select: { id: true, name: true } },
+        createdBy: { select: { name: true } },
+      },
+    });
+    if (invite === null) throw new NotFoundException('That invitation is not valid');
+
+    return {
+      workspace: { id: invite.workspace.id, name: invite.workspace.name },
+      role: invite.role,
+      invitedBy: { name: invite.createdBy.name },
+      email: invite.email,
+      status: inviteStatus(invite),
+    };
   }
 
   async acceptInvite(userId: string, token: string) {
