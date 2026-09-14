@@ -225,6 +225,12 @@ export const planCommentSchema = z.object({
   /** ISO 8601. Set by whoever creates the comment. */
   at: z.string().max(40).default(''),
   position: positionSchema.nullable().default(null),
+  /**
+   * Bounds somebody dragged the note's corner to, or null for the size a note
+   * is written at. Nothing computes this: a note is as big as its author
+   * decided it needed to be, and layout never touches one.
+   */
+  size: sizeSchema.nullable().default(null),
   /** The node this is about, or null for a note on the canvas itself. */
   anchor: slugSchema.nullable().default(null),
   /**
@@ -243,6 +249,7 @@ export const planCommentPatchSchema = z.object({
   author: z.string().max(120).optional(),
   at: z.string().max(40).optional(),
   position: positionSchema.nullable().optional(),
+  size: sizeSchema.nullable().optional(),
   anchor: slugSchema.nullable().optional(),
   resolved: z.boolean().optional(),
 });

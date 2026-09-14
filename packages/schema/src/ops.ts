@@ -108,6 +108,7 @@ function newComment(patch: PlanCommentPatch): PlanComment {
     author: patch.author ?? '',
     at: patch.at ?? new Date().toISOString(),
     position: patch.position ?? null,
+    size: patch.size ?? null,
     anchor: patch.anchor ?? null,
     resolved: patch.resolved ?? false,
   };
@@ -120,6 +121,7 @@ function mergeComment(comment: PlanComment, patch: PlanCommentPatch): PlanCommen
     ...(patch.author !== undefined && { author: patch.author }),
     ...(patch.at !== undefined && { at: patch.at }),
     ...(patch.position !== undefined && { position: patch.position }),
+    ...(patch.size !== undefined && { size: patch.size }),
     ...(patch.anchor !== undefined && { anchor: patch.anchor }),
     ...(patch.resolved !== undefined && { resolved: patch.resolved }),
   };

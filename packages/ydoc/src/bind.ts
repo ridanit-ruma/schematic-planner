@@ -108,6 +108,7 @@ function readComment(comment: YComment): unknown {
     author: comment.get('author') ?? '',
     at: comment.get('at') ?? '',
     position: comment.get('position') ?? null,
+    size: comment.get('size') ?? null,
     anchor: comment.get('anchor') ?? null,
     resolved: comment.get('resolved') ?? false,
   };
@@ -163,6 +164,7 @@ function writeComment(target: YComment, comment: PlanComment): void {
   target.set('author', comment.author);
   target.set('at', comment.at);
   target.set('position', comment.position);
+  target.set('size', comment.size);
   target.set('anchor', comment.anchor);
   target.set('resolved', comment.resolved);
   setBody(target, comment.body);

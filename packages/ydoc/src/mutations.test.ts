@@ -6,6 +6,7 @@ import { applyOps, initializePlan, readPlanDoc } from './bind.js';
 import {
   commentBodyText,
   commitCommentPosition,
+  commitCommentSize,
   commitEdgeRoute,
   commitLayout,
   commitNodePosition,
@@ -271,5 +272,28 @@ describe('commitEdgeRoute against a caller that has lost count', () => {
     ];
     commitEdgeRoute(ydoc, id, few);
     expect(readPlanDoc(ydoc).doc.edges[0]?.waypoints).toEqual(few);
+  });
+});
+
+describe('commitCommentSize', () => {
+  it('stores rounded bounds on the note', () => {
+    const ydoc = doc();
+    applyOps(ydoc, [{ op: 'upsert_comment', comment: { id: 'n1', body: 'why?' } }]);
+    commitCommentSize(ydoc, 'n1', { width: 300.4, height: 180.7 }, null);
+
+    const note = readPlanDoc(ydoc).doc.comments.find((c) => c.id === 'n1');
+    expect(note?.size).toEqual({ width: 300, height: 181 });
+  });
+
+  it('leaves a note nobody resized without bounds of its own', () => {
+    const ydoc = doc();
+    applyOps(ydoc, [{ op: 'upsert_comment', comment: { id: 'n1', body: 'why?' } }]);
+
+    expect(readPlanDoc(ydoc).doc.comments[0]?.size).toBeNull();
+  });
+
+  it('says nothing about a note that is not there', () => {
+    const ydoc = doc();
+    expect(() => commitCommentSize(ydoc, 'missing', { width: 10, height: 10 }, null)).not.toThrow();
   });
 });
