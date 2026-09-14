@@ -152,3 +152,61 @@ describe('a node or a line being removed', () => {
     expect(bound.store.getState().nodes.map((node) => node.id).sort()).toEqual(['auth', 'ui']);
   });
 });
+
+/**
+ * The chicken and the egg this removes. While "is a group" meant "already
+ * holds something", the first node had nowhere to be dropped: a box appeared
+ * only once it had contents, and contents could only be dragged into a box.
+ */
+describe('a group that holds nothing yet', () => {
+  it('is drawn as a box because it says it is one', () => {
+    const { doc, bound } = seeded();
+    applyOps(doc, ops([{ op: 'upsert_node', node: { slug: 'area', kind: 'group' } }]));
+
+    const area = byId(bound.store.getState().nodes, 'area');
+    expect(area?.style).toEqual({ width: 380, height: 260 });
+  });
+
+  it('keeps the bounds it is given', () => {
+    const { doc, bound } = seeded();
+    applyOps(
+      doc,
+      ops([
+        {
+          op: 'upsert_node',
+          node: { slug: 'area', kind: 'group', size: { width: 600, height: 400 } },
+        },
+      ]),
+    );
+
+    expect(byId(bound.store.getState().nodes, 'area')?.style).toEqual({
+      width: 600,
+      height: 400,
+    });
+  });
+
+  it('takes a node into it, and the node is drawn inside it', () => {
+    const { doc, bound } = seeded();
+    applyOps(
+      doc,
+      ops([
+        { op: 'upsert_node', node: { slug: 'area', kind: 'group' } },
+        { op: 'upsert_edge', edge: { kind: 'contains', from: 'area', to: 'db' } },
+      ]),
+    );
+
+    expect(byId(bound.store.getState().nodes, 'db')?.parentId).toBe('area');
+    expect(bound.store.getState().parentOf['db']).toBe('area');
+  });
+});
+
+describe('a node that holds others without calling itself a group', () => {
+  it('is still drawn as the box around them', () => {
+    const { doc, bound } = seeded();
+    applyOps(doc, ops([{ op: 'upsert_edge', edge: { kind: 'contains', from: 'auth', to: 'db' } }]));
+
+    const auth = byId(bound.store.getState().nodes, 'auth');
+    expect(auth?.style).toBeDefined();
+    expect(byId(bound.store.getState().nodes, 'db')?.parentId).toBe('auth');
+  });
+});

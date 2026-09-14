@@ -1,4 +1,11 @@
-import { containmentDepth, type PlanDoc, type PlanGraph, type PlanNodeStatus } from '@schematic/schema';
+import {
+  containmentDepth,
+  groupSize,
+  isGroup,
+  type PlanDoc,
+  type PlanGraph,
+  type PlanNodeStatus,
+} from '@schematic/schema';
 
 /** https://jsoncanvas.org — the format Obsidian Canvas reads. */
 export interface CanvasNode {
@@ -80,7 +87,7 @@ export function toCanvas(
     // picture, and the drawing says something different from the document. The
     // container's own note is still in the tree, at the README of the folder
     // this frame corresponds to.
-    const holds = (graph.childrenOf.get(slug)?.length ?? 0) > 0;
+    const holds = isGroup(node, graph.childrenOf.get(slug)?.length ?? 0);
 
     const canvasNode: CanvasNode = holds
       ? {
@@ -89,8 +96,8 @@ export function toCanvas(
           label: node.title,
           x: Math.round(x),
           y: Math.round(y),
-          width: Math.round(node.size?.width ?? NODE_WIDTH),
-          height: Math.round(node.size?.height ?? NODE_HEIGHT),
+          width: Math.round(groupSize(node).width),
+          height: Math.round(groupSize(node).height),
         }
       : {
           id: slug,

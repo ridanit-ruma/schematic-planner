@@ -1,10 +1,11 @@
 import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } from '@xyflow/react';
-import { buildPlanGraph, containmentDepth } from '@schematic/schema';
+import { buildPlanGraph, containmentDepth, groupSize, isGroup } from '@schematic/schema';
 import type { PlanComment, PlanDoc, PlanEdge, PlanNode, Position } from '@schematic/schema';
 import {
   ORIGIN_LOCAL,
   commentsMap,
   commitEdgeRoute,
+  commitLayout,
   edgesMap,
   nodesMap,
   readPlanDoc,
@@ -60,6 +61,17 @@ export interface PlanState {
   /** The group each node belongs to, where that group is drawn as a boundary. */
   parentOf: Record<string, string>;
   /**
+   * The card a dragged node has been held over long enough to turn into a box,
+   * or null.
+   *
+   * Dropping into something already drawn as a box is ordinary and immediate.
+   * Turning an ordinary card into one is a change to the structure of the plan,
+   * and in a dense drawing a card is very easy to pass over on the way to
+   * somewhere else — so that one asks to be meant. Held still over a card, it
+   * lights up, and what happens when you let go was visible before you did.
+   */
+  armed: string | null;
+  /**
    * Slugs and edge ids that appeared in the document a moment ago, each with
    * how long to wait before it draws itself in.
    *
@@ -113,6 +125,10 @@ export interface PlanState {
   select: (slug: string | null) => void;
   /** Called as the pointer enters and leaves a node or a line. */
   highlight: (id: string | null, kind?: 'node' | 'edge') => void;
+  /** Lights the card a drag has been held over. See `armed`. */
+  arm: (slug: string | null) => void;
+  /** Bounds a person has dragged a group's corner to. */
+  resizeNode: (slug: string, size: { width: number; height: number }) => void;
   selectEdge: (id: string | null) => void;
   selectComment: (id: string | null) => void;
 }
@@ -125,7 +141,7 @@ function toFlowNode(
   parent: { slug: string; position: Position } | null,
   depth: number,
 ): PlanFlowNode {
-  const isContainer = childCount > 0;
+  const boundary = isGroup(node, childCount);
   const absolute = node.position ?? { x: 0, y: 0 };
   return {
     id: node.slug,
@@ -142,11 +158,8 @@ function toFlowNode(
     // Every node sits above the edge layer, or a line routed across a group's
     // terminal buries it and the group cannot be connected to at all. Within
     // that, a container stays under what it holds, at every depth of nesting.
-    zIndex: depth * 10 + (isContainer ? 1 : 2),
-    ...(isContainer &&
-      node.size !== null && {
-        style: { width: node.size.width, height: node.size.height },
-      }),
+    zIndex: depth * 10 + (boundary ? 1 : 2),
+    ...(boundary && { style: groupSize(node) }),
   };
 }
 
@@ -194,6 +207,7 @@ export function createPlanStore(doc: Y.Doc) {
     related: null,
     relatedTo: null,
     reading: null,
+    armed: null,
 
     // A removal is not this store's to make. React Flow raises one for its
     // own delete key, and applying it here took the thing off the screen and
@@ -245,6 +259,13 @@ export function createPlanStore(doc: Y.Doc) {
     },
     selectEdge: (selectedEdge) => set({ selectedEdge, selected: null, selectedComment: null }),
     setEditable: (editable) => set({ editable }),
+    arm: (armed) => {
+      if (get().armed !== armed) set({ armed });
+    },
+    resizeNode: (slug, size) => {
+      if (!get().editable) return;
+      commitLayout(doc, new Map(), ORIGIN_LOCAL, new Map([[slug, size]]));
+    },
     routeEdge: (id, corners, labelPosition) => {
       // No snapping here. The drag is the only thing that writes a route and it
       // has already put the moved run on the grid, on the one axis it moved;
@@ -335,11 +356,9 @@ export function createPlanStore(doc: Y.Doc) {
     // A node holding others is drawn as the boundary around them, which already
     // says what a containment line would. Drawing it as well produced long
     // dashed paths wandering across the canvas and reading as phantom boxes.
-    // Only a group with bounds can hold anything: without them there is no box
-    // to be inside, so its children stay on the open canvas.
     const drawnAsBoundary = new Set(
       plan.nodes
-        .filter((node) => (graph.childrenOf.get(node.slug)?.length ?? 0) > 0 && node.size !== null)
+        .filter((node) => isGroup(node, graph.childrenOf.get(node.slug)?.length ?? 0))
         .map((node) => node.slug),
     );
 
@@ -385,10 +404,14 @@ export function createPlanStore(doc: Y.Doc) {
       ) {
         return existing;
       }
+      // A node nobody edited can still need redrawing: gaining or losing a
+      // child turns a card into the box around it and back, and the change
+      // that did it was to an edge, so this node is not in `touched` at all.
       if (
         existing !== undefined &&
         touched !== undefined &&
         !touched.has(node.slug) &&
+        existing.data.childCount === childCount &&
         existing.parentId === parentSlug
       ) {
         return existing;
