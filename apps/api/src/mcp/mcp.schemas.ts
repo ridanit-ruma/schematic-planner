@@ -164,7 +164,16 @@ export const agentOpSchema = z.discriminatedUnion('op', [
         'A readable id you choose, so leaving the same note twice leaves one note. ' +
           'e.g. "why-postgres-here"',
       ),
-      body: z.string().max(10_000).optional().describe('What you have to say, as Markdown'),
+      body: z
+        .string()
+        .max(10_000)
+        .optional()
+        .describe(
+          'What you have to say, as Markdown — it is drawn as Markdown on the canvas. ' +
+            'To ask a question rather than guess, write it and offer the answers as a task ' +
+            'list: "- [ ] Postgres" on one line, "- [ ] Redis" on the next. A person ticks ' +
+            'one, and get_plan gives you back the body with "- [x]" against their answer.',
+        ),
       anchor: slugSchema
         .nullable()
         .optional()
