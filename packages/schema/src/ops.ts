@@ -38,6 +38,16 @@ export type PlanNodePatch = z.infer<typeof planNodePatchSchema>;
 export const planOpSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('upsert_node'), node: planNodePatchSchema }),
   z.object({ op: z.literal('delete_node'), slug: slugSchema }),
+  /**
+   * A node's identifier, changed along with everything that points at it.
+   *
+   * The slug is not decoration: it is the address an agent calls a node by and
+   * the filename the node exports to, so a node whose title has moved on
+   * carries a name from its first minute in both places. Every edge id is
+   * derived from its endpoints, so renaming one end reissues every line
+   * touching it, and anything said about the node follows.
+   */
+  z.object({ op: z.literal('rename_node'), from: slugSchema, to: slugSchema }),
   z.object({ op: z.literal('upsert_edge'), edge: planEdgeInputSchema }),
   z.object({
     op: z.literal('delete_edge'),
@@ -153,6 +163,41 @@ export function applyPlanOps(doc: PlanDoc, ops: readonly PlanOp[]): PlanDoc {
           op.node.slug,
           existing === undefined ? newNode(op.node) : mergeNode(existing, op.node),
         );
+        break;
+      }
+      case 'rename_node': {
+        if (op.from === op.to) break;
+        const node = nodes.get(op.from);
+        // Strict where the upserts are lenient, and deliberately. An upsert is
+        // batched forty at a time and one bad field should not fail the other
+        // thirty-nine; a rename is a single deliberate act, and renaming a node
+        // that is not there has no reading under which the caller got what they
+        // asked for.
+        if (node === undefined) throw new PlanOpError(`no node "${op.from}" to rename`);
+        if (nodes.has(op.to)) {
+          throw new PlanOpError(`"${op.to}" is already another node's identifier`);
+        }
+
+        nodes.delete(op.from);
+        nodes.set(op.to, { ...node, slug: op.to });
+
+        for (const [id, edge] of [...edges]) {
+          if (edge.from !== op.from && edge.to !== op.from) continue;
+          edges.delete(id);
+          const moved = {
+            ...edge,
+            from: edge.from === op.from ? op.to : edge.from,
+            to: edge.to === op.from ? op.to : edge.to,
+          };
+          edges.set(edgeId(moved.kind, moved.from, moved.to, moved.via), {
+            ...moved,
+            id: edgeId(moved.kind, moved.from, moved.to, moved.via),
+          });
+        }
+
+        for (const [id, comment] of comments) {
+          if (comment.anchor === op.from) comments.set(id, { ...comment, anchor: op.to });
+        }
         break;
       }
       case 'delete_node': {

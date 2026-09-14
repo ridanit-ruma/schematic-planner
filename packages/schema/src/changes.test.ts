@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { diffPlans } from './changes.js';
 import { applyPlanOps } from './ops.js';
-import { emptyPlanDoc } from './plan.js';
+import { emptyPlanDoc, planDocSchema } from './plan.js';
 import type { PlanDoc } from './plan.js';
 
 function plan(): PlanDoc {
@@ -102,5 +102,46 @@ describe('a note whose boxes were ticked', () => {
       { op: 'upsert_comment', comment: { id: 'ask', body: '- [x] Postgres, probably' } },
     ]);
     expect(kinds(before, after)).toEqual(['note.edited']);
+  });
+});
+
+describe('changing a node identifier', () => {
+  const plan = (slug: string) =>
+    planDocSchema.parse({
+      id: 'p',
+      title: 'P',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [{ slug, title: 'Auth', body: 'signs people in' }],
+    });
+
+  it('reads as a readdressing rather than as a loss', () => {
+    const entries = diffPlans(plan('old'), plan('fresh'));
+
+    expect(entries).toEqual([
+      { kind: 'node.identifier', subject: 'fresh', label: 'Auth', detail: 'old' },
+    ]);
+  });
+
+  it('is still a removal when the node did not come back', () => {
+    const gone = planDocSchema.parse({
+      id: 'p',
+      title: 'P',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [],
+    });
+    expect(diffPlans(plan('old'), gone).map((entry) => entry.kind)).toEqual(['node.removed']);
+  });
+
+  it('is a removal and an addition when the node also changed', () => {
+    const changed = planDocSchema.parse({
+      id: 'p',
+      title: 'P',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [{ slug: 'fresh', title: 'Sessions', body: 'signs people in' }],
+    });
+    expect(diffPlans(plan('old'), changed).map((entry) => entry.kind).sort()).toEqual([
+      'node.added',
+      'node.removed',
+    ]);
   });
 });

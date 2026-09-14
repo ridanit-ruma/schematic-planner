@@ -243,6 +243,20 @@ export function applyOps(doc: Y.Doc, ops: readonly PlanOp[], origin: unknown = O
             writeNode(target, resolved);
             break;
           }
+          case 'rename_node': {
+            const resolved = byslug.get(op.to);
+            if (resolved === undefined) break;
+            // A fresh map under the new key, not the old one moved: a Yjs type
+            // belongs to one place in one document and cannot be re-parented.
+            // So the body is re-created from its text, and anybody typing into
+            // the old node's body at that instant is typing into a node that no
+            // longer exists — which is what renaming it means.
+            const target = new Y.Map<unknown>();
+            nodes.set(op.to, target);
+            writeNode(target, resolved);
+            nodes.delete(op.from);
+            break;
+          }
           case 'delete_node': {
             nodes.delete(op.slug);
             for (const [id, edge] of edges) {

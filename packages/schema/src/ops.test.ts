@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { makeDoc } from './fixtures.js';
+import { planDocSchema } from './plan.js';
 import { PlanOpError, applyPlanOps, planOpsSchema } from './ops.js';
 
 const parse = (ops: unknown[]) => planOpsSchema.parse(ops);
@@ -78,5 +79,62 @@ describe('applyPlanOps', () => {
   it('updates plan metadata', () => {
     const doc = applyPlanOps(makeDoc([]), parse([{ op: 'set_plan', title: 'Renamed' }]));
     expect(doc.title).toBe('Renamed');
+  });
+});
+
+describe('rename_node', () => {
+  const plan = () =>
+    planDocSchema.parse({
+      id: 'p',
+      title: 'P',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [
+        { slug: 'old', title: 'Old' },
+        { slug: 'other', title: 'Other' },
+      ],
+      edges: [
+        { id: 'flows_to:old>other', kind: 'flows_to', from: 'old', to: 'other' },
+        { id: 'contains:other>old', kind: 'contains', from: 'other', to: 'old' },
+      ],
+      comments: [{ id: 'note', body: 'about it', anchor: 'old' }],
+    });
+
+  it('gives the node its new identifier and keeps everything else', () => {
+    const next = applyPlanOps(plan(), [{ op: 'rename_node', from: 'old', to: 'fresh' }]);
+
+    expect(next.nodes.map((node) => node.slug).sort()).toEqual(['fresh', 'other']);
+    expect(next.nodes.find((node) => node.slug === 'fresh')?.title).toBe('Old');
+  });
+
+  it('reissues every line that touched it, at both ends', () => {
+    const next = applyPlanOps(plan(), [{ op: 'rename_node', from: 'old', to: 'fresh' }]);
+
+    expect(next.edges.map((edge) => edge.id).sort()).toEqual([
+      'contains:other>fresh',
+      'flows_to:fresh>other',
+    ]);
+    expect(next.edges.every((edge) => edge.from !== 'old' && edge.to !== 'old')).toBe(true);
+  });
+
+  it('carries what was said about it', () => {
+    const next = applyPlanOps(plan(), [{ op: 'rename_node', from: 'old', to: 'fresh' }]);
+    expect(next.comments[0]?.anchor).toBe('fresh');
+  });
+
+  it('refuses an identifier another node already answers to', () => {
+    expect(() => applyPlanOps(plan(), [{ op: 'rename_node', from: 'old', to: 'other' }])).toThrow(
+      PlanOpError,
+    );
+  });
+
+  it('refuses to rename a node that is not there', () => {
+    expect(() => applyPlanOps(plan(), [{ op: 'rename_node', from: 'gone', to: 'fresh' }])).toThrow(
+      PlanOpError,
+    );
+  });
+
+  it('does nothing when the name is the name it has', () => {
+    const next = applyPlanOps(plan(), [{ op: 'rename_node', from: 'old', to: 'old' }]);
+    expect(next.nodes.map((node) => node.slug).sort()).toEqual(['old', 'other']);
   });
 });

@@ -32,6 +32,8 @@ function sentence(change: PlanChangeRecord): string {
       return `added ${name}`;
     case 'node.removed':
       return `removed ${name}`;
+    case 'node.identifier':
+      return `now addresses ${name} as ${change.subject}`;
     case 'node.renamed':
       return `renamed ${change.detail ?? 'a node'} to ${name}`;
     case 'node.status':

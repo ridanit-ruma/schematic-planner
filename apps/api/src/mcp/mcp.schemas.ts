@@ -138,6 +138,14 @@ const agentNodePatchSchema = z.object({
 export const agentOpSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('upsert_node'), node: agentNodePatchSchema }),
   z.object({ op: z.literal('delete_node'), slug: slugSchema }),
+  z.object({
+    op: z.literal('rename_node'),
+    from: slugSchema.describe("The node's current identifier."),
+    to: slugSchema
+      .describe(
+        "The identifier it should answer to from now on. Every edge, note anchor and containment pointing at it moves with it. Fails if another node already uses it.",
+      ),
+  }),
   z.object({ op: z.literal('upsert_edge'), edge: agentEdgeSchema }),
   z.object({
     op: z.literal('delete_edge'),

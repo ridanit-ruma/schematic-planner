@@ -263,8 +263,10 @@ function PlanWorkspace({
           <Inspector
             doc={doc}
             node={selectedNode}
+            slugs={nodes.map((node) => node.id)}
             readOnly={false}
             onApplyOps={apply}
+            onRenamed={select}
             onClose={() => select(null)}
           />
         ) : selectedEdgeData !== null ? (

@@ -1,4 +1,10 @@
-import { planNodeKinds, planNodeStatuses, type PlanNode, type PlanOp } from '@schematic/schema';
+import {
+  isSlug,
+  planNodeKinds,
+  planNodeStatuses,
+  type PlanNode,
+  type PlanOp,
+} from '@schematic/schema';
 import { nodeBodyText } from '@schematic/ydoc';
 import { Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -37,14 +43,20 @@ const STATUS_OPTIONS = planNodeStatuses.map((status) => ({
 export function Inspector({
   doc,
   node,
+  slugs,
   readOnly,
   onApplyOps,
+  onRenamed,
   onClose,
 }: {
   doc: Y.Doc;
   node: PlanNode;
+  /** Every identifier in the plan, so a clash is said before it is attempted. */
+  slugs: readonly string[];
   readOnly: boolean;
   onApplyOps: (ops: PlanOp[]) => void;
+  /** The panel follows the node it is about when that node is readdressed. */
+  onRenamed: (slug: string) => void;
   onClose: () => void;
 }) {
   const body = useMemo(() => nodeBodyText(doc, node.slug), [doc, node.slug]);
@@ -55,6 +67,24 @@ export function Inspector({
 
   const patch = (changes: Partial<PlanNode>): void => {
     onApplyOps([{ op: 'upsert_node', node: { slug: node.slug, ...changes } }]);
+  };
+
+  /*
+   * The identifier is edited as a draft and written once, on leaving the field.
+   * Renaming per keystroke would issue a rename for every prefix of what is
+   * being typed, each one reissuing every line that touches the node — and the
+   * first keystroke would take a slug some other node might legitimately want.
+   */
+  const [draft, setDraft] = useState<string | null>(null);
+  const wanted = (draft ?? node.slug).trim();
+  const clash = wanted !== node.slug && slugs.includes(wanted);
+  const malformed = wanted !== '' && !isSlug(wanted);
+
+  const rename = (): void => {
+    setDraft(null);
+    if (wanted === '' || wanted === node.slug || clash || malformed) return;
+    onApplyOps([{ op: 'rename_node', from: node.slug, to: wanted }]);
+    onRenamed(wanted);
   };
 
   return (
@@ -75,13 +105,44 @@ export function Inspector({
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
-        <Field label="Title" hint={`Identifier: ${node.slug}`}>
+        <Field label="Title">
           {(id) => (
             <Input
               id={id}
               value={node.title}
               disabled={readOnly}
               onChange={(event) => patch({ title: event.target.value })}
+            />
+          )}
+        </Field>
+
+        {/* Derived from the title when the node is made, and changeable after —
+            which the Add node dialog promised long before anything delivered
+            it. It is how an agent addresses this node and the name of the file
+            it exports to, so a node whose title has moved on was carrying a
+            name from its first minute in both places. */}
+        <Field
+          label="Identifier"
+          hint={
+            clash
+              ? 'Another node already answers to that'
+              : malformed
+                ? 'Lowercase words joined by single hyphens'
+                : 'How an agent addresses this node, and the file it exports to'
+          }
+        >
+          {(id) => (
+            <Input
+              id={id}
+              className="font-mono"
+              value={draft ?? node.slug}
+              disabled={readOnly}
+              onChange={(event) => setDraft(event.target.value)}
+              onBlur={rename}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur();
+                if (event.key === 'Escape') setDraft(null);
+              }}
             />
           )}
         </Field>
