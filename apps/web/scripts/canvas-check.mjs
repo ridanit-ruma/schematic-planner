@@ -1043,11 +1043,20 @@ try {
         now.length === was.length && [...was].filter((c, at) => c !== now[at]).length === 1,
         `${was.length} -> ${now.length}`,
       );
-      const history = await call(`/plans/${fixture.id}/changes?limit=5`);
+      // Storing what came in over the socket is debounced, so the entry is
+      // not there the instant the box is ticked. Polled rather than waited on
+      // by a guessed number, which is the same check either way and does not
+      // break when the debounce is retuned.
+      let history = [];
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        history = (await call(`/plans/${fixture.id}/changes?limit=10`)) ?? [];
+        if (history.some((entry) => entry.kind === 'note.answered')) break;
+        await wait(2000);
+      }
       check(
         'and the history calls it an answer',
-        (history ?? []).some((entry) => entry.kind === 'note.answered'),
-        (history ?? []).map((entry) => entry.kind).join(', '),
+        history.some((entry) => entry.kind === 'note.answered'),
+        history.map((entry) => entry.kind).join(', '),
       );
     }
 
