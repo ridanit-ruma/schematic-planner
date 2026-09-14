@@ -1,13 +1,15 @@
 import { planNodeKinds, planNodeStatuses, type PlanNode, type PlanOp } from '@schematic/schema';
 import { nodeBodyText } from '@schematic/ydoc';
 import { Trash2 } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type * as Y from 'yjs';
 
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/field';
+import { Markdown } from '@/components/ui/markdown';
 import { Select } from '@/components/ui/select';
 import { STATUS_LABEL } from '@/components/ui/status';
+import { cn } from '@/lib/utils';
 import { SIDE_PANEL } from './side-panel';
 import { useYText } from './use-y-text';
 
@@ -47,6 +49,9 @@ export function Inspector({
 }) {
   const body = useMemo(() => nodeBodyText(doc, node.slug), [doc, node.slug]);
   const [text, writeText] = useYText(body);
+  // Raw while the cursor is in it, drawn when it is not — the same bargain a
+  // note already makes by being a textarea open and text closed.
+  const [writing, setWriting] = useState(false);
 
   const patch = (changes: Partial<PlanNode>): void => {
     onApplyOps([{ op: 'upsert_node', node: { slug: node.slug, ...changes } }]);
@@ -117,16 +122,37 @@ export function Inspector({
           )}
         </Field>
 
-        <Field label="Detail" hint="Becomes the body of this node's Markdown file">
-          {(id) => (
-            <Textarea
-              id={id}
-              rows={10}
-              value={text}
-              disabled={readOnly}
-              onChange={(event) => writeText(event.target.value)}
-            />
-          )}
+        <Field label="Detail" hint="Markdown. Drawn as Markdown on the canvas">
+          {(id) =>
+            writing && !readOnly ? (
+              <Textarea
+                id={id}
+                rows={10}
+                autoFocus
+                value={text}
+                onChange={(event) => writeText(event.target.value)}
+                onBlur={() => setWriting(false)}
+              />
+            ) : (
+              <div
+                id={id}
+                role="button"
+                tabIndex={readOnly ? -1 : 0}
+                onClick={() => !readOnly && setWriting(true)}
+                onFocus={() => !readOnly && setWriting(true)}
+                className={cn(
+                  'min-h-24 w-full rounded-md border border-rule bg-surface px-2.5 py-1.5',
+                  !readOnly && 'cursor-text',
+                )}
+              >
+                {text.trim() === '' ? (
+                  <span className="text-sm text-ink-faint">Nothing yet</span>
+                ) : (
+                  <Markdown body={text} className="text-sm" />
+                )}
+              </div>
+            )
+          }
         </Field>
       </div>
 

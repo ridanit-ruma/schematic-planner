@@ -1,4 +1,5 @@
 import type { PlanComment, PlanDoc, PlanEdge, PlanNode } from './plan.js';
+import { onlyTaskFlips } from './tasks.js';
 
 export const planChangeKinds = [
   'plan.title',
@@ -17,6 +18,7 @@ export const planChangeKinds = [
   'note.added',
   'note.removed',
   'note.edited',
+  'note.answered',
   'note.resolved',
   'note.reopened',
 ] as const;
@@ -111,8 +113,12 @@ export function diffPlans(before: PlanDoc, after: PlanDoc): PlanChangeEntry[] {
     // Opening a note and typing the first sentence into it are one act to the
     // person doing it, so an empty note gaining its words is not a second entry.
     if (previous.body !== comment.body && previous.body !== '') {
+      // Ticking a box in a note is answering the question it asks, which is a
+      // different act from rewriting the question — and the history is the only
+      // place that answer is attributable, because the body says what was
+      // chosen and nothing about who chose it.
       entries.push({
-        kind: 'note.edited',
+        kind: onlyTaskFlips(previous.body, comment.body) ? 'note.answered' : 'note.edited',
         subject: comment.id,
         label: noteLabel(comment, is),
         detail: null,

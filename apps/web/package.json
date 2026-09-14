@@ -27,7 +27,9 @@
     "radix-ui": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-markdown": "catalog:",
     "react-router": "catalog:",
+    "remark-gfm": "catalog:",
     "tailwind-merge": "catalog:",
     "yjs": "catalog:",
     "zustand": "catalog:"

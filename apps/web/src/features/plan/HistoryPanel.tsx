@@ -58,6 +58,8 @@ function sentence(change: PlanChangeRecord): string {
       return `removed the note on ${name}`;
     case 'note.edited':
       return `rewrote the note on ${name}`;
+    case 'note.answered':
+      return `answered the note on ${name}`;
     case 'note.resolved':
       return `resolved the note on ${name}`;
     case 'note.reopened':

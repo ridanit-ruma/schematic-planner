@@ -82,3 +82,25 @@ describe('diffPlans', () => {
     expect(kinds(plan(), after)).toEqual(['node.body']);
   });
 });
+
+/** The plan with one note on it, asking something. */
+const asked = (body: string): PlanDoc =>
+  applyPlanOps(plan(), [{ op: 'upsert_comment', comment: { id: 'ask', body, anchor: 'alpha' } }]);
+
+describe('a note whose boxes were ticked', () => {
+  it('is recorded as answered rather than rewritten', () => {
+    const before = asked('- [ ] Postgres\n- [ ] Redis');
+    const after = applyPlanOps(before, [
+      { op: 'upsert_comment', comment: { id: 'ask', body: '- [x] Postgres\n- [ ] Redis' } },
+    ]);
+    expect(kinds(before, after)).toEqual(['note.answered']);
+  });
+
+  it('is still an edit when the words changed as well', () => {
+    const before = asked('- [ ] Postgres');
+    const after = applyPlanOps(before, [
+      { op: 'upsert_comment', comment: { id: 'ask', body: '- [x] Postgres, probably' } },
+    ]);
+    expect(kinds(before, after)).toEqual(['note.edited']);
+  });
+});
