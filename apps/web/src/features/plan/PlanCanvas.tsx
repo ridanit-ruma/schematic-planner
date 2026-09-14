@@ -54,17 +54,30 @@ import type { Undo } from './use-undo';
 const nodeTypes: NodeTypes = { plan: PlanNodeCard };
 
 /**
- * How long a node must be held over an ordinary card before letting go would
- * put it inside that card.
+ * How long a node must be held *still* over an ordinary card before letting go
+ * would put it inside that card, and how far the hand may drift and still count
+ * as still.
  *
  * Dropping into something already drawn as a box needs no wait: the box is
  * visible, aiming at it is the whole gesture. Turning a card into a box is a
  * change to the shape of the plan, and on a dense canvas a card is something
- * you pass over on the way somewhere else — so it asks to be meant. Half a
- * second is long enough that no ordinary drag trips it and short enough that
- * nobody who means it waits.
+ * you pass over on the way somewhere else — so it asks to be meant.
+ *
+ * Stillness is measured on the pointer rather than on the clock alone. Timing
+ * how long the card has been underneath counts a slow crossing as a rest, and a
+ * hand crossing a crowded canvas slowly is exactly the case this exists to let
+ * through untouched. So any real movement starts the wait over, and the gesture
+ * is what it says it is: stop on the card, and it lights up.
  */
 const ARM_MS = 500;
+const STILL_PX = 3;
+
+/** Where the hand is, whether it is a mouse or a finger. */
+function pointerOf(event: MouseEvent | TouchEvent): Position | null {
+  if ("clientX" in event) return { x: event.clientX, y: event.clientY };
+  const touch = event.touches[0] ?? event.changedTouches[0];
+  return touch === undefined ? null : { x: touch.clientX, y: touch.clientY };
+}
 
 /** The bounds a node occupies on the canvas: a box if it is one, else a card. */
 function boxOf(node: PlanFlowNode): { width: number; height: number } {
@@ -191,15 +204,17 @@ export function PlanCanvas({
    * has to read the answer without the canvas re-rendering every time it
    * changes.
    */
-  const dwell = useRef<{ over: string | null; timer: ReturnType<typeof setTimeout> | undefined }>({
-    over: null,
-    timer: undefined,
-  });
+  const dwell = useRef<{
+    over: string | null;
+    /** Where the hand was when this wait began, in screen pixels. */
+    pointer: Position;
+    timer: ReturnType<typeof setTimeout> | undefined;
+  }>({ over: null, pointer: { x: 0, y: 0 }, timer: undefined });
   const armed = useRef<string | null>(null);
 
   const disarm = useCallback(() => {
     clearTimeout(dwell.current.timer);
-    dwell.current = { over: null, timer: undefined };
+    dwell.current = { over: null, pointer: { x: 0, y: 0 }, timer: undefined };
     if (armed.current !== null) {
       armed.current = null;
       arm(null);
@@ -209,7 +224,7 @@ export function PlanCanvas({
   useEffect(() => () => clearTimeout(dwell.current.timer), []);
 
   const handleDrag = useCallback(
-    (_: unknown, node: PlanFlowNode) => {
+    (event: MouseEvent | TouchEvent, node: PlanFlowNode) => {
       connection.publishDrag({ [node.id]: node.position });
 
       const parent = node.parentId === undefined ? null : absolute[node.parentId];
@@ -235,7 +250,15 @@ export function PlanCanvas({
           );
         })?.id ?? null;
 
-      if (over === dwell.current.over) return;
+      // Measured from where the wait began rather than from the last event, so
+      // a crossing made of many small steps still adds up to a crossing.
+      const pointer = pointerOf(event);
+      if (pointer === null) return;
+      const travelled =
+        Math.abs(pointer.x - dwell.current.pointer.x) +
+        Math.abs(pointer.y - dwell.current.pointer.y);
+      if (over === dwell.current.over && travelled < STILL_PX) return;
+
       clearTimeout(dwell.current.timer);
       if (armed.current !== null) {
         armed.current = null;
@@ -243,6 +266,7 @@ export function PlanCanvas({
       }
       dwell.current = {
         over,
+        pointer,
         timer:
           over === null
             ? undefined
