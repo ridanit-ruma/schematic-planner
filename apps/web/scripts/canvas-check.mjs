@@ -979,6 +979,112 @@ try {
       }
     }
 
+    console.log('\na note that asks something');
+    // A note used to be drawn as plain text, asterisks and all. Now it is
+    // rendered, and a task list in it is how a person answers a question an
+    // agent would otherwise have guessed at. None of that is visible from the
+    // protocol: the document holds the same string either way.
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          {
+            op: 'upsert_comment',
+            comment: {
+              id: 'gate-question',
+              body: '**Which store?**\n\n- [ ] Postgres\n- [ ] Redis',
+              author: 'Check',
+              position: { x: 320, y: 320 },
+            },
+          },
+        ],
+      },
+    });
+    await wait(1800);
+
+    const drawn = await page.evaluate(() => {
+      const boxes = [...document.querySelectorAll('input[type=checkbox]')];
+      return {
+        boxes: boxes.length,
+        disabled: boxes.filter((box) => box.disabled).length,
+        bold: document.querySelectorAll('strong').length,
+        asterisks: (document.body.textContent ?? '').includes('**Which store?**'),
+      };
+    });
+    check('a note draws its task list as boxes', drawn.boxes >= 2, JSON.stringify(drawn));
+    check('and its Markdown as Markdown', drawn.bold > 0 && !drawn.asterisks, JSON.stringify(drawn));
+    check(
+      'and the boxes are live for somebody who may edit',
+      drawn.boxes > 0 && drawn.disabled === 0,
+      `${drawn.disabled} of ${drawn.boxes} disabled`,
+    );
+
+    const asked = async () => {
+      const doc = await call(`/plans/${fixture.id}`);
+      return (doc.comments ?? []).find((c) => c.id === 'gate-question')?.body ?? '';
+    };
+    const was = await asked();
+
+    const boxAt = await page.evaluate(() => {
+      const box = document.querySelector('input[type=checkbox]');
+      if (box === null) return null;
+      const r = box.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    check('a box can be reached by the pointer', boxAt !== null, JSON.stringify(boxAt));
+
+    if (boxAt !== null) {
+      await page.mouse.click(boxAt.x, boxAt.y);
+      await wait(1800);
+      const now = await asked();
+      check('ticking one answers it', now.includes('- [x] Postgres'), now.split('\n').pop());
+      check(
+        'and changes exactly one character',
+        now.length === was.length && [...was].filter((c, at) => c !== now[at]).length === 1,
+        `${was.length} -> ${now.length}`,
+      );
+      const history = await call(`/plans/${fixture.id}/changes?limit=5`);
+      check(
+        'and the history calls it an answer',
+        (history ?? []).some((entry) => entry.kind === 'note.answered'),
+        (history ?? []).map((entry) => entry.kind).join(', '),
+      );
+    }
+
+    // The same note through a share link, which opens with no login at all.
+    const { token } = await call(`/plans/${fixture.id}/share`, { method: 'POST', body: {} });
+    const visitor = await browser.newPage();
+    try {
+      await visitor.goto(`${BASE}/share/${token}`, { waitUntil: 'domcontentloaded' });
+      await wait(3000);
+      const shared = await visitor.evaluate(() => {
+        const boxes = [...document.querySelectorAll('input[type=checkbox]')];
+        return {
+          boxes: boxes.length,
+          live: boxes.filter((box) => !box.disabled).length,
+          anchors: [...document.querySelectorAll('a')].map((a) => a.getAttribute('href') ?? ''),
+        };
+      });
+      check(
+        'a shared plan draws a task list that cannot be answered',
+        shared.boxes > 0 && shared.live === 0,
+        JSON.stringify({ boxes: shared.boxes, live: shared.live }),
+      );
+      check(
+        'and carries no link a reader did not agree to',
+        shared.anchors.every((href) => !/^\s*(javascript|data|vbscript):/i.test(href)),
+        shared.anchors.join(' ').slice(0, 80),
+      );
+    } finally {
+      await visitor.close();
+      await call(`/plans/${fixture.id}/share`, { method: 'DELETE' });
+    }
+
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: { ops: [{ op: 'delete_comment', id: 'gate-question' }] },
+    });
+
     console.log('\nopening a plan');
     // The document arrives over a socket after the canvas has mounted, so a
     // frame taken at init is a frame around whichever handful had landed. And

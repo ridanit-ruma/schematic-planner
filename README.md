@@ -630,6 +630,34 @@ surface takes structure and never coordinates, and a grid step is a coordinate a
 has nothing to decide with. Positions already stored are left alone; they come onto the
 grid the next time the plan is laid out or the node is dragged.
 
+### A note can ask a question, and a box can answer it
+
+A node's body and a note have always been written as Markdown — the inspector says
+so — and were drawn as plain text, asterisks and all. They are rendered now, in a
+deliberately small subset: emphasis, strikethrough, code and code blocks, links,
+lists, task lists, block quotes and rules. Not headings, tables or images, because a
+note is a remark beside a drawing and a card is 260px of that drawing; a document's
+furniture inside either makes the picture about its own typography. Raw HTML is not
+rendered at all, and a link may only be `http`, `https` or `mailto` — a plan opens
+through a share link with no login, so a link in a document somebody else wrote
+reaches a reader who never agreed to trust its author. Nothing on this path builds an
+HTML string, which is why there is no `dangerouslySetInnerHTML` anywhere in the app.
+
+A body is raw while you are writing it and drawn when you are not, which is the
+bargain a note already made by being a textarea open and text closed.
+
+The reason it was worth doing: a note can carry a task list, so an agent unsure of
+something can ask rather than guess — the question, then the answers as `- [ ]`
+items. A person ticks one, and the agent reads it back out of the same body. Ticking
+is a single character in the shared document, so two people answering the same note
+merge instead of overwriting each other, and the history records it as an answer
+rather than as a rewrite. That is the only place the answer is attributable: the body
+says what was chosen and nothing about who chose it.
+
+The checkbox a task list renders is drawn by the app and not by the Markdown
+renderer, whose own is inert by design. One place therefore decides what a checkbox
+is, what it does when clicked, and that it is dead for a reader who may not edit the
+plan.
 ## Getting started
 
 Requires Node 20+ and pnpm 9+ (developed on Node 26 / pnpm 11).
