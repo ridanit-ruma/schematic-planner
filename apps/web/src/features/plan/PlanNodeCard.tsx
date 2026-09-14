@@ -2,6 +2,7 @@ import { Handle, Position as HandlePosition, type NodeProps } from '@xyflow/reac
 import { memo } from 'react';
 
 import { STATUS_COLOR } from '@/components/ui/status';
+import { plainExcerpt } from '@/components/ui/markdown';
 import { cn } from '@/lib/utils';
 import { usePlanStore } from './store-context';
 import type { PlanFlowNode } from './types';
@@ -86,7 +87,7 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
     );
   }
 
-  const excerpt = node.body.trim().split('\n')[0] ?? '';
+  const excerpt = plainExcerpt(node.body);
 
   return (
     <div
