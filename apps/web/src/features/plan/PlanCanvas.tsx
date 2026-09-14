@@ -33,7 +33,7 @@ import { PeerCursors } from './PeerCursors';
 import { PlanComments } from './PlanComments';
 import { PlanNodeCard } from './PlanNodeCard';
 import type { PlanConnection } from './use-plan-document';
-import type { PlanFlowNode } from './types';
+import type { PlanFlowEdge, PlanFlowNode } from './types';
 import { COARSE_MULTIPLE, GRID_STEPS, type GridStep, snapTo } from './snap';
 import { useGrid } from './use-grid';
 import type { Undo } from './use-undo';
@@ -291,6 +291,37 @@ export function PlanCanvas({
     [onApplyOps],
   );
 
+  /**
+   * Deleting from the keyboard, which React Flow raises for its own delete key.
+   *
+   * It also raises a `remove` change, and the store deliberately ignores that:
+   * taking the thing off the screen without telling the document left the canvas
+   * saying one thing and the plan saying another, and it came back the moment
+   * anything else changed. So the removal is asked for here, the same way the
+   * menu asks for it, and the screen waits to be told.
+   */
+  const removeNodes = (going: readonly { id: string }[]): void => {
+    if (going.length === 0) return;
+    onApplyOps(going.map((node) => ({ op: 'delete_node', slug: node.id }) as PlanOp));
+  };
+
+  const removeEdges = (going: readonly PlanFlowEdge[]): void => {
+    const ops = going
+      .map((candidate) => candidate.data?.edge)
+      .filter((edge) => edge !== undefined)
+      .map(
+        (edge) =>
+          ({
+            op: 'delete_edge',
+            kind: edge.kind,
+            from: edge.from,
+            to: edge.to,
+            via: edge.via,
+          }) as PlanOp,
+      );
+    if (ops.length > 0) onApplyOps(ops);
+  };
+
   const removeUnder = (): void => {
     if (under === null) return;
     if (under.kind === 'node') {
@@ -398,6 +429,8 @@ export function PlanCanvas({
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodesDelete={readOnly ? undefined : removeNodes}
+        onEdgesDelete={readOnly ? undefined : removeEdges}
         // React Flow quantises the drag itself, which is what makes a node feel
         // magnetic rather than merely end up tidy. It works on the position
         // relative to whatever a node sits in, so for a node at the top level —

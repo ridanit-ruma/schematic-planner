@@ -16,6 +16,11 @@ import type * as Y from 'yjs';
 
 import type { PlanFlowEdge, PlanFlowNode } from './types';
 
+/** Every change but the one that says something no longer exists. */
+function kept<T extends { type: string }>(changes: readonly T[]): T[] {
+  return changes.filter((change) => change.type !== 'remove');
+}
+
 export interface PlanState {
   nodes: PlanFlowNode[];
   edges: PlanFlowEdge[];
@@ -190,8 +195,15 @@ export function createPlanStore(doc: Y.Doc) {
     relatedTo: null,
     reading: null,
 
-    onNodesChange: (changes) => set({ nodes: applyNodeChanges(changes, get().nodes) }),
-    onEdgesChange: (changes) => set({ edges: applyEdgeChanges(changes, get().edges) }),
+    // A removal is not this store's to make. React Flow raises one for its
+    // own delete key, and applying it here took the thing off the screen and
+    // left it in the document, so it came back the moment anything else
+    // changed. Existence is the document's answer; the canvas asks for a
+    // deletion through an op and waits to be told.
+    onNodesChange: (changes) =>
+      set({ nodes: applyNodeChanges(kept(changes), get().nodes) }),
+    onEdgesChange: (changes) =>
+      set({ edges: applyEdgeChanges(kept(changes), get().edges) }),
     select: (selected) => set({ selected, selectedEdge: null, selectedComment: null }),
     selectComment: (selectedComment) =>
       set({ selectedComment, selected: null, selectedEdge: null }),

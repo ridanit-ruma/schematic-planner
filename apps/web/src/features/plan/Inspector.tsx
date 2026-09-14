@@ -60,14 +60,22 @@ export function Inspector({
   return (
     <aside className={SIDE_PANEL}>
       <div className="flex items-center justify-between gap-2 border-b border-rule px-3 py-2">
-        <span className="slug truncate text-ink-faint">{node.slug}</span>
+        {/*
+          The panel says what it is about. It used to show the slug here, which
+          is derived from the title when a node is made and never changes after
+          — so beside the Title field below it read as the same name twice, one
+          of them stale. The identifier still matters, because it is how an
+          agent addresses this node, so it is named as one under the field it
+          came from rather than standing in for it.
+        */}
+        <span className="truncate text-xs font-medium text-ink">{node.title}</span>
         <Button variant="ghost" size="sm" onClick={onClose}>
           Close
         </Button>
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
-        <Field label="Title">
+        <Field label="Title" hint={`Identifier: ${node.slug}`}>
           {(id) => (
             <Input
               id={id}

@@ -12,6 +12,19 @@ import type { PlanFlowNode } from './types';
  * schematic distinguishes component classes by their outline. Nothing here is
  * decorative: the rail is status, the border is kind, the dashes are certainty.
  */
+/**
+ * A terminal, and the area around it you can actually catch.
+ *
+ * The square is eight pixels because that is what reads as a terminal on a
+ * drawing rather than as a button. Eight pixels is also almost impossible to
+ * start a drag on, so the square keeps its size and a transparent ring around
+ * it takes the pointer: twenty-four across, which is a target a hand can hit,
+ * while the picture is unchanged.
+ */
+const HANDLE =
+  '!size-2 !rounded-none !border !border-rule-strong !bg-surface-2 ' +
+  "before:absolute before:-inset-2 before:content-['']";
+
 const KIND_BORDER: Record<string, string> = {
   feature: 'border border-rule-strong',
   task: 'border border-rule',
@@ -76,12 +89,12 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
         <Handle
           type="target"
           position={HandlePosition.Left}
-          className="!size-2 !rounded-none !border !border-rule-strong !bg-surface-2"
+          className={HANDLE}
         />
         <Handle
           type="source"
           position={HandlePosition.Right}
-          className="!size-2 !rounded-none !border !border-rule-strong !bg-surface-2"
+          className={HANDLE}
         />
       </div>
     );
@@ -116,12 +129,12 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
       <Handle
         type="target"
         position={HandlePosition.Left}
-        className="!size-2 !rounded-none !border !border-rule-strong !bg-surface-2"
+        className={HANDLE}
       />
       <Handle
         type="source"
         position={HandlePosition.Right}
-        className="!size-2 !rounded-none !border !border-rule-strong !bg-surface-2"
+        className={HANDLE}
       />
     </div>
   );

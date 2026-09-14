@@ -111,3 +111,44 @@ describe('createPlanStore', () => {
     expect(bound.store.getState().related?.has('auth')).toBe(true);
   });
 });
+
+/**
+ * React Flow's delete key produces a `remove` change. Applied to the store it
+ * took the node off the screen and left it in the document, so it came back the
+ * next time anything else changed — the canvas said one thing and the plan said
+ * another. Existence is the document's to decide.
+ */
+describe('a node or a line being removed', () => {
+  it('keeps a node the document still has', () => {
+    const { bound } = seeded();
+    bound.store.getState().onNodesChange([{ type: 'remove', id: 'db' }]);
+
+    expect(bound.store.getState().nodes.map((node) => node.id).sort()).toEqual([
+      'auth',
+      'db',
+      'ui',
+    ]);
+  });
+
+  it('keeps a line the document still has', () => {
+    const { bound } = seeded();
+    const id = bound.store.getState().edges[0]!.id;
+    bound.store.getState().onEdgesChange([{ type: 'remove', id }]);
+
+    expect(bound.store.getState().edges).toHaveLength(1);
+  });
+
+  it('lets every other kind of change through', () => {
+    const { bound } = seeded();
+    bound.store.getState().onNodesChange([{ type: 'select', id: 'db', selected: true }]);
+
+    expect(byId(bound.store.getState().nodes, 'db')?.selected).toBe(true);
+  });
+
+  it('drops the node once the document has dropped it', () => {
+    const { doc, bound } = seeded();
+    applyOps(doc, ops([{ op: 'delete_node', slug: 'db' }]));
+
+    expect(bound.store.getState().nodes.map((node) => node.id).sort()).toEqual(['auth', 'ui']);
+  });
+});
