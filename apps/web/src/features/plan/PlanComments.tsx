@@ -1,4 +1,4 @@
-import type { PlanComment, Position } from '@schematic/schema';
+import { toggleTask, type PlanComment, type Position } from '@schematic/schema';
 import {
   ORIGIN_LOCAL,
   commentBodyText,
@@ -11,6 +11,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import type * as Y from 'yjs';
 
+import { Markdown } from '@/components/ui/markdown';
 import { Tooltip } from '@/components/ui/tooltip';
 import { cn, formatWhen } from '@/lib/utils';
 import { snapTo } from './snap';
@@ -280,13 +281,30 @@ function Note({
             className="w-full resize-none bg-transparent px-2 py-1 text-xs leading-relaxed text-ink outline-none placeholder:text-ink-faint"
           />
         ) : (
-          <button
-            type="button"
+          // A div and not a button: a checkbox inside a button is invalid, and
+          // the button would swallow the click that answers the question. The
+          // keyboard affordance is kept by hand, the way the writing on a line
+          // already does it.
+          <div
+            role="button"
+            tabIndex={0}
             onClick={() => onSelect(comment.id)}
-            className="block w-full px-2 py-1 text-left text-xs leading-relaxed whitespace-pre-wrap text-ink"
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') onSelect(comment.id);
+            }}
+            // A long note is scrolled, not dragged.
+            onPointerDown={(event) => event.stopPropagation()}
+            className="max-h-64 w-full overflow-y-auto px-2 py-1 text-left"
           >
-            {body === '' ? <span className="text-ink-faint">Empty note</span> : clip(body)}
-          </button>
+            {body === '' ? (
+              <span className="text-xs text-ink-faint">Empty note</span>
+            ) : (
+              <Markdown
+                body={body}
+                onToggleTask={readOnly ? undefined : (index) => write(toggleTask(body, index))}
+              />
+            )}
+          </div>
         )}
 
         {readOnly ? null : (
@@ -320,11 +338,4 @@ function Note({
       </div>
     </>
   );
-}
-
-/** Folded shut, a note shows its opening rather than growing down the canvas. */
-function clip(body: string): string {
-  const lines = body.split('\n');
-  const head = lines.slice(0, 4).join('\n');
-  return head.length > 180 ? `${head.slice(0, 180)}…` : lines.length > 4 ? `${head}…` : head;
 }
