@@ -1682,40 +1682,56 @@ try {
      * And the box around a card makes room, or the drawing says a node is
      * inside a boundary it visibly overflows.
      *
-     * Laid out after the containment is declared, because declaring it is not a
-     * gesture a person can make — a node joins a box by being dropped into it,
-     * which is what puts it inside. A box grows down and to the right rather
-     * than moving its own corner, so it cannot reach a child above or left of it.
+     * In a box of its own, placed by hand. Dropped into one of the fixture's
+     * boxes the check proves nothing: those hold several nodes and are tall
+     * enough for the tallest, so a card growing under them takes up slack that
+     * was already there and the box quite correctly does not move.
      */
-    await call(`/plans/${fixture.id}/ops`, {
-      method: 'POST',
-      body: { ops: [{ op: 'upsert_edge', edge: { kind: 'contains', from: 'alpha', to: 'wordy' } }] },
-    });
-    await call(`/plans/${fixture.id}/layout`, { method: 'POST', body: { scope: 'all' } });
-    await reopen();
-    const boxWas = await drawnHeight('alpha');
-    check('a card can sit in a box', inside(await rectOf('wordy'), await rectOf('alpha')));
-
     await call(`/plans/${fixture.id}/ops`, {
       method: 'POST',
       body: {
         ops: [
-          { op: 'upsert_node', node: { slug: 'wordy', body: 'a sentence long enough that it has to wrap more than once on a card of the standard width, twice over.\n'.repeat(12) } },
+          {
+            op: 'upsert_node',
+            node: {
+              slug: 'holder',
+              kind: 'group',
+              title: 'Holder',
+              position: { x: -1800, y: 200 },
+              size: { width: 400, height: 300 },
+              pinned: true,
+            },
+          },
+          {
+            op: 'upsert_node',
+            node: { slug: 'wordy', position: { x: -1780, y: 240 }, pinned: true },
+          },
+          { op: 'upsert_edge', edge: { kind: 'contains', from: 'holder', to: 'wordy' } },
         ],
       },
     });
     await reopen();
+
+    const boxWas = await drawnHeight('holder');
+    check('a card can sit in a box', inside(await rectOf('wordy'), await rectOf('holder')));
+    check('and the box is the bounds it was given', Math.round(boxWas) === 300, String(Math.round(boxWas)));
+
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: { ops: [{ op: 'upsert_node', node: { slug: 'wordy', body: 'a sentence long enough that it has to wrap more than once on a card of the standard width, twice over.\n'.repeat(12) } }] },
+    });
+    await reopen();
     check(
       'a card grows when more is said in it',
-      (await drawnHeight('wordy')) > 0,
+      (await drawnHeight('wordy')) > 300,
       `${Math.round(await drawnHeight('wordy'))} tall`,
     );
     check(
       'and the box grows when what it holds is written into',
-      (await drawnHeight('alpha')) > boxWas + 10,
-      `${Math.round(boxWas)} -> ${Math.round(await drawnHeight('alpha'))}`,
+      (await drawnHeight('holder')) > boxWas + 10,
+      `${Math.round(boxWas)} -> ${Math.round(await drawnHeight('holder'))}`,
     );
-    check('without the card ever leaving it', inside(await rectOf('wordy'), await rectOf('alpha')));
+    check('without the card ever leaving it', inside(await rectOf('wordy'), await rectOf('holder')));
 
     await call(`/plans/${fixture.id}/ops`, {
       method: 'POST',
@@ -1723,6 +1739,7 @@ try {
         ops: [
           { op: 'delete_node', slug: 'wordy' },
           { op: 'delete_node', slug: 'widthy' },
+          { op: 'delete_node', slug: 'holder' },
         ],
       },
     });
