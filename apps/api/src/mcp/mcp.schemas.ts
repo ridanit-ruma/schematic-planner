@@ -88,6 +88,24 @@ export const createPlanShape = {
     .optional()
     .describe('Which drawer of the project to file it in. Omitted, the top level'),
   description: z.string().max(2000).default(''),
+  sourceSpecIds: z
+    .array(z.string().min(1))
+    .max(20)
+    .optional()
+    .describe(
+      'Plan ids this one is being written from, in order. They must be plans in the same ' +
+        'project. Use it when this plan implements a spec that is already drawn, so the link ' +
+        'is a field rather than a line of prose nothing can follow',
+    ),
+};
+
+/** Replaces the whole set. An empty array clears it. */
+export const setPlanSourcesShape = {
+  planId: z.string().min(1),
+  sourceSpecIds: z
+    .array(z.string().min(1))
+    .max(20)
+    .describe('The plans this one was written from, in order. Replaces whatever was there'),
 };
 
 export const traceShape = {

@@ -22,6 +22,7 @@ import {
   applyOpsShape,
   createFolderShape,
   createPlanShape,
+  setPlanSourcesShape,
   createProjectShape,
   deleteFolderShape,
   deletePlanShape,
@@ -39,6 +40,37 @@ import { chooseFolder, reachable, resolveWorkspace } from './workspace-scope.js'
 
 const text = (value: string) => ({ content: [{ type: 'text' as const, text: value }] });
 const failure = (value: string) => ({ ...text(value), isError: true });
+
+/**
+ * Where a plan came from and what came of it, for a reader who has just been
+ * handed the plan itself.
+ *
+ * A source that no longer resolves is shown with the reason rather than
+ * dropped: the id is what the plan recorded, and an agent asked to carry on
+ * needs to know the source is gone, not to find the citation quietly tidied up.
+ */
+function renderProvenance(provenance: {
+  sources: { id: string; title: string | null; folder: string | null; state: string }[];
+  sourcedBy: { id: string; title: string }[];
+}): string {
+  const lines: string[] = [];
+
+  for (const source of provenance.sources) {
+    const where = source.folder === null ? '' : ` (${source.folder})`;
+    const state = source.state === 'ok' ? '' : ` — ${source.state}`;
+    lines.push(`- ${source.title ?? 'unknown'}${where} ${source.id}${state}`);
+  }
+  const from = lines.length === 0 ? '' : `Written from:\n${lines.join('\n')}\n\n`;
+
+  const of =
+    provenance.sourcedBy.length === 0
+      ? ''
+      : `Written from this one:\n${provenance.sourcedBy
+          .map((plan) => `- ${plan.title} ${plan.id}`)
+          .join('\n')}\n\n`;
+
+  return `${from}${of}`;
+}
 
 function reason(error: unknown): string {
   return error instanceof Error ? error.message : 'Unexpected error';
@@ -262,11 +294,41 @@ export class McpFactory {
       },
       async ({ planId, view }) => {
         try {
-          const [doc, revision] = await Promise.all([
+          const [doc, revision, provenance] = await Promise.all([
             this.plans.read(identity.userId, planId),
             this.plans.revision(planId),
+            this.plans.provenance(identity.userId, planId),
           ]);
-          return text(`${renderPlan(doc, view)}\n\nRevision: ${revision}`);
+          return text(
+            `${renderPlan(doc, view)}\n\n${renderProvenance(provenance)}Revision: ${revision}`,
+          );
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'set_plan_sources',
+      {
+        title: 'Say which plans this one was written from',
+        description:
+          'Replaces the whole set, so two callers cannot half-agree about where a plan came ' +
+          'from. Sources must be plans in the same project; an empty array clears them. ' +
+          'Reading a plan back names each source, the drawer it is filed in, and whether it ' +
+          'still resolves — a source that is deleted or moved is reported, never removed, so ' +
+          'losing a spec does not quietly edit the plan that cited it.',
+        inputSchema: setPlanSourcesShape,
+        annotations: { destructiveHint: false },
+      },
+      async ({ planId, sourceSpecIds }) => {
+        try {
+          const stored = await this.plans.setSources(identity.userId, planId, sourceSpecIds);
+          return text(
+            stored.length === 0
+              ? 'Cleared the sources of this plan.'
+              : `This plan is now written from: ${stored.join(', ')}`,
+          );
         } catch (error) {
           return failure(reason(error));
         }
@@ -296,7 +358,7 @@ export class McpFactory {
           'draw that.',
         inputSchema: createPlanShape,
       },
-      async ({ title, description, workspace, projectSlug, folder }) => {
+      async ({ title, description, workspace, projectSlug, folder, sourceSpecIds }) => {
         try {
           const { projectId } = await this.resolveProject(identity, workspace, projectSlug);
           const filed =
@@ -310,6 +372,11 @@ export class McpFactory {
             { title, description, folderId: filed },
             { userId: identity.userId, apiKeyId: identity.keyId },
           );
+          // After the plan exists, because a source is validated against the
+          // project the plan is in and a plan that does not exist is in none.
+          if (sourceSpecIds !== undefined && sourceSpecIds.length > 0) {
+            await this.plans.setSources(identity.userId, doc.id, sourceSpecIds);
+          }
           return text(
             `Created plan ${doc.id}, empty.\n` +
               `Open it at ${this.planUrl(doc.id)}\n` +

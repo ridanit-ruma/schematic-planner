@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { exportPlan, exportPlanToZip, type ExportBundle } from '@schematic/exporter';
 import { layoutPlan } from '@schematic/layout';
 import {
@@ -22,6 +27,13 @@ import {
 } from '@schematic/ydoc';
 
 import { randomUUID } from 'node:crypto';
+
+import {
+  normalizeSources,
+  rejectSources,
+  resolveSources,
+  type ResolvedSource,
+} from './provenance.js';
 
 import { randomToken } from '../common/crypto.js';
 import { PrismaService } from '../common/prisma.service.js';
@@ -315,6 +327,82 @@ export class PlansService {
    * projection otherwise. Without the first case a plan being edited right now
    * would export up to one debounce interval out of date.
    */
+  /**
+   * The Specs a Plan says it was written from, and what was written from it.
+   *
+   * Both directions in one read: forward is the stored array resolved, backward
+   * is the array containment the GIN index exists for. Neither costs a table.
+   */
+  async provenance(
+    userId: string,
+    planId: string,
+  ): Promise<{ sources: ResolvedSource[]; sourcedBy: { id: string; title: string }[] }> {
+    await this.access.requirePlan(userId, planId, 'VIEWER');
+
+    const plan = await this.prisma.plan.findUnique({
+      where: { id: planId },
+      select: { projectId: true, sourceSpecIds: true },
+    });
+    if (plan === null) throw new NotFoundException('Plan not found');
+
+    const [rows, sourcedBy] = await Promise.all([
+      plan.sourceSpecIds.length === 0
+        ? Promise.resolve([])
+        : this.prisma.plan.findMany({
+            where: { id: { in: plan.sourceSpecIds } },
+            select: {
+              id: true,
+              title: true,
+              projectId: true,
+              deletedAt: true,
+              folder: { select: { name: true } },
+            },
+          }),
+      this.prisma.plan.findMany({
+        where: { sourceSpecIds: { has: planId }, deletedAt: null },
+        orderBy: { updatedAt: 'desc' },
+        select: { id: true, title: true },
+      }),
+    ]);
+
+    return { sources: resolveSources(plan.sourceSpecIds, plan.projectId, rows), sourcedBy };
+  }
+
+  /** Replaces the set outright, or refuses the whole of it. */
+  async setSources(userId: string, planId: string, ids: readonly string[]): Promise<string[]> {
+    await this.access.requirePlan(userId, planId, 'EDITOR');
+
+    const plan = await this.prisma.plan.findUnique({
+      where: { id: planId },
+      select: { projectId: true },
+    });
+    if (plan === null) throw new NotFoundException('Plan not found');
+
+    const wanted = normalizeSources(ids);
+    if (wanted.length > 0) {
+      const rows = await this.prisma.plan.findMany({
+        where: { id: { in: wanted } },
+        select: {
+          id: true,
+          title: true,
+          projectId: true,
+          deletedAt: true,
+          folder: { select: { name: true } },
+        },
+      });
+      const why = rejectSources(wanted, planId, plan.projectId, rows);
+      // All or nothing: a batch with one bad id writes none of them, so a
+      // caller never has to work out which half of its intent landed.
+      if (why !== null) throw new BadRequestException(`Cannot cite: ${why}`);
+    }
+
+    await this.prisma.plan.update({
+      where: { id: planId },
+      data: { sourceSpecIds: wanted },
+    });
+    return wanted;
+  }
+
   async read(userId: string, planId: string): Promise<PlanDoc> {
     await this.access.requirePlan(userId, planId, 'VIEWER');
     return this.current(planId);

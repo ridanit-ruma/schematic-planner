@@ -205,6 +205,14 @@ model Plan {
   snapshot    Json
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  /// The Plans this one was written from, in the order they were given.
+  ///
+  /// An array rather than a join table, and that follows from the contract
+  /// rather than from taste: a source that is destroyed must keep its id here
+  /// and be reported as missing, and a foreign key can only cascade — which
+  /// would lose the citing plan’s own record of where it came from — or null
+  /// the column, which loses the id it was told to keep.
+  sourceSpecIds String[] @default([])
   /// In the trash since. A plan is the unit people lose work in, so a delete
   /// hides it and a second, deliberate act destroys it.
   deletedAt   DateTime?
@@ -220,6 +228,9 @@ model Plan {
 
   @@index([projectId])
   @@index([projectId, deletedAt])
+  /// Answers the reverse question — which plans cite this spec — without a
+  /// second table and without a scan.
+  @@index([sourceSpecIds], type: Gin)
   @@index([folderId])
 }
 

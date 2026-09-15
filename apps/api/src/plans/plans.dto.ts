@@ -9,7 +9,10 @@ export const createPlanSchema = z.object({
   /** Optional initial structure, as an agent would submit it. */
   spec: planSpecSchema.optional(),
 });
-export type CreatePlanInput = z.infer<typeof createPlanSchema>;
+export type CreatePlanInput = z.infer<typeof createPlanSchema> & {
+  /** Plans this one is written from. Validated against the project, not the folder. */
+  sourceSpecIds?: readonly string[];
+};
 
 export const updatePlanSchema = z.object({
   title: z.string().min(1).max(200).optional(),

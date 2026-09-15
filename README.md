@@ -261,6 +261,7 @@ at once.
 | `get_plan(id, { view })`        | `view`: `outline` \| `graph` \| `markdown`. Positions and styling are excluded by default to keep responses small                                                                                                                 |
 | `create_plan(spec)`             | Opens a plan, with whatever structure is already known or none at all. Takes a workspace and project slug, and a folder name to file it in at once; with one workspace reachable neither slug is needed, and with several it names them rather than guessing |
 | `apply_ops(id, ops[])`          | How a plan grows after that, and the only write door. Upsert by slug, so retries never duplicate. Each batch reaches every open canvas at once, so drawing in pieces is what a person watching actually sees. `rename_node` goes through it too, and is the one operation that is strict where the upserts are lenient: renaming a node that is not there, or onto an identifier another node answers to, fails the batch rather than being skipped. `upsert_comment` goes through the same door: an agent unsure of something leaves a note where a person will see it instead of drawing confidently around the guess. The server signs such a note `<owner>'s agent` — the surface has no author field, because nothing an agent put there would be worth trusting |
+| `set_plan_sources(id, ids)`     | Which plans this one was written from. Replaces the whole set, so two callers cannot half-agree about it; sources must be plans in the same project. Reading the plan back names each source, the drawer it is filed in, and whether it still resolves — a source that is deleted or moved is reported, never removed |
 | `layout(id, { scope })`         | Re-run layout over everything that is not pinned                                                                                                                                                                                  |
 | `export_plan(id)`               | Markdown tree plus `.canvas`. The download link it returns opens with the same key, because the content is what `get_plan` already hands over |
 | `list_folders({ project? })`    | The drawers inside a project, and how many plans each holds |
@@ -279,6 +280,33 @@ should not have to issue, paste and revoke one per workspace, and an agent holdi
 such a key could not see the others exist. A key acts as its owner wherever they
 are a member, which is why the tools take a workspace argument and the endpoint
 lives under the account rather than a workspace.
+
+**A plan says what it is at, and a batch may say what it was written against.**
+`get_plan` reports an opaque `revision`; `apply_ops` takes an optional
+`expectedRevision` and refuses the whole batch — applying nothing — if the plan
+has moved since. It matters because `apply_ops` writes whole fields: Yjs merges
+characters inside a body but not two setters of one field, so an agent acting on
+a minute-old read really can overwrite a person. The revision is the document's
+own state vector rather than a stored column, which means it cannot fall out of
+step and is right during the window in which `updatedAt` is not, since plans
+persist on a debounce. The honest cost: a state vector moves for a change
+`get_plan` does not report, such as a drag — an occasional false conflict, never
+a false agreement. Omitting the field behaves exactly as before.
+
+**Provenance is a field, not a sentence.** A plan written from a spec used to
+say so in its description, which a person could follow and nothing else could.
+`sourceSpecIds` is an ordered, de-duplicated list of plan ids in the same
+project, stored as an array rather than a join table — because the rule is that
+a source which is destroyed keeps its id and is reported as missing, and a
+foreign key could only cascade or null the column, and both lose what they were
+told to keep. Validity is computed when the plan is read and never written down,
+so a spec trashed today and restored tomorrow reads as missing and then as
+present again with no write in between. The product validates that a source is a
+plan in the same project and deliberately does **not** validate which folder it
+sits in: a folder name is a string somebody may change at any moment, and
+freezing a filing convention into the schema would refuse a legitimate link from
+anyone who spells it differently. The folder each source sits in is reported, so
+a client can enforce whatever convention it keeps.
 
 Markdown is deliberately _not_ parsed server-side. An agent converting its own prose
 into the structured spec does a far better job than a parser guessing at headings.
@@ -636,6 +664,51 @@ laid-out nodes on every other line. **It is deliberately not on the MCP surface*
 surface takes structure and never coordinates, and a grid step is a coordinate an agent
 has nothing to decide with. Positions already stored are left alone; they come onto the
 grid the next time the plan is laid out or the node is dragged.
+
+### A card is as big as what it has to say, and no bigger than you let it
+
+A card was 260 pixels wide whatever was in it and showed two lines of its body
+with the Markdown stripped before truncating. The rest was readable only in the
+inspector, which makes a canvas that draws the flow and hides what flows.
+
+Three things were wrong and only one of them was a missing handle.
+
+**Layout guessed.** A card was placed at one of two constants — the bare card,
+or twenty-eight pixels taller if it had a body at all — so a plan whose nodes
+carry real bodies was spaced for boxes half their drawn height. The height is
+measured from the body now, between the bare card and a ceiling past which a
+card reads as full rather than becoming a wall. The numbers live in
+`@schematic/schema` because two parties need the same answer and neither can ask
+the other: the browser decides a card's real height by laying its text out, and
+the server has to predict that height before any browser has seen the plan.
+
+**A size somebody chose was treated as layout output.** Every computed size was
+handed back and written — `pinned` filtered positions and nothing filtered
+sizes — so a box resized by hand was restored by the next run, including the
+automatic one that follows any batch carrying an unplaced node. An agent adding
+a single node undid a person's box. Layout fills in a size only where there is
+none; a deliberate arrange of the whole plan still recomputes, which is what
+makes handing a node back to layout possible at all. It is filtered on having a
+size rather than on `pinned`, because a size says how big and not where:
+resizing must not also stop a node being arranged.
+
+**And the canvas ignored the field.** `size` is on every node in the schema,
+`upsert_node` accepts it, ELK lays out around it and the Obsidian Canvas export
+writes it — only the drawing attached it to boundaries alone. Bounds reach any
+node that has them now, and a card that has been given room renders its body
+rather than the excerpt, scrolling inside when the body outruns the room. A
+bigger box drawn the old way would have been a bigger box with the same two
+truncated lines.
+
+Size stays opt-in per node: a card nobody has touched draws exactly as it did,
+and *Fit to contents* gives an ordinary card back. Growing every card to fit its
+content was the alternative and it is the wrong trade — the drawing would depend
+on the text, so the picture moves while somebody types and every arrange gives a
+different shape.
+
+An agent never sets a size, for the same reason it never sets a position: a
+model shown a numeric field fills it in, with a number chosen for how it reads
+in a payload. It writes the body; the server measures it.
 
 ### A box is something you can draw, not only something you end up with
 
