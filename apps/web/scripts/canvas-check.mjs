@@ -485,11 +485,17 @@ try {
         await page.reload({ waitUntil: 'domcontentloaded' });
       }
       await wait(4000);
+      // `$eval` and not `$eval`: the single form hands the callback the first
+      // matching element, whose `.length` is undefined, so this asked whether
+      // the plan had arrived and was told no however many nodes were on screen.
       const drawn = await page.$eval('.react-flow__node', (list) => list.length).catch(() => 0);
       if (drawn > 0) return;
       console.log('  the plan did not arrive; opening it again');
       await wait(1000 * (attempt + 1));
     }
+    // Said out loud. Every check after this reads an empty canvas, and without
+    // it they blame whatever they were about rather than the socket.
+    check('the plan arrived', false, 'gave up reopening it');
   };
 
   try {
@@ -672,7 +678,11 @@ try {
       const doc = await call(`/plans/${fixture.id}`);
       return (doc.nodes ?? []).find((node) => node.slug === slug)?.size ?? null;
     };
-    const centreOf = (rect) => ({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
+    // Off-screen rather than a crash when the node is not there: a failed check
+    // names itself and the run still reaches a verdict, where reading .x off
+    // null ends the process with no verdict at all.
+    const centreOf = (rect) =>
+      rect === null ? { x: -1, y: -1 } : { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
     /** A drag that rests on what it is over before letting go. */
     const dragHolding = async (rawFrom, rawTo, holdMs) => {
       const from = onScreen(rawFrom);
