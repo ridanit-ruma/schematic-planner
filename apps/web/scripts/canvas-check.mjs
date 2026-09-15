@@ -1624,7 +1624,16 @@ try {
       method: 'POST',
       body: {
         ops: [
-          { op: 'upsert_node', node: { slug: 'wordy', body: `${'another line of it\n'.repeat(12)}` } },
+          {
+            op: 'upsert_node',
+            node: {
+              slug: 'wordy',
+              // Long lines on purpose. A body of short ones does not wrap, so a
+              // wider card would be no shorter and the check below would be
+              // asserting something that was never true of it.
+              body: `${'a sentence long enough that it has to wrap more than once on a card of the standard width, twice over.\n'.repeat(6)}`,
+            },
+          },
         ],
       },
     });
@@ -1635,15 +1644,47 @@ try {
       `${Math.round(shortAt)} -> ${Math.round(await drawnHeight('wordy'))}`,
     );
 
-    // And the box around it makes room, or the drawing says a node is inside a
-    // boundary it visibly overflows.
+    /*
+     * And the box around it makes room, or the drawing says a node is inside a
+     * boundary it visibly overflows.
+     *
+     * Laid out after the containment is declared, because declaring it is not a
+     * gesture a person can make — a node joins a box by being dropped into it,
+     * which is what puts it inside. An edge on its own leaves the node where it
+     * was, and a box grows down and to the right rather than moving its own
+     * corner, so it cannot reach a child sitting above or to the left of it.
+     */
     await call(`/plans/${fixture.id}/ops`, {
       method: 'POST',
       body: { ops: [{ op: 'upsert_edge', edge: { kind: 'contains', from: 'alpha', to: 'wordy' } }] },
     });
+    await call(`/plans/${fixture.id}/layout`, { method: 'POST', body: { scope: 'all' } });
+    await reopen();
+    const boxWas = (await rectOf('alpha'))?.height ?? 0;
+    check('a card can sit in a box', inside(await rectOf('wordy'), await rectOf('alpha')));
+
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          {
+            op: 'upsert_node',
+            node: {
+              slug: 'wordy',
+              body: `${'a sentence long enough that it has to wrap more than once on a card of the standard width, twice over.\n'.repeat(14)}`,
+            },
+          },
+        ],
+      },
+    });
     await reopen();
     check(
-      'and the box it sits in grew to hold it',
+      'and the box grows when what it holds is written into',
+      ((await rectOf('alpha'))?.height ?? 0) > boxWas,
+      `${Math.round(boxWas)} -> ${Math.round((await rectOf('alpha'))?.height ?? 0)}`,
+    );
+    check(
+      'without the card ever leaving it',
       inside(await rectOf('wordy'), await rectOf('alpha')),
     );
 
