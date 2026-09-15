@@ -210,3 +210,36 @@ describe('a node that holds others without calling itself a group', () => {
     expect(byId(bound.store.getState().nodes, 'db')?.parentId).toBe('auth');
   });
 });
+
+/**
+ * Every layer but this one already honoured a node's size: the schema carries
+ * it on every node, ELK lays out around it and the export writes it. The canvas
+ * attached it to boundaries alone.
+ */
+describe('a card that has been given bounds', () => {
+  it('is drawn at them', () => {
+    const { doc, bound } = seeded();
+    applyOps(
+      doc,
+      ops([{ op: 'upsert_node', node: { slug: 'db', size: { width: 420, height: 300 } } }]),
+    );
+
+    expect(byId(bound.store.getState().nodes, 'db')?.style).toEqual({ width: 420, height: 300 });
+  });
+
+  it('and one that has not is left to its own contents', () => {
+    const { bound } = seeded();
+    expect(byId(bound.store.getState().nodes, 'db')?.style).toBeUndefined();
+  });
+
+  it('goes back to that when its size is cleared', () => {
+    const { doc, bound } = seeded();
+    applyOps(
+      doc,
+      ops([{ op: 'upsert_node', node: { slug: 'db', size: { width: 420, height: 300 } } }]),
+    );
+    applyOps(doc, ops([{ op: 'upsert_node', node: { slug: 'db', size: null } }]));
+
+    expect(byId(bound.store.getState().nodes, 'db')?.style).toBeUndefined();
+  });
+});

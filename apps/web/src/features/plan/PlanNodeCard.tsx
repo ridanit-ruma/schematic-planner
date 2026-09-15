@@ -5,11 +5,11 @@ import {
   ResizeControlVariant,
   type NodeProps,
 } from '@xyflow/react';
-import { isGroup } from '@schematic/schema';
+import { CARD, isGroup } from '@schematic/schema';
 import { memo } from 'react';
 
 import { STATUS_COLOR } from '@/components/ui/status';
-import { plainExcerpt } from '@/components/ui/markdown';
+import { Markdown, plainExcerpt } from '@/components/ui/markdown';
 import { cn } from '@/lib/utils';
 import { usePlanStore } from './store-context';
 import type { PlanFlowNode } from './types';
@@ -52,6 +52,47 @@ const RESIZE_EDGE = "!border-accent before:absolute before:-inset-2 before:conte
 const RESIZE_CORNER =
   "!size-2 !rounded-none !border !border-accent !bg-surface-1 " +
   "before:absolute before:-inset-2 before:content-['']";
+
+/**
+ * The corner, offered the same way on a box and on a card.
+ *
+ * Only ever the right and bottom edges. The other handles move the node's own
+ * top-left corner — which everything inside a box is placed against, and which
+ * for any node is the field pinning and auto-layout already argue over. Growing
+ * down and to the right changes how big and nothing about where.
+ */
+function Corners({ id, onResize }: { id: string; onResize: (id: string, size: Size) => void }) {
+  const common = { minWidth: RESIZE_MIN.width, minHeight: RESIZE_MIN.height };
+  return (
+    <>
+      <NodeResizeControl
+        position="right"
+        variant={ResizeControlVariant.Line}
+        {...common}
+        onResizeEnd={(_, size) => onResize(id, size)}
+        className={RESIZE_EDGE}
+      />
+      <NodeResizeControl
+        position="bottom"
+        variant={ResizeControlVariant.Line}
+        {...common}
+        onResizeEnd={(_, size) => onResize(id, size)}
+        className={RESIZE_EDGE}
+      />
+      <NodeResizeControl
+        position="bottom-right"
+        {...common}
+        onResizeEnd={(_, size) => onResize(id, size)}
+        className={RESIZE_CORNER}
+      />
+    </>
+  );
+}
+
+interface Size {
+  width: number;
+  height: number;
+}
 
 const KIND_BORDER: Record<string, string> = {
   feature: 'border border-rule-strong',
@@ -105,36 +146,10 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
         )}
         style={entrance}
       >
-        {/* Offered on the selected box only. An invisible grab strip along
-            every group's edge would take drags meant for the canvas behind it,
-            and a boundary is a thing you point at before you reshape it. */}
-        {editable && selected === true ? (
-          <>
-            <NodeResizeControl
-              position="right"
-              variant={ResizeControlVariant.Line}
-              minWidth={RESIZE_MIN.width}
-              minHeight={RESIZE_MIN.height}
-              onResizeEnd={(_, size) => resizeNode(id, size)}
-              className={RESIZE_EDGE}
-            />
-            <NodeResizeControl
-              position="bottom"
-              variant={ResizeControlVariant.Line}
-              minWidth={RESIZE_MIN.width}
-              minHeight={RESIZE_MIN.height}
-              onResizeEnd={(_, size) => resizeNode(id, size)}
-              className={RESIZE_EDGE}
-            />
-            <NodeResizeControl
-              position="bottom-right"
-              minWidth={RESIZE_MIN.width}
-              minHeight={RESIZE_MIN.height}
-              onResizeEnd={(_, size) => resizeNode(id, size)}
-              className={RESIZE_CORNER}
-            />
-          </>
-        ) : null}
+        {/* Offered on the selected node only. An invisible grab strip along
+            every edge on the canvas would take drags meant for the canvas
+            behind it, and a thing is pointed at before it is reshaped. */}
+        {editable && selected === true ? <Corners id={id} onResize={resizeNode} /> : null}
         {/* A header band, so the name belongs to the box rather than floating
             over whatever the first child happens to be. */}
         <div className="flex items-center gap-2 rounded-t-lg border-b border-rule bg-group-head px-3 py-2">
@@ -161,12 +176,24 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
     );
   }
 
+  /*
+   * A card given room shows what is in it; a card nobody has sized keeps the
+   * one-line excerpt it always had.
+   *
+   * The second half is what a resize handle alone would not have delivered. The
+   * excerpt is Markdown with its syntax stripped, clamped to two lines — draw a
+   * bigger box the same way and it is a bigger box with the same two truncated
+   * lines, and the complaint that a canvas shows the flow and hides what flows
+   * is unanswered.
+   */
+  const sized = node.size !== null;
   const excerpt = plainExcerpt(node.body);
 
   return (
     <div
       className={cn(
-        'relative flex min-h-[72px] w-[260px] overflow-hidden rounded-md bg-surface-2',
+        'relative flex overflow-hidden rounded-md bg-surface-2',
+        sized ? 'h-full w-full' : 'min-h-[72px] w-[260px]',
         KIND_BORDER[node.kind] ?? KIND_BORDER['task'],
         selected === true && 'border-accent ring-1 ring-accent',
         // Held over long enough that letting go would put the dragged node
@@ -176,12 +203,23 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
       )}
       style={entrance}
     >
+      {editable && selected === true ? <Corners id={id} onResize={resizeNode} /> : null}
       <span aria-hidden className="w-1 shrink-0" style={{ background: STATUS_COLOR[node.status] }} />
 
-      <div className="min-w-0 flex-1 px-3 py-2">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col px-3 py-2">
         <p className="truncate text-sm leading-snug font-medium text-ink">{node.title}</p>
         <p className="slug mt-0.5 truncate text-ink-faint">{node.slug}</p>
-        {excerpt !== '' ? (
+        {sized && node.body.trim() !== '' ? (
+          /* A long body is scrolled, not dragged — the note next door already
+             settled that, and a second answer to it would be a second answer. */
+          <div
+            onPointerDown={(event) => event.stopPropagation()}
+            className="nodrag mt-1.5 min-h-0 flex-1 overflow-y-auto text-xs leading-snug text-ink-muted"
+            style={{ maxHeight: CARD.maxHeight }}
+          >
+            <Markdown body={node.body} />
+          </div>
+        ) : excerpt !== '' ? (
           <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-ink-muted">{excerpt}</p>
         ) : null}
         {node.tags.length > 0 ? (
