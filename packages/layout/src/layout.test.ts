@@ -216,7 +216,7 @@ describe('layoutPlan', () => {
   });
 });
 
-describe('a size somebody chose', () => {
+describe('the size of a box', () => {
   const held = () =>
     planDocSchema.parse({
       id: 'p',
@@ -230,14 +230,20 @@ describe('a size somebody chose', () => {
       edges: [{ id: 'contains:box>inside', kind: 'contains', from: 'box', to: 'inside' }],
     });
 
-  it('is not shrunk by the run that follows an agent adding a node', async () => {
+  /*
+   * A box is drawn around what it holds, wherever one is drawn — on the canvas,
+   * in the export, and here. So a size written on one is the record of a
+   * measurement and never an instruction, and a run measures it afresh.
+   */
+  it('is what holds its contents, not the size written on it', async () => {
     const { sizes } = await layoutPlan(held(), { scope: 'unpinned' });
     const box = sizes.get('box');
-    expect(box?.width).toBeGreaterThanOrEqual(900);
-    expect(box?.height).toBeGreaterThanOrEqual(700);
+    expect(box).toBeDefined();
+    expect(box?.width).toBeLessThan(900);
+    expect(box?.height).toBeLessThan(700);
   });
 
-  it('is grown by one, when what it holds no longer fits', async () => {
+  it('follows what it holds when that no longer fits', async () => {
     const tall = planDocSchema.parse({
       id: 'p',
       title: 'P',
@@ -253,13 +259,10 @@ describe('a size somebody chose', () => {
     expect(sizes.get('box')?.height).toBeGreaterThan(120);
   });
 
-  it('is recomputed outright when the whole plan is deliberately arranged', async () => {
-    const { sizes } = await layoutPlan(held(), { scope: 'all' });
-    const box = sizes.get('box');
-    expect(box).toBeDefined();
-    // Free to be smaller than the bounds it was given, which is what makes
-    // handing a box back to layout mean anything.
-    expect(box?.height).toBeLessThan(700);
+  it('is the same whether or not the arrange was asked for outright', async () => {
+    const loose = (await layoutPlan(held(), { scope: 'unpinned' })).sizes.get('box');
+    const whole = (await layoutPlan(held(), { scope: 'all' })).sizes.get('box');
+    expect(loose).toEqual(whole);
   });
 
   it('does not stop the node being arranged', async () => {

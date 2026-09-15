@@ -1,13 +1,14 @@
 import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } from '@xyflow/react';
 import {
-  GROUP_PADDING,
+  DEFAULT_GROUP_SIZE,
   buildPlanGraph,
   cardBounds,
   cardHeight,
   containmentDepth,
-  growToHold,
+  holdingBox,
   isGroup,
   type Box,
+  type Rect,
 } from '@schematic/schema';
 import type { PlanComment, PlanDoc, PlanEdge, PlanNode, Position } from '@schematic/schema';
 import {
@@ -159,9 +160,11 @@ function toFlowNode(
   parent: { slug: string; position: Position } | null,
   depth: number,
   box: Box,
+  // Where the node is drawn, which for a box is where its contents are rather
+  // than what its own record says.
+  absolute: Position,
 ): PlanFlowNode {
   const boundary = isGroup(node, childCount);
-  const absolute = node.position ?? { x: 0, y: 0 };
   return {
     id: node.slug,
     type: 'plan',
@@ -288,14 +291,14 @@ export function createPlanStore(doc: Y.Doc) {
     resizeNode: (slug, size) => {
       if (!get().editable) return;
       const node = get().nodes.find((candidate) => candidate.id === slug)?.data;
+      // Only a card has a width to give. A box is what it holds, and writing a
+      // size for one would be a second answer that the next drag contradicts.
+      if (node === undefined || isGroup(node.node, node.childCount)) return;
       // A card is dragged by one edge and only its width is a person's to
       // choose; the height that width comes to is written beside it so that
       // anything reading the document raw sees a coherent box. Nothing in this
       // repository reads that height back — it is measured again each time.
-      const stored =
-        node !== undefined && !isGroup(node.node, node.childCount)
-          ? { width: size.width, height: cardHeight(node.node.body, size.width) }
-          : size;
+      const stored = { width: size.width, height: cardHeight(node.node.body, size.width) };
       commitLayout(doc, new Map(), ORIGIN_LOCAL, new Map([[slug, stored]]));
     },
     routeEdge: (id, corners, labelPosition) => {
@@ -422,11 +425,10 @@ export function createPlanStore(doc: Y.Doc) {
     /*
      * Every node's box, worked out from the inside out.
      *
-     * A card is as tall as what it has to say, so nothing stores that height
-     * and it is measured here. A box is then the larger of what somebody gave
-     * it and what it turns out to be holding — a child that has outgrown its
-     * boundary is the drawing contradicting the document, and a child can
-     * outgrow one now simply by being typed into.
+     * A card is as tall as what it has to say and a box is exactly what it
+     * holds. Neither is stored, so neither can be out of date: a card grown by
+     * being typed into takes its boundary with it, and a child dragged past an
+     * edge pulls that edge along rather than hanging outside it.
      *
      * `ordered` is a walk down the containment tree, so reversing it visits
      * every child before whatever holds it.
@@ -439,19 +441,23 @@ export function createPlanStore(doc: Y.Doc) {
         continue;
       }
 
-      const at = absolute[node.slug] ?? { x: 0, y: 0 };
-      let holds = false;
-      let width = 0;
-      let height = 0;
+      const held: Rect[] = [];
       for (const child of children) {
         const box = bounds[child];
         const childAt = absolute[child];
-        if (box === undefined || childAt === undefined) continue;
-        holds = true;
-        width = Math.max(width, childAt.x - at.x + box.width + GROUP_PADDING.right);
-        height = Math.max(height, childAt.y - at.y + box.height + GROUP_PADDING.bottom);
+        if (box !== undefined && childAt !== undefined) held.push({ ...childAt, ...box });
       }
-      bounds[node.slug] = growToHold(node.size, holds ? { width, height } : null);
+
+      const box = holdingBox(held);
+      if (box === null) {
+        bounds[node.slug] = { ...DEFAULT_GROUP_SIZE };
+        continue;
+      }
+      // A box is drawn where its contents are, so this is where it is for
+      // everything else too — the hit test, the lines that leave it, and the
+      // coordinates its children are placed against.
+      absolute[node.slug] = { x: box.x, y: box.y };
+      bounds[node.slug] = { width: box.width, height: box.height };
     }
 
     const nextNodes = ordered.map((node) => {
@@ -464,8 +470,17 @@ export function createPlanStore(doc: Y.Doc) {
           : { slug: parentSlug, position: absolute[parentSlug] ?? { x: 0, y: 0 } };
 
       const box = bounds[node.slug] ?? { width: 260, height: 76 };
+      const at = absolute[node.slug] ?? { x: 0, y: 0 };
+      const where =
+        parent === null ? at : { x: at.x - parent.position.x, y: at.y - parent.position.y };
+      // Drawn where it is drawn now, at the size it is drawn at now. A box
+      // moves because what it holds moved, and a card inside one moves because
+      // the box's own corner did — neither shows up as a change to this node.
       const drawnAt = (candidate: PlanFlowNode | undefined): boolean =>
-        candidate?.style?.width === box.width && candidate?.style?.height === box.height;
+        candidate?.style?.width === box.width &&
+        candidate?.style?.height === box.height &&
+        candidate?.position?.x === where.x &&
+        candidate?.position?.y === where.y;
 
       if (
         existing !== undefined &&
@@ -490,7 +505,14 @@ export function createPlanStore(doc: Y.Doc) {
         return existing;
       }
       return {
-        ...toFlowNode(node, childCount, parent, containmentDepth(graph, node.slug), box),
+        ...toFlowNode(
+          node,
+          childCount,
+          parent,
+          containmentDepth(graph, node.slug),
+          box,
+          absolute[node.slug] ?? { x: 0, y: 0 },
+        ),
         selected: existing?.selected ?? false,
       };
     });

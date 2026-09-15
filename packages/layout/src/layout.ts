@@ -246,31 +246,14 @@ export async function layoutPlan(
   collectLabels(laid);
 
   /*
-   * A box somebody sized is a floor, not a fixed value.
+   * A box's size is never a person's to keep.
    *
-   * These returns used to hand back every computed size, so a box resized by
-   * hand was restored to ELK's measurement by the next run — an agent adding
-   * one node undid a person's box. The fix for that kept a stored size
-   * untouched, which is wrong in the other direction: a child can outgrow its
-   * boundary simply by being typed into, and a boundary a node visibly
-   * overflows is the drawing contradicting the document.
-   *
-   * So a stored size holds unless what the box now contains needs more, on
-   * either axis independently. A deliberate `scope: 'all'` recomputes outright,
-   * which is what lets somebody hand a box back to layout.
+   * This used to arbitrate between a size somebody had dragged a box to and the
+   * size its contents needed, taking the larger on each axis. There is nothing
+   * left to arbitrate: a box is drawn around what it holds, everywhere that
+   * draws one, so what ELK measured is simply the answer and a stored size is
+   * only the record of it.
    */
-  if (settings.scope !== 'all') {
-    for (const node of doc.nodes) {
-      if (node.size === null) continue;
-      const computed = sizes.get(node.slug);
-      if (computed === undefined) continue;
-      sizes.set(node.slug, {
-        width: Math.max(node.size.width, computed.width),
-        height: Math.max(node.size.height, computed.height),
-      });
-    }
-  }
-
   if (settings.scope === 'all') return { positions: round(computed), sizes, labels: round(labels) };
 
   const pinned = doc.nodes.filter((node) => node.pinned && node.position !== null);

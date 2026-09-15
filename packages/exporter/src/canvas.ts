@@ -2,10 +2,12 @@ import {
   cardBounds,
   containmentDepth,
   groupSize,
+  holdingBox,
   isGroup,
   type PlanDoc,
   type PlanGraph,
   type PlanNodeStatus,
+  type Rect,
 } from '@schematic/schema';
 
 /** https://jsoncanvas.org — the format Obsidian Canvas reads. */
@@ -67,18 +69,62 @@ export function toCanvas(
   const rowsUsed = new Map<number, number>();
   const nodes: CanvasNode[] = [];
 
+  // Where each node sits, worked out in one pass so that the grid a plan with
+  // no coordinates falls back to is the same every time it is exported.
+  const placed = new Map<string, { x: number; y: number }>();
+  for (const slug of fileOf.keys()) {
+    const node = graph.nodes.get(slug);
+    if (node === undefined) continue;
+    if (node.position !== null) {
+      placed.set(slug, { x: node.position.x, y: node.position.y });
+      continue;
+    }
+    const depth = containmentDepth(graph, slug);
+    const row = rowsUsed.get(depth) ?? 0;
+    rowsUsed.set(depth, row + 1);
+    placed.set(slug, { x: depth * COLUMN_GAP, y: row * ROW_GAP });
+  }
+
+  /*
+   * The box a node occupies.
+   *
+   * A card's is its body measured at its width. A box's is whatever it holds —
+   * the same rule the canvas draws by, so a plan exported to JSON Canvas and a
+   * plan on screen are the same picture. A stored size is not consulted for
+   * either; it goes stale the moment a body is edited or a child is moved.
+   */
+  const measured = new Map<string, Rect>();
+  const walking = new Set<string>();
+  const rectOf = (slug: string): Rect | null => {
+    const known = measured.get(slug);
+    if (known !== undefined) return known;
+    const node = graph.nodes.get(slug);
+    const at = placed.get(slug);
+    if (node === undefined || at === undefined) return null;
+    // A containment cycle would otherwise never come back. It is drawn at its
+    // own place and size, which is what it was before anything nested.
+    if (walking.has(slug)) return { ...at, ...groupSize(node) };
+    walking.add(slug);
+
+    const children = graph.childrenOf.get(slug) ?? [];
+    const rect = !isGroup(node, children.length)
+      ? { ...at, ...cardBounds(node) }
+      : (holdingBox(children.map(rectOf).filter((held) => held !== null)) ?? {
+          ...at,
+          ...groupSize(node),
+        });
+
+    walking.delete(slug);
+    measured.set(slug, rect);
+    return rect;
+  };
+
   for (const slug of fileOf.keys()) {
     const node = graph.nodes.get(slug);
     if (node === undefined) continue;
 
-    let { x, y } = node.position ?? { x: 0, y: 0 };
-    if (node.position === null) {
-      const depth = containmentDepth(graph, slug);
-      const row = rowsUsed.get(depth) ?? 0;
-      rowsUsed.set(depth, row + 1);
-      x = depth * COLUMN_GAP;
-      y = row * ROW_GAP;
-    }
+    const rect = rectOf(slug);
+    if (rect === null) continue;
 
     // A node holding others is the box around them, which is what JSON Canvas
     // calls a group. Exported as an ordinary card instead -- which is what used
@@ -93,22 +139,19 @@ export function toCanvas(
           id: slug,
           type: 'group',
           label: node.title,
-          x: Math.round(x),
-          y: Math.round(y),
-          width: Math.round(groupSize(node).width),
-          height: Math.round(groupSize(node).height),
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
         }
       : {
           id: slug,
           type: 'file',
           file: fileOf.get(slug) ?? `${slug}.md`,
-          x: Math.round(x),
-          y: Math.round(y),
-          // Measured rather than read: a card's height is what its body comes
-          // to at its width, and the stored one goes stale the moment the body
-          // is edited.
-          width: Math.round(cardBounds(node).width),
-          height: Math.round(cardBounds(node).height),
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
         };
     const color = STATUS_COLOR[node.status];
     if (color !== undefined) canvasNode.color = color;

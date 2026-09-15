@@ -35,7 +35,7 @@ export function groupSize(node: Pick<PlanNode, 'size'>): { width: number; height
 /**
  * Room a box keeps around what it holds, for its own label and its margins.
  *
- * Mirrors ELK's container padding, so a node placed by hand sits where layout
+ * Mirrors ELK container padding, so a node placed by hand sits where layout
  * would have put it. Every side is a multiple of the grid, which is what leaves
  * an intersection inside a box for a snapped drop to land on.
  */
@@ -46,21 +46,56 @@ export interface Box {
   height: number;
 }
 
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /**
- * The bounds a box is drawn at: the larger of what somebody gave it and what
- * its contents need.
+ * The box that holds these children.
  *
- * Both halves matter, and the rule this replaces had only one of them. Keeping
- * a stored size untouched is right against an arrange rewriting a person's box
- * and wrong against a child that has outgrown it — and a child can outgrow it
- * now simply by being typed into, since a card is as tall as what it says. A
- * boundary a node visibly overflows is the drawing contradicting the document.
+ * What a box is, is what is in it. There is no stored size to honour and no
+ * handle to drag, because the two answers disagreed the moment anything moved:
+ * a card grows by being typed into, a child is dragged past an edge, and a
+ * boundary its contents visibly overflow is the drawing contradicting the
+ * document. Deriving it removes the disagreement rather than arbitrating it.
+ *
+ * Every side follows, not just the right and the bottom. A child dragged above
+ * or to the left of the box it is in used to leave it hanging outside; now the
+ * box reaches up to it.
+ *
+ * Null for a box holding nothing — there is nothing to measure, and the caller
+ * draws it at its own position and the default size instead.
  */
-export function growToHold(stored: Box | null, needed: Box | null): Box {
-  const floor = stored ?? DEFAULT_GROUP_SIZE;
-  if (needed === null) return { width: floor.width, height: floor.height };
+export function holdingBox(children: readonly Rect[]): Rect | null {
+  if (children.length === 0) return null;
+
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  for (const child of children) {
+    left = Math.min(left, child.x);
+    top = Math.min(top, child.y);
+    right = Math.max(right, child.x + child.width);
+    bottom = Math.max(bottom, child.y + child.height);
+  }
+
   return {
-    width: Math.max(floor.width, needed.width),
-    height: Math.max(floor.height, needed.height),
+    x: left - GROUP_PADDING.left,
+    y: top - GROUP_PADDING.top,
+    width: right - left + GROUP_PADDING.left + GROUP_PADDING.right,
+    height: bottom - top + GROUP_PADDING.top + GROUP_PADDING.bottom,
   };
+}
+
+/** How much of `moved` lies inside `over`, as a fraction of its own area. */
+export function overlapShare(moved: Rect, over: Rect): number {
+  const width = Math.min(moved.x + moved.width, over.x + over.width) - Math.max(moved.x, over.x);
+  const height = Math.min(moved.y + moved.height, over.y + over.height) - Math.max(moved.y, over.y);
+  if (width <= 0 || height <= 0) return 0;
+  const area = moved.width * moved.height;
+  return area <= 0 ? 0 : (width * height) / area;
 }

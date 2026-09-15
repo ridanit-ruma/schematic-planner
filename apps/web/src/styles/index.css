@@ -163,9 +163,29 @@
     background: var(--accent-soft);
   }
 
+  /*
+   * Scrollbars, in both engines.
+   *
+   * Only the WebKit pseudo-elements were styled, and Firefox does not implement
+   * them — so every scroll area in the application was drawn with the platform
+   * scrollbar, which on a light desktop theme is white. On a card, whose body
+   * scrolls once it outgrows its ceiling, that is a bright bar down the right
+   * edge of a node, and on a long body a short thumb reads as a white square
+   * sitting on the drawing. The standard properties below are what Firefox
+   * reads; the WebKit block that follows says the same thing to Chrome, where
+   * the track and the corner were also left at their defaults.
+   */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-3) transparent;
+  }
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb {
     background: var(--surface-3);
