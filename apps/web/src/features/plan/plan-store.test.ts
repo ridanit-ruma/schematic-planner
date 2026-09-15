@@ -237,7 +237,9 @@ describe('how tall a card is drawn', () => {
       ]),
     );
 
-    const height = byId(bound.store.getState().nodes, 'db')?.style?.height;
+    // React Flow types a style height as a CSS length, so it is read back as a
+    // number before anything compares it with one.
+    const height = Number(byId(bound.store.getState().nodes, 'db')?.style?.height);
     expect(height).toBe(cardHeight('one\ntwo\nthree\nfour\nfive\nsix\nseven'));
     expect(height).toBeGreaterThan(CARD.minHeight);
   });
@@ -290,11 +292,11 @@ describe('a box around a card that has grown', () => {
 
   it('grows when what it holds outgrows it', () => {
     const { doc, bound } = held();
-    const before = byId(bound.store.getState().nodes, 'box')?.style?.height ?? 0;
+    const before = Number(byId(bound.store.getState().nodes, 'box')?.style?.height ?? 0);
 
     applyOps(doc, ops([{ op: 'upsert_node', node: { slug: 'db', body: 'line\n'.repeat(18) } }]));
 
-    const after = byId(bound.store.getState().nodes, 'box')?.style?.height ?? 0;
+    const after = Number(byId(bound.store.getState().nodes, 'box')?.style?.height ?? 0);
     expect(after).toBeGreaterThan(before);
   });
 
