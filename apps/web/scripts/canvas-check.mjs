@@ -471,8 +471,21 @@ try {
     child.x + child.width <= box.x + box.width + 1 &&
     child.y + child.height <= box.y + box.height + 1;
   const reopen = async () => {
-    await page.goto(`${BASE}/plan/${fixture.id}`, { waitUntil: 'domcontentloaded' });
-    await wait(4000);
+    // The plan arrives over a socket, not with the page. A socket that failed
+    // to open leaves an empty canvas, and every rect read after it comes back
+    // null — which the checks below then report as nodes drawn in the wrong
+    // place, or crash on. So the drawing is waited for rather than assumed.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (attempt === 0) {
+        await page.goto(`${BASE}/plan/${fixture.id}`, { waitUntil: 'domcontentloaded' });
+      } else {
+        await page.reload({ waitUntil: 'domcontentloaded' });
+      }
+      await wait(4000);
+      const drawn = await page.$eval('.react-flow__node', (list) => list.length).catch(() => 0);
+      if (drawn > 0) return;
+      console.log('  the plan did not arrive; opening it again');
+    }
   };
 
   try {
@@ -695,6 +708,14 @@ try {
             op: 'upsert_node',
             node: { slug: 'mk-three', title: 'Mk three', position: { x: -900, y: 950 }, pinned: true },
           },
+          {
+            op: 'upsert_node',
+            node: { slug: 'mk-four', title: 'Mk four', position: { x: -1500, y: 200 }, pinned: true },
+          },
+          {
+            op: 'upsert_node',
+            node: { slug: 'mk-five', title: 'Mk five', position: { x: -1500, y: 500 }, pinned: true },
+          },
         ],
       },
     });
@@ -747,17 +768,41 @@ try {
       return true;
     };
 
-    const pickOne = await rectOf('a-one');
-    const pickTwo = await rectOf('a-two');
-    await page.mouse.click(centreOf(pickOne).x, centreOf(pickOne).y);
+    /*
+     * On two nodes of this section's own, apart from everything else. The
+     * fixture's own nodes have by now been dragged in and out of groups by the
+     * checks above and sit under whatever else was dropped on top of them, so a
+     * click at the middle of one lands on something else — which tests the
+     * gesture against the mess rather than against the gesture.
+     */
+    await reopen();
+    const chosen = () =>
+      page.evaluate(() => document.querySelectorAll('.react-flow__node.selected').length);
+
+    const first = centreOf(await rectOf('mk-four'));
+    await page.mouse.click(first.x, first.y);
+    await wait(800);
+    check('clicking a node selects it', (await chosen()) === 1, String(await chosen()));
+
+    const second = centreOf(await rectOf('mk-five'));
     await page.keyboard.down('Control');
-    await page.mouse.click(centreOf(pickTwo).x, centreOf(pickTwo).y);
+    await page.mouse.click(second.x, second.y);
     await page.keyboard.up('Control');
-    await wait(300);
-    await page.mouse.click(centreOf(pickTwo).x, centreOf(pickTwo).y, { button: 'right' });
     await wait(600);
+    check('two nodes can be held selected at once', (await chosen()) === 2, String(await chosen()));
+
+    const menuAt = centreOf(await rectOf('mk-five'));
+    await page.mouse.click(menuAt.x, menuAt.y, { button: 'right' });
+    await wait(900);
+    const onOffer = await page.evaluate(() =>
+      [...document.querySelectorAll('[role="menuitem"]')].map((el) => el.textContent?.trim() ?? ''),
+    );
     const offered = await clickMenuItem('Group 2 nodes');
-    check('a selection of two is offered a box round it', offered);
+    check(
+      'a selection of two is offered a box round it',
+      offered,
+      `selected ${await chosen()}, menu: ${onOffer.join(' / ').slice(0, 100)}`,
+    );
 
     const grouped = await call(`/plans/${fixture.id}`);
     const made = (grouped.nodes ?? []).find((node) => node.kind === 'group' && node.slug !== 'boxy');
@@ -768,7 +813,7 @@ try {
           (edge) =>
             edge.kind === 'contains' &&
             edge.from === made.slug &&
-            (edge.to === 'a-one' || edge.to === 'a-two'),
+            (edge.to === 'mk-four' || edge.to === 'mk-five'),
         ).length === 2,
       made === undefined ? 'no group made' : made.slug,
     );
@@ -813,6 +858,9 @@ try {
           { op: 'delete_node', slug: 'mk-one' },
           { op: 'delete_node', slug: 'mk-two' },
           { op: 'delete_node', slug: 'mk-three' },
+          { op: 'delete_node', slug: 'mk-four' },
+          { op: 'delete_node', slug: 'mk-five' },
+          ...(made === undefined ? [] : [{ op: 'delete_node', slug: made.slug }]),
         ],
       },
     });
@@ -871,11 +919,11 @@ try {
 
     // A note was one width and four lines tall whatever was in it.
     const noteCorner = await page.evaluate(() => {
-      const found = [...document.querySelectorAll('div')].find((el) =>
+      // The note itself, not whichever wrapper above it also contains the text.
+      const note = [...document.querySelectorAll('.nopan')].find((el) =>
         (el.textContent ?? '').includes('Left by the browser check.'),
       );
-      const note = found?.closest('.nopan');
-      if (note === undefined || note === null) return null;
+      if (note === undefined) return null;
       const rect = note.getBoundingClientRect();
       return { x: rect.x + rect.width - 4, y: rect.y + rect.height - 4 };
     });
