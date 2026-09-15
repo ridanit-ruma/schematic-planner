@@ -471,8 +471,21 @@ try {
     child.x + child.width <= box.x + box.width + 1 &&
     child.y + child.height <= box.y + box.height + 1;
   const reopen = async () => {
-    await page.goto(`${BASE}/plan/${fixture.id}`, { waitUntil: 'domcontentloaded' });
-    await wait(4000);
+    // The plan arrives over a socket, not with the page. A socket that failed
+    // to open leaves an empty canvas, and every rect read after it comes back
+    // null — which the checks below then report as nodes drawn in the wrong
+    // place, or crash on. So the drawing is waited for rather than assumed.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (attempt === 0) {
+        await page.goto(`${BASE}/plan/${fixture.id}`, { waitUntil: 'domcontentloaded' });
+      } else {
+        await page.reload({ waitUntil: 'domcontentloaded' });
+      }
+      await wait(4000);
+      const drawn = await page.$eval('.react-flow__node', (list) => list.length).catch(() => 0);
+      if (drawn > 0) return;
+      console.log('  the plan did not arrive; opening it again');
+    }
   };
 
   try {
@@ -636,6 +649,222 @@ try {
       `${piled.notes} notes, ${piled.overlapping} overlapping`,
     );
 
+    console.log('\nmaking a group');
+    /*
+     * The half that was missing. Whether a node was drawn as a box was inferred
+     * from whether it already held one, so there was no first move: a box
+     * appeared once it had contents, and contents could only be dragged into a
+     * box. None of what follows was possible before.
+     */
+    const holds = async (from, to) => {
+      const doc = await call(`/plans/${fixture.id}`);
+      return (doc.nodes ?? []).length > 0
+        ? (doc.edges ?? []).some(
+            (edge) => edge.kind === 'contains' && edge.from === from && edge.to === to,
+          )
+        : false;
+    };
+    const boundsOf = async (slug) => {
+      const doc = await call(`/plans/${fixture.id}`);
+      return (doc.nodes ?? []).find((node) => node.slug === slug)?.size ?? null;
+    };
+    const centreOf = (rect) => ({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
+    /** A drag that rests on what it is over before letting go. */
+    const dragHolding = async (rawFrom, rawTo, holdMs) => {
+      const from = onScreen(rawFrom);
+      const to = onScreen(rawTo);
+      await page.mouse.move(from.x, from.y);
+      await page.mouse.down();
+      await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 10 });
+      await page.mouse.move(to.x, to.y, { steps: 10 });
+      if (holdMs > 0) await wait(holdMs);
+      await page.mouse.up();
+      await wait(900);
+    };
+
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          {
+            op: 'upsert_node',
+            node: {
+              slug: 'boxy',
+              kind: 'group',
+              title: 'Boxy',
+              position: { x: -900, y: 200 },
+              pinned: true,
+            },
+          },
+          {
+            op: 'upsert_node',
+            node: { slug: 'mk-one', title: 'Mk one', position: { x: -900, y: 700 }, pinned: true },
+          },
+          {
+            op: 'upsert_node',
+            node: { slug: 'mk-two', title: 'Mk two', position: { x: -500, y: 700 }, pinned: true },
+          },
+          {
+            op: 'upsert_node',
+            node: { slug: 'mk-three', title: 'Mk three', position: { x: -900, y: 950 }, pinned: true },
+          },
+          {
+            op: 'upsert_node',
+            node: { slug: 'mk-four', title: 'Mk four', position: { x: -1500, y: 200 }, pinned: true },
+          },
+          {
+            op: 'upsert_node',
+            node: { slug: 'mk-five', title: 'Mk five', position: { x: -1500, y: 500 }, pinned: true },
+          },
+        ],
+      },
+    });
+    await reopen();
+
+    const emptyBox = await rectOf('boxy');
+    const aCard = await rectOf('mk-one');
+    check(
+      'a group that holds nothing is still drawn as a box',
+      emptyBox !== null && aCard !== null && emptyBox.width > aCard.width * 1.2,
+      `${Math.round(emptyBox?.width ?? 0)} against a card's ${Math.round(aCard?.width ?? 0)}`,
+    );
+
+    await dragHolding(centreOf(aCard), centreOf(emptyBox), 0);
+    check('and a node dropped into it joins it on sight', await holds('boxy', 'mk-one'));
+    await reopen();
+    check('which is what everyone else sees', inside(await rectOf('mk-one'), await rectOf('boxy')));
+
+    // The other gesture: an ordinary card becomes the box. It has to be meant,
+    // so a drag that merely passes over a card leaves it alone.
+    const two = await rectOf('mk-two');
+    const three = await rectOf('mk-three');
+    await dragHolding(centreOf(two), centreOf(three), 0);
+    check('a card passed over is not turned into a box', !(await holds('mk-three', 'mk-two')));
+
+    await reopen();
+    const twoAgain = await rectOf('mk-two');
+    const threeAgain = await rectOf('mk-three');
+    await dragHolding(centreOf(twoAgain), centreOf(threeAgain), 1200);
+    check('a card held over becomes one', await holds('mk-three', 'mk-two'));
+    await reopen();
+    check(
+      'and the node it swallowed is drawn inside it',
+      inside(await rectOf('mk-two'), await rectOf('mk-three')),
+    );
+
+    // And the gesture that needs nothing dropped on anything.
+    const clickMenuItem = async (needle) => {
+      const at = await page.evaluate((text) => {
+        const item = [...document.querySelectorAll('[role="menuitem"]')].find((el) =>
+          (el.textContent ?? '').includes(text),
+        );
+        if (item === undefined) return null;
+        const rect = item.getBoundingClientRect();
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      }, needle);
+      if (at === null) return false;
+      await page.mouse.click(at.x, at.y);
+      await wait(1200);
+      return true;
+    };
+
+    /*
+     * On two nodes of this section's own, apart from everything else. The
+     * fixture's own nodes have by now been dragged in and out of groups by the
+     * checks above and sit under whatever else was dropped on top of them, so a
+     * click at the middle of one lands on something else — which tests the
+     * gesture against the mess rather than against the gesture.
+     */
+    await reopen();
+    const chosen = () =>
+      page.evaluate(() => document.querySelectorAll('.react-flow__node.selected').length);
+
+    const first = centreOf(await rectOf('mk-four'));
+    await page.mouse.click(first.x, first.y);
+    await wait(800);
+    check('clicking a node selects it', (await chosen()) === 1, String(await chosen()));
+
+    const second = centreOf(await rectOf('mk-five'));
+    await page.keyboard.down('Control');
+    await page.mouse.click(second.x, second.y);
+    await page.keyboard.up('Control');
+    await wait(600);
+    check('two nodes can be held selected at once', (await chosen()) === 2, String(await chosen()));
+
+    const menuAt = centreOf(await rectOf('mk-five'));
+    await page.mouse.click(menuAt.x, menuAt.y, { button: 'right' });
+    await wait(900);
+    const onOffer = await page.evaluate(() =>
+      [...document.querySelectorAll('[role="menuitem"]')].map((el) => el.textContent?.trim() ?? ''),
+    );
+    const offered = await clickMenuItem('Group 2 nodes');
+    check(
+      'a selection of two is offered a box round it',
+      offered,
+      `selected ${await chosen()}, menu: ${onOffer.join(' / ').slice(0, 100)}`,
+    );
+
+    const grouped = await call(`/plans/${fixture.id}`);
+    const made = (grouped.nodes ?? []).find((node) => node.kind === 'group' && node.slug !== 'boxy');
+    check(
+      'and asking for one makes a group holding both',
+      made !== undefined &&
+        (grouped.edges ?? []).filter(
+          (edge) =>
+            edge.kind === 'contains' &&
+            edge.from === made.slug &&
+            (edge.to === 'mk-four' || edge.to === 'mk-five'),
+        ).length === 2,
+      made === undefined ? 'no group made' : made.slug,
+    );
+    check(
+      'which is drawn at bounds that enclose them',
+      made?.size != null && made.size.width > 0 && made.size.height > 0,
+      JSON.stringify(made?.size ?? null),
+    );
+
+    // A box you can pull the corner of. Nothing but auto-layout could set these
+    // bounds before.
+    console.log('\nreshaping a box');
+    await reopen();
+    const beforeSize = await boundsOf('boxy');
+    const toSelect = await rectOf('boxy');
+    await page.mouse.click(toSelect.x + 40, toSelect.y + 10);
+    await wait(400);
+    const grip = await page
+      .$eval('.react-flow__node[data-id="boxy"] .react-flow__resize-control.handle', (el) => {
+        const rect = el.getBoundingClientRect();
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      })
+      .catch(() => null);
+    check('a selected box offers a corner to pull', grip !== null);
+    if (grip !== null) {
+      await dragHolding(grip, { x: grip.x + 160, y: grip.y + 120 }, 0);
+      const afterSize = await boundsOf('boxy');
+      check(
+        'and pulling it stores the new bounds',
+        afterSize !== null &&
+          afterSize.width > (beforeSize?.width ?? 0) + 40 &&
+          afterSize.height > (beforeSize?.height ?? 0) + 30,
+        `${JSON.stringify(beforeSize)} -> ${JSON.stringify(afterSize)}`,
+      );
+    }
+
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          { op: 'delete_node', slug: 'boxy' },
+          { op: 'delete_node', slug: 'mk-one' },
+          { op: 'delete_node', slug: 'mk-two' },
+          { op: 'delete_node', slug: 'mk-three' },
+          { op: 'delete_node', slug: 'mk-four' },
+          { op: 'delete_node', slug: 'mk-five' },
+          ...(made === undefined ? [] : [{ op: 'delete_node', slug: made.slug }]),
+        ],
+      },
+    });
+
     console.log('\nnotes on the drawing');
     /*
      * A note is not a node: it is not in the React Flow node layer, nothing
@@ -687,6 +916,28 @@ try {
       return button !== undefined;
     });
     check('and the row offers a way to reach it', walked === true);
+
+    // A note was one width and four lines tall whatever was in it.
+    const noteCorner = await page.evaluate(() => {
+      // The note itself, not whichever wrapper above it also contains the text.
+      const note = [...document.querySelectorAll('.nopan')].find((el) =>
+        (el.textContent ?? '').includes('Left by the browser check.'),
+      );
+      if (note === undefined) return null;
+      const rect = note.getBoundingClientRect();
+      return { x: rect.x + rect.width - 4, y: rect.y + rect.height - 4 };
+    });
+    check('a note has a corner to pull', noteCorner !== null);
+    if (noteCorner !== null) {
+      await dragHolding(noteCorner, { x: noteCorner.x + 140, y: noteCorner.y + 90 }, 0);
+      const stored = await call(`/plans/${fixture.id}`);
+      const sized = (stored.comments ?? []).find((comment) => comment.id === 'check-note')?.size;
+      check(
+        'and pulling it stores what it was dragged to',
+        sized != null && sized.width > 240 && sized.height > 100,
+        JSON.stringify(sized ?? null),
+      );
+    }
 
     console.log('\nwho is here');
     // Alone, the roster still shows you: a collaborative canvas that shows

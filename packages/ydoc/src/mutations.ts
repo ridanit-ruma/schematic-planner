@@ -184,6 +184,22 @@ export function commitLayout(
   );
 }
 
+/** Bounds a person has dragged a note's corner to. */
+export function commitCommentSize(
+  doc: Y.Doc,
+  id: string,
+  size: NodeSize,
+  origin: unknown,
+): void {
+  const comment = commentsMap(doc).get(id);
+  if (comment === undefined) return;
+  Y.transact(
+    doc,
+    () => comment.set('size', { width: Math.round(size.width), height: Math.round(size.height) }),
+    origin,
+  );
+}
+
 /**
  * The collaborative text behind a node's body, for binding a rich text editor.
  * Editing through this merges character by character; replacing the whole string

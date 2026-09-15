@@ -637,6 +637,44 @@ surface takes structure and never coordinates, and a grid step is a coordinate a
 has nothing to decide with. Positions already stored are left alone; they come onto the
 grid the next time the plan is laid out or the node is dragged.
 
+### A box is something you can draw, not only something you end up with
+
+A node holding others is drawn as the boundary around them rather than as a card:
+the box already says what a containment line would, and drawing both produced long
+dashed paths wandering across the canvas reading as phantom boxes.
+
+For a long time that was the *only* way a box existed. Whether to draw one was
+inferred from whether the node already held something, so there was no first move —
+a box appeared once it had contents, and contents could only be dragged into a box.
+`kind: 'group'` was in the schema and read nowhere but a border colour. A group was
+therefore something only auto-layout or an agent could produce.
+
+The question is asked in one place now, `isGroup`, and answered two ways: a node is
+a group because it says it is, or because it holds something. An empty declared group
+is drawn at bounds a node can be dropped into rather than not drawn at all. The
+canvas, the store and the Obsidian Canvas export all ask that one function, so the
+picture, the hit test and the export cannot disagree about what a box is.
+
+Two gestures make one. Dropping a node on another node puts it inside — a box
+already drawn as a box takes the drop on sight, while an ordinary card has to be
+held still for half a second first and lights up when it will take it. That
+difference is the safety of the gesture rather than a flourish: joining a visible
+box is ordinary aiming, but turning a card into a box changes the shape of the
+plan, and on a dense canvas a card is something you pass over on the way somewhere
+else. The other gesture is to select several nodes and ask for a box round them,
+which arrives as one batch so that undo takes the box and its contents back
+together instead of leaving an empty group behind.
+
+Membership is exclusive, because a node sits in one box. Grouping a selection takes
+each node out of whatever held it; and when everything selected came out of the same
+box, the new one is put back inside that box rather than beside it.
+
+A box is resized from its right and bottom edges only. The other handles move the
+box's own corner, and everything inside is placed against that corner, so growing
+down and to the right is the one gesture that leaves the contents where they are.
+A note resizes from its corner too — nothing computes a note's bounds and nothing
+ever will, since layout places the drawing and a note is a remark beside it.
+
 ### A note can ask a question, and a box can answer it
 
 A node's body and a note have always been written as Markdown — the inspector says

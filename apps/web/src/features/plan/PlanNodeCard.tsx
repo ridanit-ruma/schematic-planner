@@ -1,4 +1,11 @@
-import { Handle, Position as HandlePosition, type NodeProps } from '@xyflow/react';
+import {
+  Handle,
+  NodeResizeControl,
+  Position as HandlePosition,
+  ResizeControlVariant,
+  type NodeProps,
+} from '@xyflow/react';
+import { isGroup } from '@schematic/schema';
 import { memo } from 'react';
 
 import { STATUS_COLOR } from '@/components/ui/status';
@@ -25,6 +32,27 @@ const HANDLE =
   '!size-2 !rounded-none !border !border-rule-strong !bg-surface-2 ' +
   "before:absolute before:-inset-2 before:content-['']";
 
+/**
+ * A group is only ever resized from its right and bottom edges.
+ *
+ * The other four handles move the box's own corner, and everything inside a
+ * group is placed against that corner — so dragging the top-left would have to
+ * move every descendant in the same gesture to keep the plan and the picture
+ * agreeing. Growing down and to the right leaves the contents exactly where
+ * they are, which is what somebody enlarging a box to fit another node wants
+ * anyway.
+ */
+const RESIZE_MIN = { width: 200, height: 140 };
+
+/**
+ * The edge itself is one pixel, which is what it should look like; the strip
+ * that takes the pointer is sixteen. Same bargain as a terminal above.
+ */
+const RESIZE_EDGE = "!border-accent before:absolute before:-inset-2 before:content-['']";
+const RESIZE_CORNER =
+  "!size-2 !rounded-none !border !border-accent !bg-surface-1 " +
+  "before:absolute before:-inset-2 before:content-['']";
+
 const KIND_BORDER: Record<string, string> = {
   feature: 'border border-rule-strong',
   task: 'border border-rule',
@@ -47,6 +75,9 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
   // when somebody else's does.
   const arrivedAt = usePlanStore((state) => state.arrivals.get(id));
   const dimmed = usePlanStore((state) => state.related !== null && !state.related.has(id));
+  const armed = usePlanStore((state) => state.armed === id);
+  const editable = usePlanStore((state) => state.editable);
+  const resizeNode = usePlanStore((state) => state.resizeNode);
   const attention = cn(arrivedAt !== undefined && 'plan-arrive', dimmed && 'plan-dim');
   // Its place in the sweep. The animation fills backwards, so a card waiting
   // its turn is already invisible rather than flashing on and starting over.
@@ -55,7 +86,7 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
   // A node that holds others is drawn as the boundary around them, labelled at
   // the top edge where nothing else sits. Drawn as a card it would land on top
   // of its own first child.
-  if (childCount > 0) {
+  if (isGroup(node, childCount)) {
     return (
       /* Takes events across its whole area, so a group can be picked up
          anywhere on it. What it holds is drawn above it and is hit first, so
@@ -74,6 +105,36 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
         )}
         style={entrance}
       >
+        {/* Offered on the selected box only. An invisible grab strip along
+            every group's edge would take drags meant for the canvas behind it,
+            and a boundary is a thing you point at before you reshape it. */}
+        {editable && selected === true ? (
+          <>
+            <NodeResizeControl
+              position="right"
+              variant={ResizeControlVariant.Line}
+              minWidth={RESIZE_MIN.width}
+              minHeight={RESIZE_MIN.height}
+              onResizeEnd={(_, size) => resizeNode(id, size)}
+              className={RESIZE_EDGE}
+            />
+            <NodeResizeControl
+              position="bottom"
+              variant={ResizeControlVariant.Line}
+              minWidth={RESIZE_MIN.width}
+              minHeight={RESIZE_MIN.height}
+              onResizeEnd={(_, size) => resizeNode(id, size)}
+              className={RESIZE_EDGE}
+            />
+            <NodeResizeControl
+              position="bottom-right"
+              minWidth={RESIZE_MIN.width}
+              minHeight={RESIZE_MIN.height}
+              onResizeEnd={(_, size) => resizeNode(id, size)}
+              className={RESIZE_CORNER}
+            />
+          </>
+        ) : null}
         {/* A header band, so the name belongs to the box rather than floating
             over whatever the first child happens to be. */}
         <div className="flex items-center gap-2 rounded-t-lg border-b border-rule bg-group-head px-3 py-2">
@@ -108,6 +169,9 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
         'relative flex min-h-[72px] w-[260px] overflow-hidden rounded-md bg-surface-2',
         KIND_BORDER[node.kind] ?? KIND_BORDER['task'],
         selected === true && 'border-accent ring-1 ring-accent',
+        // Held over long enough that letting go would put the dragged node
+        // inside this one. Drawn as the box it is about to become.
+        armed && 'ring-2 ring-accent',
         attention,
       )}
       style={entrance}
