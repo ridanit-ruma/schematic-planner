@@ -1595,80 +1595,116 @@ try {
       page
         .$eval(`.react-flow__node[data-id="${slug}"]`, (el) => (el.textContent ?? '').length)
         .catch(() => 0);
-    const boundsOfNode = async (slug) => {
+    const drawnHeight = (slug) =>
+      page
+        .$eval(`.react-flow__node[data-id="${slug}"]`, (el) => el.getBoundingClientRect().height)
+        .catch(() => 0);
+    const storedSize = async (slug) => {
       const doc = await call(`/plans/${fixture.id}`);
       return (doc.nodes ?? []).find((node) => node.slug === slug)?.size ?? null;
     };
 
-    const unsized = await rectOf('wordy');
-    const beforeText = await drawnBody('wordy');
-    check('a card nobody sized is drawn as it always was', (await boundsOfNode('wordy')) === null);
+    // Nothing was stored for this and nothing had to be, which is why every
+    // plan drawn before any of it is correct the moment it is opened.
+    check('a card nobody has sized carries no size', (await storedSize('wordy')) === null);
+    check(
+      'and is still taller than a card with nothing to say',
+      (await drawnHeight('wordy')) > (await drawnHeight('loose')) + 10,
+      `${Math.round(await drawnHeight('wordy'))} against ${Math.round(await drawnHeight('loose'))}`,
+    );
+    check(
+      'and shows its body rather than two clipped lines',
+      (await drawnBody('wordy')) > (await drawnBody('loose')) + 40,
+      `${await drawnBody('wordy')} against ${await drawnBody('loose')} characters`,
+    );
 
-    await page.mouse.click(unsized.x + unsized.width / 2, unsized.y + 6);
+    // Typing into a node makes its card taller, with nobody resizing anything.
+    const shortAt = await drawnHeight('wordy');
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          { op: 'upsert_node', node: { slug: 'wordy', body: `${'another line of it\n'.repeat(12)}` } },
+        ],
+      },
+    });
+    await wait(1800);
+    check(
+      'a card grows when more is said in it',
+      (await drawnHeight('wordy')) > shortAt,
+      `${Math.round(shortAt)} -> ${Math.round(await drawnHeight('wordy'))}`,
+    );
+
+    // And the box around it makes room, or the drawing says a node is inside a
+    // boundary it visibly overflows.
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: { ops: [{ op: 'upsert_edge', edge: { kind: 'contains', from: 'alpha', to: 'wordy' } }] },
+    });
+    await reopen();
+    check(
+      'and the box it sits in grew to hold it',
+      inside(await rectOf('wordy'), await rectOf('alpha')),
+    );
+
+    // The one gesture a card offers: its width. The height is not a person's to
+    // set, so there is no handle offering one.
+    const wordyCard = await rectOf('wordy');
+    await page.mouse.click(wordyCard.x + wordyCard.width / 2, wordyCard.y + 6);
     await wait(500);
-    const cardGrip = await page
-      .$eval('.react-flow__node[data-id="wordy"] .react-flow__resize-control.handle', (el) => {
+    const handles = await page
+      .$$eval('.react-flow__node[data-id="wordy"] .react-flow__resize-control', (list) =>
+        list.map((el) => el.className),
+      )
+      .catch(() => []);
+    check(
+      'a card offers one handle, on the edge it is for',
+      handles.length === 1 && handles[0].includes('right'),
+      handles.join(' | ').slice(0, 80),
+    );
+
+    const widthGrip = await page
+      .$eval('.react-flow__node[data-id="wordy"] .react-flow__resize-control', (el) => {
         const rect = el.getBoundingClientRect();
         return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
       })
       .catch(() => null);
-    check('an ordinary card offers a corner to pull', cardGrip !== null);
-
-    if (cardGrip !== null) {
-      await dragHolding(cardGrip, { x: cardGrip.x + 200, y: cardGrip.y + 160 }, 0);
-      const grown = await boundsOfNode('wordy');
-      check('and pulling it stores the bounds', grown !== null, JSON.stringify(grown));
-
-      await reopen();
-      check('which survive a reopen', (await boundsOfNode('wordy')) !== null);
+    if (widthGrip !== null) {
+      const tallAt = await drawnHeight('wordy');
+      await dragHolding(widthGrip, { x: widthGrip.x + 220, y: widthGrip.y }, 0);
+      const chosen = await storedSize('wordy');
+      check('pulling it stores a width', chosen !== null && chosen.width > 300, JSON.stringify(chosen));
       check(
-        'and the room is spent on the body rather than on nothing',
-        (await drawnBody('wordy')) > beforeText,
-        `${beforeText} -> ${await drawnBody('wordy')} characters`,
-      );
-
-      /*
-       * The check today's gate lacked, and the reason a defect reached
-       * production: the shipped group resize was only ever checked across a
-       * reopen, never across a layout run. Layout handed back every computed
-       * size unfiltered, so an agent adding one node undid a person's box.
-       */
-      const held = await boundsOfNode('wordy');
-      // Or the two assertions below compare nothing with nothing and pass
-      // without having tested anything at all.
-      check('there are bounds to defend', held !== null, JSON.stringify(held));
-      await call(`/plans/${fixture.id}/ops`, {
-        method: 'POST',
-        body: { ops: [{ op: 'upsert_node', node: { slug: 'late-arrival', title: 'Late arrival' } }] },
-      });
-      await wait(1500);
-      check(
-        'a size somebody chose survives an agent adding a node',
-        held !== null && JSON.stringify(await boundsOfNode('wordy')) === JSON.stringify(held),
-        `${JSON.stringify(held)} -> ${JSON.stringify(await boundsOfNode('wordy'))}`,
-      );
-
-      await call(`/plans/${fixture.id}/layout`, {
-        method: 'POST',
-        body: { scope: 'unpinned' },
-      });
-      await wait(1500);
-      check(
-        'and survives an Arrange of what nobody placed',
-        held !== null && JSON.stringify(await boundsOfNode('wordy')) === JSON.stringify(held),
-        JSON.stringify(await boundsOfNode('wordy')),
+        'and the body needs less height at that width',
+        (await drawnHeight('wordy')) < tallAt,
+        `${Math.round(tallAt)} -> ${Math.round(await drawnHeight('wordy'))}`,
       );
 
       await reopen();
-      const toFit = await rectOf('wordy');
-      await page.mouse.click(toFit.x + toFit.width / 2, toFit.y + 6, { button: 'right' });
+      check('which survives a reopen', (await storedSize('wordy'))?.width > 300);
+
+      const held = await storedSize('wordy');
+      await call(`/plans/${fixture.id}/layout`, { method: 'POST', body: { scope: 'unpinned' } });
+      await wait(1500);
+      check(
+        'and an Arrange of what nobody placed leaves it alone',
+        (await storedSize('wordy'))?.width === held?.width,
+        `${held?.width} -> ${(await storedSize('wordy'))?.width}`,
+      );
+
+      await reopen();
+      const toReset = await rectOf('wordy');
+      await page.mouse.click(toReset.x + toReset.width / 2, toReset.y + 6, { button: 'right' });
       await wait(700);
-      const fitted = await clickMenuItem('Fit to contents');
-      check('a sized card is offered its ordinary size back', fitted);
-      if (fitted) {
-        check('and taking it clears the bounds', (await boundsOfNode('wordy')) === null);
-      }
+      const reset = await clickMenuItem('Use the standard width');
+      check('a card is offered the standard width back', reset);
+      if (reset) check('and taking it clears the width', (await storedSize('wordy')) === null);
     }
+
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: { ops: [{ op: 'delete_edge', kind: 'contains', from: 'alpha', to: 'wordy' }] },
+    });
 
     await call(`/plans/${fixture.id}/ops`, {
       method: 'POST',

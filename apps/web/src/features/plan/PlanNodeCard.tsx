@@ -9,7 +9,7 @@ import { CARD, isGroup } from '@schematic/schema';
 import { memo } from 'react';
 
 import { STATUS_COLOR } from '@/components/ui/status';
-import { Markdown, plainExcerpt } from '@/components/ui/markdown';
+import { Markdown } from '@/components/ui/markdown';
 import { cn } from '@/lib/utils';
 import { usePlanStore } from './store-context';
 import type { PlanFlowNode } from './types';
@@ -42,6 +42,7 @@ const HANDLE =
  * they are, which is what somebody enlarging a box to fit another node wants
  * anyway.
  */
+/** How small a box may be dragged. A card has its own floor, on one axis. */
 const RESIZE_MIN = { width: 200, height: 140 };
 
 /**
@@ -92,6 +93,27 @@ function Corners({ id, onResize }: { id: string; onResize: (id: string, size: Si
 interface Size {
   width: number;
   height: number;
+}
+
+/**
+ * A card's one handle.
+ *
+ * The right edge and nothing else. A bottom edge would offer a height that the
+ * next render overrules — what a card has to say decides how tall it is — and a
+ * handle that does not hold is worse than no handle. The width is the axis a
+ * person does have an opinion about, and the height is then measured at it.
+ */
+function WidthHandle({ id, onResize }: { id: string; onResize: (id: string, size: Size) => void }) {
+  return (
+    <NodeResizeControl
+      position="right"
+      variant={ResizeControlVariant.Line}
+      minWidth={CARD.minWidth}
+      maxWidth={CARD.maxWidth}
+      onResizeEnd={(_, size) => onResize(id, size)}
+      className={RESIZE_EDGE}
+    />
+  );
 }
 
 const KIND_BORDER: Record<string, string> = {
@@ -177,17 +199,19 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
   }
 
   /*
-   * A card given room shows what is in it; a card nobody has sized keeps the
-   * one-line excerpt it always had.
+   * A card shows what is in it, always.
    *
-   * The second half is what a resize handle alone would not have delivered. The
-   * excerpt is Markdown with its syntax stripped, clamped to two lines — draw a
-   * bigger box the same way and it is a bigger box with the same two truncated
-   * lines, and the complaint that a canvas shows the flow and hides what flows
-   * is unanswered.
+   * It used to draw two lines of Markdown with the syntax stripped and truncate
+   * the rest, readable only in the inspector — a canvas that draws the flow and
+   * hides what flows. The server was already reserving room for the whole body
+   * while the browser drew eighty pixels of it, so a node with ten lines had a
+   * hole under it and its body still could not be read.
+   *
+   * The box comes from the store, which measured this body at this card's
+   * width. Past the ceiling the card is full and scrolls rather than growing
+   * into a wall the lines have to go round.
    */
-  const sized = node.size !== null;
-  const excerpt = plainExcerpt(node.body);
+  const hasBody = node.body.trim() !== '';
 
   return (
     /*
@@ -198,11 +222,10 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
      * no such clipping, which is why it worked there and not here.
      */
     <>
-      {editable && selected === true ? <Corners id={id} onResize={resizeNode} /> : null}
+      {editable && selected === true ? <WidthHandle id={id} onResize={resizeNode} /> : null}
     <div
       className={cn(
-        'relative flex overflow-hidden rounded-md bg-surface-2',
-        sized ? 'h-full w-full' : 'min-h-[72px] w-[260px]',
+        'relative flex h-full w-full overflow-hidden rounded-md bg-surface-2',
         KIND_BORDER[node.kind] ?? KIND_BORDER['task'],
         selected === true && 'border-accent ring-1 ring-accent',
         // Held over long enough that letting go would put the dragged node
@@ -217,18 +240,15 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col px-3 py-2">
         <p className="truncate text-sm leading-snug font-medium text-ink">{node.title}</p>
         <p className="slug mt-0.5 truncate text-ink-faint">{node.slug}</p>
-        {sized && node.body.trim() !== '' ? (
+        {hasBody ? (
           /* A long body is scrolled, not dragged — the note next door already
              settled that, and a second answer to it would be a second answer. */
           <div
             onPointerDown={(event) => event.stopPropagation()}
             className="nodrag mt-1.5 min-h-0 flex-1 overflow-y-auto text-xs leading-snug text-ink-muted"
-            style={{ maxHeight: CARD.maxHeight }}
           >
             <Markdown body={node.body} />
           </div>
-        ) : excerpt !== '' ? (
-          <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-ink-muted">{excerpt}</p>
         ) : null}
         {node.tags.length > 0 ? (
           <p className="mt-1.5 truncate text-2xs text-ink-faint">{node.tags.join('  ')}</p>

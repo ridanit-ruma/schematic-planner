@@ -665,50 +665,50 @@ surface takes structure and never coordinates, and a grid step is a coordinate a
 has nothing to decide with. Positions already stored are left alone; they come onto the
 grid the next time the plan is laid out or the node is dragged.
 
-### A card is as big as what it has to say, and no bigger than you let it
+### The content sets a card's height; a person may set its width
 
 A card was 260 pixels wide whatever was in it and showed two lines of its body
 with the Markdown stripped before truncating. The rest was readable only in the
 inspector, which makes a canvas that draws the flow and hides what flows.
 
-Three things were wrong and only one of them was a missing handle.
+The first answer to that was a resize handle on every card, and it was wrong.
+Not because it did not work — because it asked a person to do, node by node,
+something the machine already knew. Worse, it left the two halves disagreeing:
+the server measured each body to reserve room for it while the browser drew
+eighty pixels, so a node with ten lines of body had a hundred-and-thirty-pixel
+hole under it and its body still could not be read.
 
-**Layout guessed.** A card was placed at one of two constants — the bare card,
-or twenty-eight pixels taller if it had a body at all — so a plan whose nodes
-carry real bodies was spaced for boxes half their drawn height. The height is
-measured from the body now, between the bare card and a ceiling past which a
-card reads as full rather than becoming a wall. The numbers live in
-`@schematic/schema` because two parties need the same answer and neither can ask
-the other: the browser decides a card's real height by laying its text out, and
-the server has to predict that height before any browser has seen the plan.
+So a card is **as tall as what it has to say**, up to a ceiling past which it is
+drawn full and scrolls rather than becoming a wall the lines have to go round.
+Nothing stores that height and nothing has to, which is why every plan drawn
+before this is correct the moment it is opened — there was nothing to migrate.
 
-**A size somebody chose was treated as layout output.** Every computed size was
-handed back and written — `pinned` filtered positions and nothing filtered
-sizes — so a box resized by hand was restored by the next run, including the
-automatic one that follows any batch carrying an unplaced node. An agent adding
-a single node undid a person's box. Layout fills in a size only where there is
-none; a deliberate arrange of the whole plan still recomputes, which is what
-makes handing a node back to layout possible at all. It is filtered on having a
-size rather than on `pinned`, because a size says how big and not where:
-resizing must not also stop a node being arranged.
+The width is a person's to choose, and a card offers exactly one handle for it,
+on the right edge. A bottom edge would offer a height the next render overrules,
+and a handle that does not hold is worse than no handle. Choosing a width
+re-measures the height at that width: wider cards wrap less and so stand
+shorter. *Use the standard width* gives 260 back.
 
-**And the canvas ignored the field.** `size` is on every node in the schema,
-`upsert_node` accepts it, ELK lays out around it and the Obsidian Canvas export
-writes it — only the drawing attached it to boundaries alone. Bounds reach any
-node that has them now, and a card that has been given room renders its body
-rather than the excerpt, scrolling inside when the body outruns the room. A
-bigger box drawn the old way would have been a bigger box with the same two
-truncated lines.
+One measurement serves all of it. `cardBounds` lives in `@schematic/schema`
+because three parties need the same answer and none can ask the others — the
+browser draws the card, ELK has to place it before any browser has seen the
+plan, and the Obsidian Canvas export writes a box for a reader that is neither.
+It is an estimate, deliberately generous, and a body that outruns it scrolls
+rather than clipping.
 
-Size stays opt-in per node: a card nobody has touched draws exactly as it did,
-and *Fit to contents* gives an ordinary card back. Growing every card to fit its
-content was the alternative and it is the wrong trade — the drawing would depend
-on the text, so the picture moves while somebody types and every arrange gives a
-different shape.
+**A box grows with what it holds.** A boundary is drawn at the larger of the
+bounds somebody gave it and the bounds its contents need, on each axis
+independently. That replaces a narrower rule — that layout must not touch a
+stored size — which was right against an arrange rewriting a person's box and
+wrong against a child that has outgrown it, and a child can outgrow one now
+simply by being typed into. It is computed where the plan is projected rather
+than only when layout runs, so a box makes room as a body is written into what
+it holds.
 
-An agent never sets a size, for the same reason it never sets a position: a
+An agent never sets any of this, for the same reason it never sets a position: a
 model shown a numeric field fills it in, with a number chosen for how it reads
-in a payload. It writes the body; the server measures it.
+in a payload rather than from anything it measured. It writes the body; the
+server measures it.
 
 ### A box is something you can draw, not only something you end up with
 

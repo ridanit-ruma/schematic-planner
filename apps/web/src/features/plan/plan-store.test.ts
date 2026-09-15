@@ -1,4 +1,4 @@
-import { planDocSchema, planOpsSchema } from '@schematic/schema';
+import { CARD, DEFAULT_GROUP_SIZE, cardHeight, planDocSchema, planOpsSchema } from '@schematic/schema';
 import { applyOps, initializePlan } from '@schematic/ydoc';
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
@@ -212,34 +212,102 @@ describe('a node that holds others without calling itself a group', () => {
 });
 
 /**
- * Every layer but this one already honoured a node's size: the schema carries
- * it on every node, ELK lays out around it and the export writes it. The canvas
- * attached it to boundaries alone.
+ * A card is as tall as what it has to say and nothing stores that height, so a
+ * plan drawn before any of this is correct the moment it is opened — there was
+ * nothing to migrate.
  */
-describe('a card that has been given bounds', () => {
-  it('is drawn at them', () => {
+describe('how tall a card is drawn', () => {
+  it('is the bare card when it says nothing', () => {
+    const { bound } = seeded();
+    expect(byId(bound.store.getState().nodes, 'db')?.style).toEqual({
+      width: CARD.width,
+      height: CARD.minHeight,
+    });
+  });
+
+  it('grows with the body, with nobody having sized anything', () => {
     const { doc, bound } = seeded();
     applyOps(
       doc,
-      ops([{ op: 'upsert_node', node: { slug: 'db', size: { width: 420, height: 300 } } }]),
+      ops([
+        {
+          op: 'upsert_node',
+          node: { slug: 'db', body: 'one\ntwo\nthree\nfour\nfive\nsix\nseven' },
+        },
+      ]),
     );
 
-    expect(byId(bound.store.getState().nodes, 'db')?.style).toEqual({ width: 420, height: 300 });
+    const height = byId(bound.store.getState().nodes, 'db')?.style?.height;
+    expect(height).toBe(cardHeight('one\ntwo\nthree\nfour\nfive\nsix\nseven'));
+    expect(height).toBeGreaterThan(CARD.minHeight);
   });
 
-  it('and one that has not is left to its own contents', () => {
-    const { bound } = seeded();
-    expect(byId(bound.store.getState().nodes, 'db')?.style).toBeUndefined();
+  it('takes the width somebody chose, and measures the height at it', () => {
+    const { doc, bound } = seeded();
+    const body = 'x'.repeat(200);
+    applyOps(
+      doc,
+      ops([{ op: 'upsert_node', node: { slug: 'db', body, size: { width: 520, height: 9999 } } }]),
+    );
+
+    expect(byId(bound.store.getState().nodes, 'db')?.style).toEqual({
+      width: 520,
+      // Never the stored 9999: a card's height is not a person's to set.
+      height: cardHeight(body, 520),
+    });
   });
 
-  it('goes back to that when its size is cleared', () => {
+  it('returns to the standard width when the width is cleared', () => {
     const { doc, bound } = seeded();
     applyOps(
       doc,
-      ops([{ op: 'upsert_node', node: { slug: 'db', size: { width: 420, height: 300 } } }]),
+      ops([{ op: 'upsert_node', node: { slug: 'db', size: { width: 520, height: 100 } } }]),
     );
     applyOps(doc, ops([{ op: 'upsert_node', node: { slug: 'db', size: null } }]));
 
-    expect(byId(bound.store.getState().nodes, 'db')?.style).toBeUndefined();
+    expect(byId(bound.store.getState().nodes, 'db')?.style?.width).toBe(CARD.width);
+  });
+});
+
+describe('a box around a card that has grown', () => {
+  const held = () => {
+    const made = seeded();
+    applyOps(
+      made.doc,
+      ops([
+        { op: 'upsert_node', node: { slug: 'box', kind: 'group', title: 'Box' } },
+        { op: 'upsert_edge', edge: { kind: 'contains', from: 'box', to: 'db' } },
+      ]),
+    );
+    return made;
+  };
+
+  it('is at least the bounds it was given', () => {
+    const { bound } = held();
+    const box = byId(bound.store.getState().nodes, 'box')?.style;
+    expect(box?.width).toBeGreaterThanOrEqual(DEFAULT_GROUP_SIZE.width);
+  });
+
+  it('grows when what it holds outgrows it', () => {
+    const { doc, bound } = held();
+    const before = byId(bound.store.getState().nodes, 'box')?.style?.height ?? 0;
+
+    applyOps(doc, ops([{ op: 'upsert_node', node: { slug: 'db', body: 'line\n'.repeat(18) } }]));
+
+    const after = byId(bound.store.getState().nodes, 'box')?.style?.height ?? 0;
+    expect(after).toBeGreaterThan(before);
+  });
+
+  it('keeps bounds somebody gave it that are larger than it needs', () => {
+    const { doc, bound } = held();
+    applyOps(
+      doc,
+      ops([{ op: 'upsert_node', node: { slug: 'box', size: { width: 1200, height: 900 } } }]),
+    );
+
+    expect(byId(bound.store.getState().nodes, 'box')?.style).toEqual({
+      width: 1200,
+      height: 900,
+    });
   });
 });

@@ -31,3 +31,36 @@ export function isGroup(node: Pick<PlanNode, 'kind'>, childCount: number): boole
 export function groupSize(node: Pick<PlanNode, 'size'>): { width: number; height: number } {
   return node.size ?? DEFAULT_GROUP_SIZE;
 }
+
+/**
+ * Room a box keeps around what it holds, for its own label and its margins.
+ *
+ * Mirrors ELK's container padding, so a node placed by hand sits where layout
+ * would have put it. Every side is a multiple of the grid, which is what leaves
+ * an intersection inside a box for a snapped drop to land on.
+ */
+export const GROUP_PADDING = { top: 40, left: 20, bottom: 20, right: 20 } as const;
+
+export interface Box {
+  width: number;
+  height: number;
+}
+
+/**
+ * The bounds a box is drawn at: the larger of what somebody gave it and what
+ * its contents need.
+ *
+ * Both halves matter, and the rule this replaces had only one of them. Keeping
+ * a stored size untouched is right against an arrange rewriting a person's box
+ * and wrong against a child that has outgrown it — and a child can outgrow it
+ * now simply by being typed into, since a card is as tall as what it says. A
+ * boundary a node visibly overflows is the drawing contradicting the document.
+ */
+export function growToHold(stored: Box | null, needed: Box | null): Box {
+  const floor = stored ?? DEFAULT_GROUP_SIZE;
+  if (needed === null) return { width: floor.width, height: floor.height };
+  return {
+    width: Math.max(floor.width, needed.width),
+    height: Math.max(floor.height, needed.height),
+  };
+}

@@ -1,4 +1,5 @@
 import {
+  cardBounds,
   containmentDepth,
   groupSize,
   isGroup,
@@ -37,8 +38,6 @@ export interface Canvas {
   edges: CanvasEdge[];
 }
 
-const NODE_WIDTH = 280;
-const NODE_HEIGHT = 140;
 const COLUMN_GAP = 400;
 const ROW_GAP = 200;
 const NOTE_WIDTH = 240;
@@ -105,8 +104,11 @@ export function toCanvas(
           file: fileOf.get(slug) ?? `${slug}.md`,
           x: Math.round(x),
           y: Math.round(y),
-          width: Math.round(node.size?.width ?? NODE_WIDTH),
-          height: Math.round(node.size?.height ?? NODE_HEIGHT),
+          // Measured rather than read: a card's height is what its body comes
+          // to at its width, and the stored one goes stale the moment the body
+          // is edited.
+          width: Math.round(cardBounds(node).width),
+          height: Math.round(cardBounds(node).height),
         };
     const color = STATUS_COLOR[node.status];
     if (color !== undefined) canvasNode.color = color;

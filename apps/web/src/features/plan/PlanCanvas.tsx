@@ -10,10 +10,11 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import {
-  groupSize,
+  CARD,
   isGroup,
   normalizeEdge,
   planEdgeInputSchema,
+  type Box,
   type PlanOp,
   type Position,
 } from '@schematic/schema';
@@ -88,11 +89,16 @@ function pointerOf(event: MouseEvent | TouchEvent): Position | null {
   return touch === undefined ? null : { x: touch.clientX, y: touch.clientY };
 }
 
-/** The bounds a node occupies on the canvas: a box if it is one, else a card. */
-function boxOf(node: PlanFlowNode): { width: number; height: number } {
-  return isGroup(node.data.node, node.data.childCount)
-    ? groupSize(node.data.node)
-    : { width: node.measured?.width ?? 260, height: node.measured?.height ?? 76 };
+/**
+ * The bounds a node occupies, as the store worked them out.
+ *
+ * Not `measured`, which is what the browser last laid out and is a frame behind
+ * a card that has just been typed into, and not the stored size, which a card
+ * does not have a height in. One answer, so a drop lands where the drawing says
+ * it will.
+ */
+function boxOf(bounds: Record<string, Box>, node: PlanFlowNode): Box {
+  return bounds[node.id] ?? { width: CARD.width, height: CARD.minHeight };
 }
 const edgeTypes: EdgeTypes = { plan: PlanEdgeLine };
 
@@ -168,6 +174,7 @@ export function PlanCanvas({
   const select = useStore(store, (state) => state.select);
   const absolute = useStore(store, (state) => state.absolute);
   const parentOf = useStore(store, (state) => state.parentOf);
+  const bounds = useStore(store, (state) => state.bounds);
   const arm = useStore(store, (state) => state.arm);
   const selectEdge = useStore(store, (state) => state.selectEdge);
   const highlight = useStore(store, (state) => state.highlight);
@@ -237,7 +244,7 @@ export function PlanCanvas({
       connection.publishDrag({ [node.id]: node.position });
 
       const parent = node.parentId === undefined ? null : absolute[node.parentId];
-      const box = boxOf(node);
+      const box = boxOf(bounds, node);
       const centre = {
         x: (parent?.x ?? 0) + node.position.x + box.width / 2,
         y: (parent?.y ?? 0) + node.position.y + box.height / 2,
@@ -250,7 +257,7 @@ export function PlanCanvas({
           if (isGroup(candidate.data.node, candidate.data.childCount)) return false;
           const at = absolute[candidate.id];
           if (at === undefined) return false;
-          const size = boxOf(candidate);
+          const size = boxOf(bounds, candidate);
           return (
             centre.x >= at.x &&
             centre.x <= at.x + size.width &&
@@ -285,7 +292,7 @@ export function PlanCanvas({
               }, ARM_MS),
       };
     },
-    [absolute, arm, connection, nodes],
+    [absolute, arm, bounds, connection, nodes],
   );
 
   /**
@@ -341,7 +348,7 @@ export function PlanCanvas({
         )
         .map((candidate) => ({
           slug: candidate.id,
-          rect: { ...(absolute[candidate.id] ?? { x: 0, y: 0 }), ...boxOf(candidate) } as Rect,
+          rect: { ...(absolute[candidate.id] ?? { x: 0, y: 0 }), ...boxOf(bounds, candidate) } as Rect,
           depth: Math.round(((candidate.zIndex ?? 0) as number) / 10),
         }));
 
@@ -393,7 +400,7 @@ export function PlanCanvas({
         commitLayout(doc, moved, ORIGIN_LOCAL, grown);
       }
     },
-    [absolute, connection, disarm, doc, grid, nodes, onApplyOps, parentOf],
+    [absolute, bounds, connection, disarm, doc, grid, nodes, onApplyOps, parentOf],
   );
 
   /**
@@ -406,7 +413,7 @@ export function PlanCanvas({
     const result = groupOps(
       selection.map((node) => ({
         slug: node.id,
-        rect: { ...(absolute[node.id] ?? { x: 0, y: 0 }), ...boxOf(node) },
+        rect: { ...(absolute[node.id] ?? { x: 0, y: 0 }), ...boxOf(bounds, node) },
       })),
       parentOf,
       nodes.map((node) => node.id),
@@ -479,10 +486,15 @@ export function PlanCanvas({
    * what lets the next arrange measure the body afresh, since a size somebody
    * chose is deliberately never recomputed.
    */
-  const sizedUnder =
-    under?.kind === 'node'
-      ? (nodes.find((candidate) => candidate.id === under.id)?.data.node.size ?? null)
-      : null;
+  const under_ = under?.kind === 'node' ? nodes.find((c) => c.id === under.id) : undefined;
+  const sizedUnder = under_?.data.node.size ?? null;
+  // A box is handed back to layout; a card is handed back to the standard
+  // width. Different sentences because they are different acts: a card has no
+  // height of its own to restore, only the width somebody chose for it.
+  const undoSizeLabel =
+    under_ !== undefined && isGroup(under_.data.node, under_.data.childCount)
+      ? 'Fit to contents'
+      : 'Use the standard width';
 
   const fitUnder = (): void => {
     if (under === null || under.kind !== 'node') return;
@@ -530,7 +542,7 @@ export function PlanCanvas({
           {sizedUnder === null ? null : (
             <ContextAction onSelect={fitUnder}>
               <Shrink className="size-3.5 text-ink-faint" />
-              Fit to contents
+              {undoSizeLabel}
             </ContextAction>
           )}
           {under === null ? null : (
