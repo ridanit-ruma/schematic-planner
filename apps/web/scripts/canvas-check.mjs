@@ -914,127 +914,6 @@ try {
       body: { ops: [{ op: 'delete_node', slug: 'raced' }] },
     });
 
-    console.log('\na card with something to say');
-    /*
-     * Every layer but the canvas already honoured a node's size, and no
-     * ordinary card had ever been given one. A card drew 260px wide with two
-     * stripped lines of its body and the rest readable only in the inspector,
-     * which is a canvas that shows the flow and hides what flows.
-     */
-    await call(`/plans/${fixture.id}/ops`, {
-      method: 'POST',
-      body: {
-        ops: [
-          {
-            op: 'upsert_node',
-            node: {
-              slug: 'wordy',
-              title: 'Wordy',
-              body: [
-                'The **first** line of a body that does not fit on a card.',
-                '',
-                '- one thing it does',
-                '- another thing it does',
-                '- a third, for length',
-                '',
-                'And a closing remark nobody would see at 260 pixels.',
-              ].join('\n'),
-            },
-          },
-        ],
-      },
-    });
-    await reopen();
-
-    const drawnBody = (slug) =>
-      page
-        .$eval(`.react-flow__node[data-id="${slug}"]`, (el) => (el.textContent ?? '').length)
-        .catch(() => 0);
-    const boundsOfNode = async (slug) => {
-      const doc = await call(`/plans/${fixture.id}`);
-      return (doc.nodes ?? []).find((node) => node.slug === slug)?.size ?? null;
-    };
-
-    const unsized = await rectOf('wordy');
-    const beforeText = await drawnBody('wordy');
-    check('a card nobody sized is drawn as it always was', (await boundsOfNode('wordy')) === null);
-
-    await page.mouse.click(unsized.x + unsized.width / 2, unsized.y + 6);
-    await wait(500);
-    const cardGrip = await page
-      .$eval('.react-flow__node[data-id="wordy"] .react-flow__resize-control.handle', (el) => {
-        const rect = el.getBoundingClientRect();
-        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-      })
-      .catch(() => null);
-    check('an ordinary card offers a corner to pull', cardGrip !== null);
-
-    if (cardGrip !== null) {
-      await dragHolding(cardGrip, { x: cardGrip.x + 200, y: cardGrip.y + 160 }, 0);
-      const grown = await boundsOfNode('wordy');
-      check('and pulling it stores the bounds', grown !== null, JSON.stringify(grown));
-
-      await reopen();
-      check('which survive a reopen', (await boundsOfNode('wordy')) !== null);
-      check(
-        'and the room is spent on the body rather than on nothing',
-        (await drawnBody('wordy')) > beforeText,
-        `${beforeText} -> ${await drawnBody('wordy')} characters`,
-      );
-
-      /*
-       * The check today's gate lacked, and the reason a defect reached
-       * production: the shipped group resize was only ever checked across a
-       * reopen, never across a layout run. Layout handed back every computed
-       * size unfiltered, so an agent adding one node undid a person's box.
-       */
-      const held = await boundsOfNode('wordy');
-      // Or the two assertions below compare nothing with nothing and pass
-      // without having tested anything at all.
-      check('there are bounds to defend', held !== null, JSON.stringify(held));
-      await call(`/plans/${fixture.id}/ops`, {
-        method: 'POST',
-        body: { ops: [{ op: 'upsert_node', node: { slug: 'late-arrival', title: 'Late arrival' } }] },
-      });
-      await wait(1500);
-      check(
-        'a size somebody chose survives an agent adding a node',
-        held !== null && JSON.stringify(await boundsOfNode('wordy')) === JSON.stringify(held),
-        `${JSON.stringify(held)} -> ${JSON.stringify(await boundsOfNode('wordy'))}`,
-      );
-
-      await call(`/plans/${fixture.id}/layout`, {
-        method: 'POST',
-        body: { scope: 'unpinned' },
-      });
-      await wait(1500);
-      check(
-        'and survives an Arrange of what nobody placed',
-        held !== null && JSON.stringify(await boundsOfNode('wordy')) === JSON.stringify(held),
-        JSON.stringify(await boundsOfNode('wordy')),
-      );
-
-      await reopen();
-      const toFit = await rectOf('wordy');
-      await page.mouse.click(toFit.x + toFit.width / 2, toFit.y + 6, { button: 'right' });
-      await wait(700);
-      const fitted = await clickMenuItem('Fit to contents');
-      check('a sized card is offered its ordinary size back', fitted);
-      if (fitted) {
-        check('and taking it clears the bounds', (await boundsOfNode('wordy')) === null);
-      }
-    }
-
-    await call(`/plans/${fixture.id}/ops`, {
-      method: 'POST',
-      body: {
-        ops: [
-          { op: 'delete_node', slug: 'wordy' },
-          { op: 'delete_node', slug: 'late-arrival' },
-        ],
-      },
-    });
-
     await call(`/plans/${fixture.id}/ops`, {
       method: 'POST',
       body: {
@@ -1654,6 +1533,135 @@ try {
       opened.drawn > 0 && opened.inside === opened.drawn,
       `${opened.inside} of ${opened.drawn}`,
     );
+
+    /*
+     * Last of the canvas sections, deliberately. It arranges the whole plan to
+     * prove a hand-set size survives one, and an arrange moves every node that
+     * nobody placed — so run earlier it would hand the checks below a drawing
+     * laid out differently from the one they were written against, and a line
+     * they meant to bend would have become straight.
+     */
+    console.log('\na card with something to say');
+    /*
+     * Every layer but the canvas already honoured a node's size, and no
+     * ordinary card had ever been given one. A card drew 260px wide with two
+     * stripped lines of its body and the rest readable only in the inspector,
+     * which is a canvas that shows the flow and hides what flows.
+     */
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          {
+            op: 'upsert_node',
+            node: {
+              slug: 'wordy',
+              title: 'Wordy',
+              body: [
+                'The **first** line of a body that does not fit on a card.',
+                '',
+                '- one thing it does',
+                '- another thing it does',
+                '- a third, for length',
+                '',
+                'And a closing remark nobody would see at 260 pixels.',
+              ].join('\n'),
+            },
+          },
+        ],
+      },
+    });
+    await reopen();
+
+    const drawnBody = (slug) =>
+      page
+        .$eval(`.react-flow__node[data-id="${slug}"]`, (el) => (el.textContent ?? '').length)
+        .catch(() => 0);
+    const boundsOfNode = async (slug) => {
+      const doc = await call(`/plans/${fixture.id}`);
+      return (doc.nodes ?? []).find((node) => node.slug === slug)?.size ?? null;
+    };
+
+    const unsized = await rectOf('wordy');
+    const beforeText = await drawnBody('wordy');
+    check('a card nobody sized is drawn as it always was', (await boundsOfNode('wordy')) === null);
+
+    await page.mouse.click(unsized.x + unsized.width / 2, unsized.y + 6);
+    await wait(500);
+    const cardGrip = await page
+      .$eval('.react-flow__node[data-id="wordy"] .react-flow__resize-control.handle', (el) => {
+        const rect = el.getBoundingClientRect();
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      })
+      .catch(() => null);
+    check('an ordinary card offers a corner to pull', cardGrip !== null);
+
+    if (cardGrip !== null) {
+      await dragHolding(cardGrip, { x: cardGrip.x + 200, y: cardGrip.y + 160 }, 0);
+      const grown = await boundsOfNode('wordy');
+      check('and pulling it stores the bounds', grown !== null, JSON.stringify(grown));
+
+      await reopen();
+      check('which survive a reopen', (await boundsOfNode('wordy')) !== null);
+      check(
+        'and the room is spent on the body rather than on nothing',
+        (await drawnBody('wordy')) > beforeText,
+        `${beforeText} -> ${await drawnBody('wordy')} characters`,
+      );
+
+      /*
+       * The check today's gate lacked, and the reason a defect reached
+       * production: the shipped group resize was only ever checked across a
+       * reopen, never across a layout run. Layout handed back every computed
+       * size unfiltered, so an agent adding one node undid a person's box.
+       */
+      const held = await boundsOfNode('wordy');
+      // Or the two assertions below compare nothing with nothing and pass
+      // without having tested anything at all.
+      check('there are bounds to defend', held !== null, JSON.stringify(held));
+      await call(`/plans/${fixture.id}/ops`, {
+        method: 'POST',
+        body: { ops: [{ op: 'upsert_node', node: { slug: 'late-arrival', title: 'Late arrival' } }] },
+      });
+      await wait(1500);
+      check(
+        'a size somebody chose survives an agent adding a node',
+        held !== null && JSON.stringify(await boundsOfNode('wordy')) === JSON.stringify(held),
+        `${JSON.stringify(held)} -> ${JSON.stringify(await boundsOfNode('wordy'))}`,
+      );
+
+      await call(`/plans/${fixture.id}/layout`, {
+        method: 'POST',
+        body: { scope: 'unpinned' },
+      });
+      await wait(1500);
+      check(
+        'and survives an Arrange of what nobody placed',
+        held !== null && JSON.stringify(await boundsOfNode('wordy')) === JSON.stringify(held),
+        JSON.stringify(await boundsOfNode('wordy')),
+      );
+
+      await reopen();
+      const toFit = await rectOf('wordy');
+      await page.mouse.click(toFit.x + toFit.width / 2, toFit.y + 6, { button: 'right' });
+      await wait(700);
+      const fitted = await clickMenuItem('Fit to contents');
+      check('a sized card is offered its ordinary size back', fitted);
+      if (fitted) {
+        check('and taking it clears the bounds', (await boundsOfNode('wordy')) === null);
+      }
+    }
+
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          { op: 'delete_node', slug: 'wordy' },
+          { op: 'delete_node', slug: 'late-arrival' },
+        ],
+      },
+    });
+
 
     console.log('\nfollowing one thread');
     // Pointing at a node is asking what it connects to. The answer is that the
