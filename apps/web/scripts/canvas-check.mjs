@@ -858,43 +858,23 @@ try {
      * person, and only an end-to-end check can see that the comparison happens
      * inside the document lock rather than beside it.
      */
-    const opsWith = (body) =>
-      page.evaluate(
-        async ({ id, t, payload }) => {
-          const r = await fetch(`/api/plans/${id}/ops`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json', authorization: `Bearer ${t}` },
-            body: JSON.stringify(payload),
-          });
-          return { status: r.status };
-        },
-        { id: fixture.id, t: token, payload: body },
-      );
+    // Through the check's own authenticated caller rather than a fetch of its
+    // own: the share section below declares a `token` of its own in this block,
+    // so naming that identifier here reaches it before it exists.
+    const opsWith = (payload) => call(`/plans/${fixture.id}/ops`, { method: 'POST', body: payload });
 
-    // The revision is reported by the MCP surface; over REST the same value is
-    // reached by asking the tool endpoint the agent would ask.
     const readRevision = async () => {
-      const out = await page.evaluate(
-        async ({ t, id }) => {
-          const r = await fetch('/api/mcp', {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-              accept: 'application/json, text/event-stream',
-              authorization: `Bearer ${t}`,
-            },
-            body: JSON.stringify({
-              jsonrpc: '2.0',
-              id: 1,
-              method: 'tools/call',
-              params: { name: 'get_plan', arguments: { planId: id, view: 'outline' } },
-            }),
-          });
-          return await r.text();
+      const answer = await call('/mcp', {
+        method: 'POST',
+        body: {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'get_plan', arguments: { planId: fixture.id, view: 'outline' } },
         },
-        { t: token, id: fixture.id },
-      );
-      return /Revision: (\S+)/.exec(out)?.[1] ?? null;
+      });
+      const said = (answer?.result?.content ?? []).map((part) => part.text ?? '').join('\n');
+      return /Revision: (\S+)/.exec(said)?.[1] ?? null;
     };
 
     const revision = await readRevision();
@@ -905,13 +885,17 @@ try {
         ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Raced' } }],
         expectedRevision: revision,
       });
-      check('a batch written against it applies', fresh.status < 300, String(fresh.status));
+      check('a batch written against it applies', fresh?.error === undefined, String(fresh?.error));
 
       const stale = await opsWith({
         ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Overwritten' } }],
         expectedRevision: revision,
       });
-      check('and one written against a revision that has moved on is refused', stale.status === 409, String(stale.status));
+      check(
+        'and one written against a revision that has moved on is refused',
+        stale?.error === 409,
+        String(stale?.error),
+      );
 
       const after = await call(`/plans/${fixture.id}`);
       check(
@@ -923,7 +907,14 @@ try {
       const unchecked = await opsWith({
         ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Unchecked' } }],
       });
-      check('a batch naming no revision applies, as every client today does', unchecked.status < 300, String(unchecked.status));
+      check(
+        'a batch naming no revision applies, as every client today does',
+        unchecked?.error === undefined,
+        String(unchecked?.error),
+      );
+
+      const moved = await readRevision();
+      check('and the revision has moved with the plan', moved !== revision, String(moved).slice(0, 24));
     }
 
     await call(`/plans/${fixture.id}/ops`, {
