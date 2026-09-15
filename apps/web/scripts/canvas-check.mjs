@@ -1060,6 +1060,10 @@ try {
       check('and it can be given its old name back', (await touching('loose')).exists);
     }
 
+    // Editing an identifier leaves the inspector open over the canvas, and the
+    // checks below ask what is drawn at a point. Put the screen back first.
+    await reopen();
+
     console.log('\ndrawing a connection');
     const terminal = await page
       .$eval('.react-flow__node[data-id="alpha"] .react-flow__handle.source', (el) => {
