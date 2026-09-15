@@ -871,65 +871,6 @@ try {
       );
     }
 
-    console.log('\nwriting against what you read');
-    /*
-     * apply_ops writes whole fields — an upsert sets title, status and kind
-     * outright — so Yjs merges characters inside a body but not two setters of
-     * the same field. An agent acting on a stale read really can overwrite a
-     * person, and only an end-to-end check can see that the comparison happens
-     * inside the document lock rather than beside it.
-     */
-    // Through the check's own authenticated caller rather than a fetch of its
-    // own: the share section below declares a `token` of its own in this block,
-    // so naming that identifier here reaches it before it exists.
-    const opsWith = (payload) => call(`/plans/${fixture.id}/ops`, { method: 'POST', body: payload });
-
-    const readRevision = async () => (await call(`/plans/${fixture.id}/revision`))?.revision ?? null;
-
-    const revision = await readRevision();
-    check('a plan says what it is at', revision !== null, String(revision).slice(0, 24));
-
-    if (revision !== null) {
-      const fresh = await opsWith({
-        ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Raced' } }],
-        expectedRevision: revision,
-      });
-      check('a batch written against it applies', fresh?.error === undefined, String(fresh?.error));
-
-      const stale = await opsWith({
-        ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Overwritten' } }],
-        expectedRevision: revision,
-      });
-      check(
-        'and one written against a revision that has moved on is refused',
-        stale?.error === 409,
-        String(stale?.error),
-      );
-
-      const after = await call(`/plans/${fixture.id}`);
-      check(
-        'and the refused batch changed nothing at all',
-        (after.nodes ?? []).find((node) => node.slug === 'raced')?.title === 'Raced',
-        (after.nodes ?? []).find((node) => node.slug === 'raced')?.title ?? 'gone',
-      );
-
-      const unchecked = await opsWith({
-        ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Unchecked' } }],
-      });
-      check(
-        'a batch naming no revision applies, as every client today does',
-        unchecked?.error === undefined,
-        String(unchecked?.error),
-      );
-
-      const moved = await readRevision();
-      check('and the revision has moved with the plan', moved !== revision, String(moved).slice(0, 24));
-    }
-
-    await call(`/plans/${fixture.id}/ops`, {
-      method: 'POST',
-      body: { ops: [{ op: 'delete_node', slug: 'raced' }] },
-    });
 
     await call(`/plans/${fixture.id}/ops`, {
       method: 'POST',
@@ -1558,6 +1499,66 @@ try {
      * laid out differently from the one they were written against, and a line
      * they meant to bend would have become straight.
      */
+    console.log('\nwriting against what you read');
+    /*
+     * apply_ops writes whole fields — an upsert sets title, status and kind
+     * outright — so Yjs merges characters inside a body but not two setters of
+     * the same field. An agent acting on a stale read really can overwrite a
+     * person, and only an end-to-end check can see that the comparison happens
+     * inside the document lock rather than beside it.
+     */
+    // Through the check's own authenticated caller rather than a fetch of its
+    // own: the share section below declares a `token` of its own in this block,
+    // so naming that identifier here reaches it before it exists.
+    const opsWith = (payload) => call(`/plans/${fixture.id}/ops`, { method: 'POST', body: payload });
+
+    const readRevision = async () => (await call(`/plans/${fixture.id}/revision`))?.revision ?? null;
+
+    const revision = await readRevision();
+    check('a plan says what it is at', revision !== null, String(revision).slice(0, 24));
+
+    if (revision !== null) {
+      const fresh = await opsWith({
+        ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Raced' } }],
+        expectedRevision: revision,
+      });
+      check('a batch written against it applies', fresh?.error === undefined, String(fresh?.error));
+
+      const stale = await opsWith({
+        ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Overwritten' } }],
+        expectedRevision: revision,
+      });
+      check(
+        'and one written against a revision that has moved on is refused',
+        stale?.error === 409,
+        String(stale?.error),
+      );
+
+      const after = await call(`/plans/${fixture.id}`);
+      check(
+        'and the refused batch changed nothing at all',
+        (after.nodes ?? []).find((node) => node.slug === 'raced')?.title === 'Raced',
+        (after.nodes ?? []).find((node) => node.slug === 'raced')?.title ?? 'gone',
+      );
+
+      const unchecked = await opsWith({
+        ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Unchecked' } }],
+      });
+      check(
+        'a batch naming no revision applies, as every client today does',
+        unchecked?.error === undefined,
+        String(unchecked?.error),
+      );
+
+      const moved = await readRevision();
+      check('and the revision has moved with the plan', moved !== revision, String(moved).slice(0, 24));
+    }
+
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: { ops: [{ op: 'delete_node', slug: 'raced' }] },
+    });
+
     console.log('\na card with something to say');
     /*
      * Every layer but the canvas already honoured a node's size, and no
