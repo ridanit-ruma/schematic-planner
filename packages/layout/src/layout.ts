@@ -2,7 +2,7 @@ import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js';
 import {
   CARD,
   buildPlanGraph,
-  cardHeight,
+  cardBounds,
   edgeNote,
   type PlanDoc,
   type Position,
@@ -163,11 +163,13 @@ export async function layoutPlan(
         elkNode.children = buildChildren(children);
         elkNode.layoutOptions = elkOptions(settings);
       } else {
-        elkNode.width = node?.size?.width ?? settings.nodeWidth;
-        // What the browser will actually draw this card at, rather than one of
-        // two constants. A plan whose nodes carry real bodies was laid out for
-        // boxes half their drawn height, so the lines ran under the cards below.
-        elkNode.height = node?.size?.height ?? cardHeight(node?.body ?? '');
+        // The box the browser will actually draw, asked of the same function
+        // the browser asks. A card's height is not stored and a stored height is
+        // not read: what the card has to say decides it, at whatever width it
+        // has been given.
+        const box = node === undefined ? null : cardBounds(node);
+        elkNode.width = box?.width ?? settings.nodeWidth;
+        elkNode.height = box?.height ?? settings.nodeHeight;
       }
       return elkNode;
     });
@@ -244,21 +246,29 @@ export async function layoutPlan(
   collectLabels(laid);
 
   /*
-   * A size is not layout output once somebody has chosen it.
+   * A box somebody sized is a floor, not a fixed value.
    *
-   * Both returns below used to hand back every computed size: `pinned` filtered
-   * positions and nothing filtered sizes, so a box resized by hand was restored
-   * to ELK's measurement by the next run — including the automatic one that
-   * follows any batch carrying an unplaced node. An agent adding one node undid
-   * a person's box.
+   * These returns used to hand back every computed size, so a box resized by
+   * hand was restored to ELK's measurement by the next run — an agent adding
+   * one node undid a person's box. The fix for that kept a stored size
+   * untouched, which is wrong in the other direction: a child can outgrow its
+   * boundary simply by being typed into, and a boundary a node visibly
+   * overflows is the drawing contradicting the document.
    *
-   * Filtered on having a size rather than on `pinned`, because a size says how
-   * big and not where: resizing a node must not also stop it being arranged.
-   * A deliberate `scope: 'all'` still recomputes everything, which is what
-   * makes "fit this back to its contents" possible at all.
+   * So a stored size holds unless what the box now contains needs more, on
+   * either axis independently. A deliberate `scope: 'all'` recomputes outright,
+   * which is what lets somebody hand a box back to layout.
    */
   if (settings.scope !== 'all') {
-    for (const node of doc.nodes) if (node.size !== null) sizes.delete(node.slug);
+    for (const node of doc.nodes) {
+      if (node.size === null) continue;
+      const computed = sizes.get(node.slug);
+      if (computed === undefined) continue;
+      sizes.set(node.slug, {
+        width: Math.max(node.size.width, computed.width),
+        height: Math.max(node.size.height, computed.height),
+      });
+    }
   }
 
   if (settings.scope === 'all') return { positions: round(computed), sizes, labels: round(labels) };

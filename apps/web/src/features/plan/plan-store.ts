@@ -1,5 +1,14 @@
 import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } from '@xyflow/react';
-import { buildPlanGraph, containmentDepth, groupSize, isGroup } from '@schematic/schema';
+import {
+  GROUP_PADDING,
+  buildPlanGraph,
+  cardBounds,
+  cardHeight,
+  containmentDepth,
+  growToHold,
+  isGroup,
+  type Box,
+} from '@schematic/schema';
 import type { PlanComment, PlanDoc, PlanEdge, PlanNode, Position } from '@schematic/schema';
 import {
   ORIGIN_LOCAL,
@@ -60,6 +69,15 @@ export interface PlanState {
   absolute: Record<string, Position>;
   /** The group each node belongs to, where that group is drawn as a boundary. */
   parentOf: Record<string, string>;
+  /**
+   * The box every node is drawn at.
+   *
+   * A card's height is not stored anywhere: what it has to say decides it, so
+   * it is measured here, and a box around it is grown to hold what it measured.
+   * Anything reasoning about where things are — a drop, a hit test — reads this
+   * rather than asking the document for a size it may not have.
+   */
+  bounds: Record<string, Box>;
   /**
    * The card a dragged node has been held over long enough to turn into a box,
    * or null.
@@ -140,6 +158,7 @@ function toFlowNode(
   childCount: number,
   parent: { slug: string; position: Position } | null,
   depth: number,
+  box: Box,
 ): PlanFlowNode {
   const boundary = isGroup(node, childCount);
   const absolute = node.position ?? { x: 0, y: 0 };
@@ -159,12 +178,10 @@ function toFlowNode(
     // terminal buries it and the group cannot be connected to at all. Within
     // that, a container stays under what it holds, at every depth of nesting.
     zIndex: depth * 10 + (boundary ? 1 : 2),
-    // Bounds are attached to anything that has them, not only to boxes. A card
-    // with none is left unstyled and draws itself at whatever its contents come
-    // to, which is what every card did before any of them could be resized.
-    ...(boundary
-      ? { style: groupSize(node) }
-      : node.size !== null && { style: { width: node.size.width, height: node.size.height } }),
+    // Every node is drawn at the box that was worked out for it, boundary or
+    // card alike. One number per node, used by the drawing, by the hit test
+    // and by whatever encloses it, so none of the three can disagree.
+    style: { width: box.width, height: box.height },
   };
 }
 
@@ -208,6 +225,7 @@ export function createPlanStore(doc: Y.Doc) {
     remoteDrag: {},
     absolute: {},
     parentOf: {},
+    bounds: {},
     arrivals: new Map<string, number>(),
     related: null,
     relatedTo: null,
@@ -269,7 +287,16 @@ export function createPlanStore(doc: Y.Doc) {
     },
     resizeNode: (slug, size) => {
       if (!get().editable) return;
-      commitLayout(doc, new Map(), ORIGIN_LOCAL, new Map([[slug, size]]));
+      const node = get().nodes.find((candidate) => candidate.id === slug)?.data;
+      // A card is dragged by one edge and only its width is a person's to
+      // choose; the height that width comes to is written beside it so that
+      // anything reading the document raw sees a coherent box. Nothing in this
+      // repository reads that height back — it is measured again each time.
+      const stored =
+        node !== undefined && !isGroup(node.node, node.childCount)
+          ? { width: size.width, height: cardHeight(node.node.body, size.width) }
+          : size;
+      commitLayout(doc, new Map(), ORIGIN_LOCAL, new Map([[slug, stored]]));
     },
     routeEdge: (id, corners, labelPosition) => {
       // No snapping here. The drag is the only thing that writes a route and it
@@ -392,6 +419,41 @@ export function createPlanStore(doc: Y.Doc) {
     // part of the plan and still have to be drawn.
     for (const node of plan.nodes) if (!seen.has(node.slug)) ordered.push(node);
 
+    /*
+     * Every node's box, worked out from the inside out.
+     *
+     * A card is as tall as what it has to say, so nothing stores that height
+     * and it is measured here. A box is then the larger of what somebody gave
+     * it and what it turns out to be holding — a child that has outgrown its
+     * boundary is the drawing contradicting the document, and a child can
+     * outgrow one now simply by being typed into.
+     *
+     * `ordered` is a walk down the containment tree, so reversing it visits
+     * every child before whatever holds it.
+     */
+    const bounds: Record<string, Box> = {};
+    for (const node of [...ordered].reverse()) {
+      const children = graph.childrenOf.get(node.slug) ?? [];
+      if (!isGroup(node, children.length)) {
+        bounds[node.slug] = cardBounds(node);
+        continue;
+      }
+
+      const at = absolute[node.slug] ?? { x: 0, y: 0 };
+      let holds = false;
+      let width = 0;
+      let height = 0;
+      for (const child of children) {
+        const box = bounds[child];
+        const childAt = absolute[child];
+        if (box === undefined || childAt === undefined) continue;
+        holds = true;
+        width = Math.max(width, childAt.x - at.x + box.width + GROUP_PADDING.right);
+        height = Math.max(height, childAt.y - at.y + box.height + GROUP_PADDING.bottom);
+      }
+      bounds[node.slug] = growToHold(node.size, holds ? { width, height } : null);
+    }
+
     const nextNodes = ordered.map((node) => {
       const existing = previous.get(node.slug);
       const childCount = graph.childrenOf.get(node.slug)?.length ?? 0;
@@ -401,11 +463,16 @@ export function createPlanStore(doc: Y.Doc) {
           ? null
           : { slug: parentSlug, position: absolute[parentSlug] ?? { x: 0, y: 0 } };
 
+      const box = bounds[node.slug] ?? { width: 260, height: 76 };
+      const drawnAt = (candidate: PlanFlowNode | undefined): boolean =>
+        candidate?.style?.width === box.width && candidate?.style?.height === box.height;
+
       if (
         existing !== undefined &&
         existing.data.node === node &&
         existing.data.childCount === childCount &&
-        existing.parentId === parentSlug
+        existing.parentId === parentSlug &&
+        drawnAt(existing)
       ) {
         return existing;
       }
@@ -417,12 +484,13 @@ export function createPlanStore(doc: Y.Doc) {
         touched !== undefined &&
         !touched.has(node.slug) &&
         existing.data.childCount === childCount &&
-        existing.parentId === parentSlug
+        existing.parentId === parentSlug &&
+        drawnAt(existing)
       ) {
         return existing;
       }
       return {
-        ...toFlowNode(node, childCount, parent, containmentDepth(graph, node.slug)),
+        ...toFlowNode(node, childCount, parent, containmentDepth(graph, node.slug), box),
         selected: existing?.selected ?? false,
       };
     });
@@ -438,6 +506,7 @@ export function createPlanStore(doc: Y.Doc) {
       description: plan.description,
       absolute,
       parentOf,
+      bounds,
       // Nobody is pointing at something that is no longer in the plan. Without
       // this, removing the node under the pointer leaves the whole drawing
       // dimmed with nothing lit, and the only way out is to point at something

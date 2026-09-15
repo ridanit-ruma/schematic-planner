@@ -230,14 +230,36 @@ describe('a size somebody chose', () => {
       edges: [{ id: 'contains:box>inside', kind: 'contains', from: 'box', to: 'inside' }],
     });
 
-  it('survives the run that follows an agent adding a node', async () => {
+  it('is not shrunk by the run that follows an agent adding a node', async () => {
     const { sizes } = await layoutPlan(held(), { scope: 'unpinned' });
-    expect(sizes.has('box')).toBe(false);
+    const box = sizes.get('box');
+    expect(box?.width).toBeGreaterThanOrEqual(900);
+    expect(box?.height).toBeGreaterThanOrEqual(700);
   });
 
-  it('is recomputed only when the whole plan is deliberately arranged', async () => {
+  it('is grown by one, when what it holds no longer fits', async () => {
+    const tall = planDocSchema.parse({
+      id: 'p',
+      title: 'P',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [
+        { slug: 'box', title: 'Box', size: { width: 300, height: 120 } },
+        { slug: 'inside', title: 'Inside', body: 'line\n'.repeat(20) },
+      ],
+      edges: [{ id: 'contains:box>inside', kind: 'contains', from: 'box', to: 'inside' }],
+    });
+
+    const { sizes } = await layoutPlan(tall, { scope: 'unpinned' });
+    expect(sizes.get('box')?.height).toBeGreaterThan(120);
+  });
+
+  it('is recomputed outright when the whole plan is deliberately arranged', async () => {
     const { sizes } = await layoutPlan(held(), { scope: 'all' });
-    expect(sizes.has('box')).toBe(true);
+    const box = sizes.get('box');
+    expect(box).toBeDefined();
+    // Free to be smaller than the bounds it was given, which is what makes
+    // handing a box back to layout mean anything.
+    expect(box?.height).toBeLessThan(700);
   });
 
   it('does not stop the node being arranged', async () => {
