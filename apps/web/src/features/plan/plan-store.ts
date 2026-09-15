@@ -159,7 +159,12 @@ function toFlowNode(
     // terminal buries it and the group cannot be connected to at all. Within
     // that, a container stays under what it holds, at every depth of nesting.
     zIndex: depth * 10 + (boundary ? 1 : 2),
-    ...(boundary && { style: groupSize(node) }),
+    // Bounds are attached to anything that has them, not only to boxes. A card
+    // with none is left unstyled and draws itself at whatever its contents come
+    // to, which is what every card did before any of them could be resized.
+    ...(boundary
+      ? { style: groupSize(node) }
+      : node.size !== null && { style: { width: node.size.width, height: node.size.height } }),
   };
 }
 

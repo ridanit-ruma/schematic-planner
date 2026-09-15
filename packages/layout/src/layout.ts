@@ -1,5 +1,12 @@
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js';
-import { buildPlanGraph, edgeNote, type PlanDoc, type Position } from '@schematic/schema';
+import {
+  CARD,
+  buildPlanGraph,
+  cardHeight,
+  edgeNote,
+  type PlanDoc,
+  type Position,
+} from '@schematic/schema';
 
 export interface Size {
   readonly width: number;
@@ -74,10 +81,8 @@ const CONTAINER_PADDING = `[top=40,left=${GRID},bottom=${GRID},right=${GRID}]`;
  * containers grew a large empty floor, and the graph became tall enough that
  * reading it meant zooming out until the text was gone.
  */
-const CARD_WIDTH = 260;
-const CARD_HEIGHT = 76;
-/** A card carrying body text is two lines taller. */
-const CARD_HEIGHT_WITH_BODY = 104;
+const CARD_WIDTH = CARD.width;
+const CARD_HEIGHT = CARD.minHeight;
 
 const DEFAULTS = {
   direction: 'RIGHT' as LayoutDirection,
@@ -159,11 +164,10 @@ export async function layoutPlan(
         elkNode.layoutOptions = elkOptions(settings);
       } else {
         elkNode.width = node?.size?.width ?? settings.nodeWidth;
-        elkNode.height =
-          node?.size?.height ??
-          (node !== undefined && node.body.trim() !== ''
-            ? CARD_HEIGHT_WITH_BODY
-            : settings.nodeHeight);
+        // What the browser will actually draw this card at, rather than one of
+        // two constants. A plan whose nodes carry real bodies was laid out for
+        // boxes half their drawn height, so the lines ran under the cards below.
+        elkNode.height = node?.size?.height ?? cardHeight(node?.body ?? '');
       }
       return elkNode;
     });
@@ -238,6 +242,24 @@ export async function layoutPlan(
     for (const child of graph.children ?? []) collectLabels(child);
   };
   collectLabels(laid);
+
+  /*
+   * A size is not layout output once somebody has chosen it.
+   *
+   * Both returns below used to hand back every computed size: `pinned` filtered
+   * positions and nothing filtered sizes, so a box resized by hand was restored
+   * to ELK's measurement by the next run — including the automatic one that
+   * follows any batch carrying an unplaced node. An agent adding one node undid
+   * a person's box.
+   *
+   * Filtered on having a size rather than on `pinned`, because a size says how
+   * big and not where: resizing a node must not also stop it being arranged.
+   * A deliberate `scope: 'all'` still recomputes everything, which is what
+   * makes "fit this back to its contents" possible at all.
+   */
+  if (settings.scope !== 'all') {
+    for (const node of doc.nodes) if (node.size !== null) sizes.delete(node.slug);
+  }
 
   if (settings.scope === 'all') return { positions: round(computed), sizes, labels: round(labels) };
 

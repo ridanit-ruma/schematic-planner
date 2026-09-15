@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { exportPlan, exportPlanToZip, type ExportBundle } from '@schematic/exporter';
 import { layoutPlan } from '@schematic/layout';
 import {
@@ -14,11 +19,21 @@ import {
 import {
   ORIGIN_AGENT,
   ORIGIN_LAYOUT,
+  StaleRevisionError,
   applyOps as applyOpsToDoc,
+  planRevision,
+  planRevisionFromUpdate,
   commitLayout,
 } from '@schematic/ydoc';
 
 import { randomUUID } from 'node:crypto';
+
+import {
+  normalizeSources,
+  rejectSources,
+  resolveSources,
+  type ResolvedSource,
+} from './provenance.js';
 
 import { randomToken } from '../common/crypto.js';
 import { PrismaService } from '../common/prisma.service.js';
@@ -312,9 +327,104 @@ export class PlansService {
    * projection otherwise. Without the first case a plan being edited right now
    * would export up to one debounce interval out of date.
    */
+  /**
+   * The Specs a Plan says it was written from, and what was written from it.
+   *
+   * Both directions in one read: forward is the stored array resolved, backward
+   * is the array containment the GIN index exists for. Neither costs a table.
+   */
+  async provenance(
+    userId: string,
+    planId: string,
+  ): Promise<{ sources: ResolvedSource[]; sourcedBy: { id: string; title: string }[] }> {
+    await this.access.requirePlan(userId, planId, 'VIEWER');
+
+    const plan = await this.prisma.plan.findUnique({
+      where: { id: planId },
+      select: { projectId: true, sourceSpecIds: true },
+    });
+    if (plan === null) throw new NotFoundException('Plan not found');
+
+    const [rows, sourcedBy] = await Promise.all([
+      plan.sourceSpecIds.length === 0
+        ? Promise.resolve([])
+        : this.prisma.plan.findMany({
+            where: { id: { in: plan.sourceSpecIds } },
+            select: {
+              id: true,
+              title: true,
+              projectId: true,
+              deletedAt: true,
+              folder: { select: { name: true } },
+            },
+          }),
+      this.prisma.plan.findMany({
+        where: { sourceSpecIds: { has: planId }, deletedAt: null },
+        orderBy: { updatedAt: 'desc' },
+        select: { id: true, title: true },
+      }),
+    ]);
+
+    return { sources: resolveSources(plan.sourceSpecIds, plan.projectId, rows), sourcedBy };
+  }
+
+  /** Replaces the set outright, or refuses the whole of it. */
+  async setSources(userId: string, planId: string, ids: readonly string[]): Promise<string[]> {
+    await this.access.requirePlan(userId, planId, 'EDITOR');
+
+    const plan = await this.prisma.plan.findUnique({
+      where: { id: planId },
+      select: { projectId: true },
+    });
+    if (plan === null) throw new NotFoundException('Plan not found');
+
+    const wanted = normalizeSources(ids);
+    if (wanted.length > 0) {
+      const rows = await this.prisma.plan.findMany({
+        where: { id: { in: wanted } },
+        select: {
+          id: true,
+          title: true,
+          projectId: true,
+          deletedAt: true,
+          folder: { select: { name: true } },
+        },
+      });
+      const why = rejectSources(wanted, planId, plan.projectId, rows);
+      // All or nothing: a batch with one bad id writes none of them, so a
+      // caller never has to work out which half of its intent landed.
+      if (why !== null) throw new BadRequestException(`Cannot cite: ${why}`);
+    }
+
+    await this.prisma.plan.update({
+      where: { id: planId },
+      data: { sourceSpecIds: wanted },
+    });
+    return wanted;
+  }
+
   async read(userId: string, planId: string): Promise<PlanDoc> {
     await this.access.requirePlan(userId, planId, 'VIEWER');
     return this.current(planId);
+  }
+
+  /**
+   * What the plan is at, for a caller who will write against what it just read.
+   *
+   * Taken from the live document when there is one and from the stored bytes
+   * otherwise — never from `updatedAt`, which is written by a debounced save and
+   * therefore lags the document a client is actually racing.
+   */
+  async revision(planId: string): Promise<string> {
+    const live = this.collab.loaded(planId);
+    if (live !== undefined) return planRevision(live);
+
+    const plan = await this.prisma.plan.findUnique({
+      where: { id: planId },
+      select: { ydoc: true },
+    });
+    if (plan === null) throw new NotFoundException('Plan not found');
+    return planRevisionFromUpdate(plan.ydoc);
   }
 
   async update(
@@ -422,6 +532,7 @@ export class PlansService {
     planId: string,
     ops: readonly PlanOp[],
     actor: ChangeActor = { userId },
+    expectedRevision?: string,
   ): Promise<PlanDoc> {
     await this.access.requirePlan(userId, planId, 'EDITOR');
 
@@ -430,13 +541,23 @@ export class PlansService {
     // happened, and the history should not report it as one.
     const batched: ChangeActor = { ...actor, batchId: actor.batchId ?? randomUUID() };
 
-    const applied = await this.collab.withDocument(
+    const applied = await this.refusingStale(() =>
+      this.collab.withDocument(
       planId,
       (document) => {
+        // Compared here and nowhere else. Read the revision before opening the
+        // document and the check races the very thing it guards: the plan can
+        // move between the comparison and the write. Inside the transaction the
+        // two are one act, and a batch that loses writes nothing at all.
+        if (expectedRevision !== undefined) {
+          const current = planRevision(document);
+          if (current !== expectedRevision) throw new StaleRevisionError(expectedRevision, current);
+        }
         applyOpsToDoc(document, ops, ORIGIN_AGENT);
         return this.documents.project(planId, document).doc;
       },
       batched,
+      ),
     );
 
     // Agents declare structure and never coordinates, so everything they add
@@ -444,6 +565,9 @@ export class PlansService {
     // batch of new nodes piles up on the origin until somebody presses Arrange.
     if (!applied.nodes.some((node) => node.position === null)) return applied;
 
+    // No check on this one: placing what was just added is the tail of the same
+    // act, and the revision it would be compared against is the one this call
+    // itself just moved.
     const { positions, sizes, labels } = await layoutPlan(applied, { scope: 'unpinned' });
     return this.collab.withDocument(
       planId,
@@ -537,6 +661,27 @@ export class PlansService {
       throw new NotFoundException('That link has expired');
     }
     return this.current(share.planId);
+  }
+
+  /**
+   * Turns a lost race into an answer a client can act on without asking again.
+   *
+   * The refusal names what the plan is at now, so the retry is read, reconcile,
+   * resubmit — rather than read, guess, lose again. A conflict rather than a
+   * validation failure, because nothing about the batch was wrong.
+   */
+  private async refusingStale<T>(run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      if (error instanceof StaleRevisionError) {
+        throw new ConflictException(
+          `stale_revision: the plan is at ${error.current}, not ${error.expected}. ` +
+            'Nothing was applied. Read it again and resubmit against the revision it is at now.',
+        );
+      }
+      throw error;
+    }
   }
 
   async current(planId: string): Promise<PlanDoc> {

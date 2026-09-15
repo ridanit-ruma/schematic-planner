@@ -18,7 +18,16 @@ import {
   type Position,
 } from '@schematic/schema';
 import { ORIGIN_LOCAL, commitLayout, commitNodePosition, nudgeEdges } from '@schematic/ydoc';
-import { Group, Grid2x2, MessageSquarePlus, Plus, Redo2, Trash2, Undo2 } from 'lucide-react';
+import {
+  Group,
+  Grid2x2,
+  MessageSquarePlus,
+  Plus,
+  Redo2,
+  Shrink,
+  Trash2,
+  Undo2,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useStore } from 'zustand';
 import type * as Y from 'yjs';
@@ -462,6 +471,24 @@ export function PlanCanvas({
     if (ops.length > 0) onApplyOps(ops);
   };
 
+  /**
+   * Hands a node back to layout.
+   *
+   * Without this a card dragged once is a card that can never be an ordinary
+   * card again, and a plan slowly becomes a collage. Clearing the size is also
+   * what lets the next arrange measure the body afresh, since a size somebody
+   * chose is deliberately never recomputed.
+   */
+  const sizedUnder =
+    under?.kind === 'node'
+      ? (nodes.find((candidate) => candidate.id === under.id)?.data.node.size ?? null)
+      : null;
+
+  const fitUnder = (): void => {
+    if (under === null || under.kind !== 'node') return;
+    onApplyOps([{ op: 'upsert_node', node: { slug: under.id, size: null } }]);
+  };
+
   const removeUnder = (): void => {
     if (under === null) return;
     if (under.kind === 'node') {
@@ -498,6 +525,12 @@ export function PlanCanvas({
             <ContextAction onSelect={groupSelection}>
               <Group className="size-3.5 text-ink-faint" />
               Group {plural(selection.length, 'node')}
+            </ContextAction>
+          )}
+          {sizedUnder === null ? null : (
+            <ContextAction onSelect={fitUnder}>
+              <Shrink className="size-3.5 text-ink-faint" />
+              Fit to contents
             </ContextAction>
           )}
           {under === null ? null : (

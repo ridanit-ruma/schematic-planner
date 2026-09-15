@@ -88,6 +88,24 @@ export const createPlanShape = {
     .optional()
     .describe('Which drawer of the project to file it in. Omitted, the top level'),
   description: z.string().max(2000).default(''),
+  sourceSpecIds: z
+    .array(z.string().min(1))
+    .max(20)
+    .optional()
+    .describe(
+      'Plan ids this one is being written from, in order. They must be plans in the same ' +
+        'project. Use it when this plan implements a spec that is already drawn, so the link ' +
+        'is a field rather than a line of prose nothing can follow',
+    ),
+};
+
+/** Replaces the whole set. An empty array clears it. */
+export const setPlanSourcesShape = {
+  planId: z.string().min(1),
+  sourceSpecIds: z
+    .array(z.string().min(1))
+    .max(20)
+    .describe('The plans this one was written from, in order. Replaces whatever was there'),
 };
 
 export const traceShape = {
@@ -202,6 +220,16 @@ export const agentOpSchema = z.discriminatedUnion('op', [
 
 export const applyOpsShape = {
   planId: z.string().min(1),
+  expectedRevision: z
+    .string()
+    .max(4000)
+    .optional()
+    .describe(
+      'The revision this batch was written against, as get_plan reported it. Given, the batch ' +
+        'is applied only if the plan is still at it, and refused whole if somebody has changed ' +
+        'the plan since — nothing is half-written. Omit it unless you read the plan first and ' +
+        'your operations depend on what you read',
+    ),
   ops: z
     .array(agentOpSchema)
     .min(1)

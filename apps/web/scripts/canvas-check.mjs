@@ -471,21 +471,38 @@ try {
     child.x + child.width <= box.x + box.width + 1 &&
     child.y + child.height <= box.y + box.height + 1;
   const reopen = async () => {
-    // The plan arrives over a socket, not with the page. A socket that failed
-    // to open leaves an empty canvas, and every rect read after it comes back
-    // null — which the checks below then report as nodes drawn in the wrong
-    // place, or crash on. So the drawing is waited for rather than assumed.
+    /*
+     * The plan arrives over a socket, not with the page, and a slow first load
+     * is the common case rather than a fault — after the invitation section
+     * this is a cold connection and a fresh document.
+     *
+     * So it is watched rather than restarted. Reloading interrupts a document
+     * that is still on its way, which made an eager retry the reason the plan
+     * never arrived: every few seconds the load began again from nothing. It
+     * now waits up to twenty seconds, returning the moment anything is drawn,
+     * and only then opens the page again.
+     */
     for (let attempt = 0; attempt < 3; attempt += 1) {
       if (attempt === 0) {
         await page.goto(`${BASE}/plan/${fixture.id}`, { waitUntil: 'domcontentloaded' });
       } else {
         await page.reload({ waitUntil: 'domcontentloaded' });
       }
-      await wait(4000);
-      const drawn = await page.$eval('.react-flow__node', (list) => list.length).catch(() => 0);
-      if (drawn > 0) return;
+      for (let waited = 0; waited < 20; waited += 1) {
+        await wait(1000);
+        const drawn = await page.$$eval('.react-flow__node', (list) => list.length).catch(() => 0);
+        if (drawn > 0) {
+          // A frame for the browser to lay the new nodes out before anything
+          // measures one.
+          await wait(600);
+          return;
+        }
+      }
       console.log('  the plan did not arrive; opening it again');
     }
+    // Said out loud. Every check after this reads an empty canvas, and without
+    // it they blame whatever they were about rather than the socket.
+    check('the plan arrived', false, 'gave up reopening it');
   };
 
   try {
@@ -668,7 +685,11 @@ try {
       const doc = await call(`/plans/${fixture.id}`);
       return (doc.nodes ?? []).find((node) => node.slug === slug)?.size ?? null;
     };
-    const centreOf = (rect) => ({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
+    // Off-screen rather than a crash when the node is not there: a failed check
+    // names itself and the run still reaches a verdict, where reading .x off
+    // null ends the process with no verdict at all.
+    const centreOf = (rect) =>
+      rect === null ? { x: -1, y: -1 } : { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
     /** A drag that rests on what it is over before letting go. */
     const dragHolding = async (rawFrom, rawTo, holdMs) => {
       const from = onScreen(rawFrom);
@@ -849,6 +870,7 @@ try {
         `${JSON.stringify(beforeSize)} -> ${JSON.stringify(afterSize)}`,
       );
     }
+
 
     await call(`/plans/${fixture.id}/ops`, {
       method: 'POST',
@@ -1469,6 +1491,195 @@ try {
       opened.drawn > 0 && opened.inside === opened.drawn,
       `${opened.inside} of ${opened.drawn}`,
     );
+
+    /*
+     * Last of the canvas sections, deliberately. It arranges the whole plan to
+     * prove a hand-set size survives one, and an arrange moves every node that
+     * nobody placed — so run earlier it would hand the checks below a drawing
+     * laid out differently from the one they were written against, and a line
+     * they meant to bend would have become straight.
+     */
+    console.log('\nwriting against what you read');
+    /*
+     * apply_ops writes whole fields — an upsert sets title, status and kind
+     * outright — so Yjs merges characters inside a body but not two setters of
+     * the same field. An agent acting on a stale read really can overwrite a
+     * person, and only an end-to-end check can see that the comparison happens
+     * inside the document lock rather than beside it.
+     */
+    // Through the check's own authenticated caller rather than a fetch of its
+    // own: the share section below declares a `token` of its own in this block,
+    // so naming that identifier here reaches it before it exists.
+    const opsWith = (payload) => call(`/plans/${fixture.id}/ops`, { method: 'POST', body: payload });
+
+    const readRevision = async () => (await call(`/plans/${fixture.id}/revision`))?.revision ?? null;
+
+    const revision = await readRevision();
+    check('a plan says what it is at', revision !== null, String(revision).slice(0, 24));
+
+    if (revision !== null) {
+      const fresh = await opsWith({
+        ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Raced' } }],
+        expectedRevision: revision,
+      });
+      check('a batch written against it applies', fresh?.error === undefined, String(fresh?.error));
+
+      const stale = await opsWith({
+        ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Overwritten' } }],
+        expectedRevision: revision,
+      });
+      check(
+        'and one written against a revision that has moved on is refused',
+        stale?.error === 409,
+        String(stale?.error),
+      );
+
+      const after = await call(`/plans/${fixture.id}`);
+      check(
+        'and the refused batch changed nothing at all',
+        (after.nodes ?? []).find((node) => node.slug === 'raced')?.title === 'Raced',
+        (after.nodes ?? []).find((node) => node.slug === 'raced')?.title ?? 'gone',
+      );
+
+      const unchecked = await opsWith({
+        ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Unchecked' } }],
+      });
+      check(
+        'a batch naming no revision applies, as every client today does',
+        unchecked?.error === undefined,
+        String(unchecked?.error),
+      );
+
+      const moved = await readRevision();
+      check('and the revision has moved with the plan', moved !== revision, String(moved).slice(0, 24));
+    }
+
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: { ops: [{ op: 'delete_node', slug: 'raced' }] },
+    });
+
+    console.log('\na card with something to say');
+    /*
+     * Every layer but the canvas already honoured a node's size, and no
+     * ordinary card had ever been given one. A card drew 260px wide with two
+     * stripped lines of its body and the rest readable only in the inspector,
+     * which is a canvas that shows the flow and hides what flows.
+     */
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          {
+            op: 'upsert_node',
+            node: {
+              slug: 'wordy',
+              title: 'Wordy',
+              body: [
+                'The **first** line of a body that does not fit on a card.',
+                '',
+                '- one thing it does',
+                '- another thing it does',
+                '- a third, for length',
+                '',
+                'And a closing remark nobody would see at 260 pixels.',
+              ].join('\n'),
+            },
+          },
+        ],
+      },
+    });
+    await reopen();
+
+    const drawnBody = (slug) =>
+      page
+        .$eval(`.react-flow__node[data-id="${slug}"]`, (el) => (el.textContent ?? '').length)
+        .catch(() => 0);
+    const boundsOfNode = async (slug) => {
+      const doc = await call(`/plans/${fixture.id}`);
+      return (doc.nodes ?? []).find((node) => node.slug === slug)?.size ?? null;
+    };
+
+    const unsized = await rectOf('wordy');
+    const beforeText = await drawnBody('wordy');
+    check('a card nobody sized is drawn as it always was', (await boundsOfNode('wordy')) === null);
+
+    await page.mouse.click(unsized.x + unsized.width / 2, unsized.y + 6);
+    await wait(500);
+    const cardGrip = await page
+      .$eval('.react-flow__node[data-id="wordy"] .react-flow__resize-control.handle', (el) => {
+        const rect = el.getBoundingClientRect();
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      })
+      .catch(() => null);
+    check('an ordinary card offers a corner to pull', cardGrip !== null);
+
+    if (cardGrip !== null) {
+      await dragHolding(cardGrip, { x: cardGrip.x + 200, y: cardGrip.y + 160 }, 0);
+      const grown = await boundsOfNode('wordy');
+      check('and pulling it stores the bounds', grown !== null, JSON.stringify(grown));
+
+      await reopen();
+      check('which survive a reopen', (await boundsOfNode('wordy')) !== null);
+      check(
+        'and the room is spent on the body rather than on nothing',
+        (await drawnBody('wordy')) > beforeText,
+        `${beforeText} -> ${await drawnBody('wordy')} characters`,
+      );
+
+      /*
+       * The check today's gate lacked, and the reason a defect reached
+       * production: the shipped group resize was only ever checked across a
+       * reopen, never across a layout run. Layout handed back every computed
+       * size unfiltered, so an agent adding one node undid a person's box.
+       */
+      const held = await boundsOfNode('wordy');
+      // Or the two assertions below compare nothing with nothing and pass
+      // without having tested anything at all.
+      check('there are bounds to defend', held !== null, JSON.stringify(held));
+      await call(`/plans/${fixture.id}/ops`, {
+        method: 'POST',
+        body: { ops: [{ op: 'upsert_node', node: { slug: 'late-arrival', title: 'Late arrival' } }] },
+      });
+      await wait(1500);
+      check(
+        'a size somebody chose survives an agent adding a node',
+        held !== null && JSON.stringify(await boundsOfNode('wordy')) === JSON.stringify(held),
+        `${JSON.stringify(held)} -> ${JSON.stringify(await boundsOfNode('wordy'))}`,
+      );
+
+      await call(`/plans/${fixture.id}/layout`, {
+        method: 'POST',
+        body: { scope: 'unpinned' },
+      });
+      await wait(1500);
+      check(
+        'and survives an Arrange of what nobody placed',
+        held !== null && JSON.stringify(await boundsOfNode('wordy')) === JSON.stringify(held),
+        JSON.stringify(await boundsOfNode('wordy')),
+      );
+
+      await reopen();
+      const toFit = await rectOf('wordy');
+      await page.mouse.click(toFit.x + toFit.width / 2, toFit.y + 6, { button: 'right' });
+      await wait(700);
+      const fitted = await clickMenuItem('Fit to contents');
+      check('a sized card is offered its ordinary size back', fitted);
+      if (fitted) {
+        check('and taking it clears the bounds', (await boundsOfNode('wordy')) === null);
+      }
+    }
+
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          { op: 'delete_node', slug: 'wordy' },
+          { op: 'delete_node', slug: 'late-arrival' },
+        ],
+      },
+    });
+
 
     console.log('\nfollowing one thread');
     // Pointing at a node is asking what it connects to. The answer is that the

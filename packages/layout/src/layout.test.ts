@@ -215,3 +215,76 @@ describe('layoutPlan', () => {
     });
   });
 });
+
+describe('a size somebody chose', () => {
+  const held = () =>
+    planDocSchema.parse({
+      id: 'p',
+      title: 'P',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [
+        { slug: 'box', title: 'Box', size: { width: 900, height: 700 } },
+        { slug: 'inside', title: 'Inside' },
+        { slug: 'loose', title: 'Loose' },
+      ],
+      edges: [{ id: 'contains:box>inside', kind: 'contains', from: 'box', to: 'inside' }],
+    });
+
+  it('survives the run that follows an agent adding a node', async () => {
+    const { sizes } = await layoutPlan(held(), { scope: 'unpinned' });
+    expect(sizes.has('box')).toBe(false);
+  });
+
+  it('is recomputed only when the whole plan is deliberately arranged', async () => {
+    const { sizes } = await layoutPlan(held(), { scope: 'all' });
+    expect(sizes.has('box')).toBe(true);
+  });
+
+  it('does not stop the node being arranged', async () => {
+    const { positions } = await layoutPlan(held(), { scope: 'unpinned' });
+    expect(positions.has('box')).toBe(true);
+  });
+
+  it('still gives bounds to a box that has none', async () => {
+    const plan = planDocSchema.parse({
+      id: 'p',
+      title: 'P',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [
+        { slug: 'box', title: 'Box' },
+        { slug: 'inside', title: 'Inside' },
+      ],
+      edges: [{ id: 'contains:box>inside', kind: 'contains', from: 'box', to: 'inside' }],
+    });
+    const { sizes } = await layoutPlan(plan, { scope: 'unpinned' });
+    expect(sizes.has('box')).toBe(true);
+  });
+});
+
+describe('a card with a lot to say', () => {
+  const withBody = (body: string) =>
+    planDocSchema.parse({
+      id: 'p',
+      title: 'P',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [
+        { slug: 'a', title: 'A', body },
+        { slug: 'b', title: 'B' },
+      ],
+      edges: [{ id: 'flows_to:a>b', kind: 'flows_to', from: 'a', to: 'b' }],
+    });
+
+  it('is laid out around the room it will actually need', async () => {
+    const short = await layoutPlan(withBody('one line'), { scope: 'all' });
+    const long = await layoutPlan(withBody('a line\n'.repeat(12)), { scope: 'all' });
+
+    // Whatever the direction puts where, a taller card cannot leave the drawing
+    // the same size as a short one.
+    const span = (r: Awaited<ReturnType<typeof layoutPlan>>) => {
+      const ys = [...r.positions.values()].map((p) => p.y);
+      return Math.max(...ys) - Math.min(...ys);
+    };
+    expect(long.positions.size).toBe(2);
+    expect(span(long)).toBeGreaterThanOrEqual(span(short));
+  });
+});
