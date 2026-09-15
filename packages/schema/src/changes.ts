@@ -8,6 +8,7 @@ export const planChangeKinds = [
   'node.added',
   'node.removed',
   'node.renamed',
+  'node.identifier',
   'node.status',
   'node.kind',
   'node.body',
@@ -59,7 +60,34 @@ export function diffPlans(before: PlanDoc, after: PlanDoc): PlanChangeEntry[] {
   const was = new Map(before.nodes.map((node) => [node.slug, node]));
   const is = new Map(after.nodes.map((node) => [node.slug, node]));
 
+  // A node's identifier can be changed, and the diff is the only account of
+  // what happened. Read node by node it looks like a deletion and an unrelated
+  // arrival, which tells a reader that a node's contents were lost when they
+  // were not — so the pair is recognised: one node gone and one arrived that
+  // are identical in every field but the slug. Nothing but a rename leaves that
+  // shape, since a deletion and a fresh node that matched a departed one down
+  // to its body, tags and coordinates would be a rename in all but name.
+  const arrived = after.nodes.filter((node) => !was.has(node.slug));
+  const readdressed = new Map<string, PlanNode>();
+  for (const gone of before.nodes) {
+    if (is.has(gone.slug)) continue;
+    const match = arrived.find(
+      (node) => !readdressed.has(node.slug) && sameNodeBar(gone, node, 'slug'),
+    );
+    if (match !== undefined) readdressed.set(match.slug, gone);
+  }
+
   for (const node of after.nodes) {
+    const renamedFrom = readdressed.get(node.slug);
+    if (renamedFrom !== undefined) {
+      entries.push({
+        kind: 'node.identifier',
+        subject: node.slug,
+        label: node.title,
+        detail: renamedFrom.slug,
+      });
+      continue;
+    }
     const previous = was.get(node.slug);
     if (previous === undefined) {
       entries.push({ kind: 'node.added', subject: node.slug, label: node.title, detail: null });
@@ -68,8 +96,9 @@ export function diffPlans(before: PlanDoc, after: PlanDoc): PlanChangeEntry[] {
     entries.push(...nodeChanges(previous, node));
   }
 
+  const kept = new Set([...readdressed.values()].map((node) => node.slug));
   for (const node of before.nodes) {
-    if (!is.has(node.slug)) {
+    if (!is.has(node.slug) && !kept.has(node.slug)) {
       entries.push({ kind: 'node.removed', subject: node.slug, label: node.title, detail: null });
     }
   }
@@ -190,4 +219,10 @@ function samePosition(before: PlanNode, after: PlanNode): boolean {
     return before.position === after.position;
   }
   return before.position.x === after.position.x && before.position.y === after.position.y;
+}
+
+/** Two nodes that agree on everything but the named field. */
+function sameNodeBar(before: PlanNode, after: PlanNode, bar: keyof PlanNode): boolean {
+  const strip = (node: PlanNode): string => JSON.stringify({ ...node, [bar]: '' });
+  return strip(before) === strip(after);
 }

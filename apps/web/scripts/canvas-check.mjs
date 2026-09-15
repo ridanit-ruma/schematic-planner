@@ -979,6 +979,91 @@ try {
     check('the actions are behind one button at every width', bar?.actions === true);
     check('and the size of the plan reads as one line', /^\d+ nodes?$/.test(bar?.size ?? ''), bar?.size);
 
+    console.log('\nchanging what a node is called');
+    /*
+     * The Add node dialog has promised from the beginning that the identifier
+     * "can be changed later". Nothing delivered it — the operation vocabulary
+     * had no rename in it at all — and the slug is both the address an agent
+     * calls a node by and the name of the file it exports to.
+     */
+    const identifierBox = async (value) =>
+      page.evaluate((current) => {
+        const input = [...document.querySelectorAll('aside input')].find(
+          (el) => el.value === current,
+        );
+        if (input === undefined) return null;
+        const rect = input.getBoundingClientRect();
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      }, value);
+
+    const retype = async (was, next) => {
+      const at = await identifierBox(was);
+      if (at === null) return false;
+      await page.mouse.click(at.x, at.y);
+      await page.keyboard.down('Control');
+      await page.keyboard.press('a');
+      await page.keyboard.up('Control');
+      await page.keyboard.type(next);
+      await page.keyboard.press('Enter');
+      await wait(1200);
+      return true;
+    };
+
+    const touching = async (slug) => {
+      const plan = await call(`/plans/${fixture.id}`);
+      return {
+        exists: (plan.nodes ?? []).some((node) => node.slug === slug),
+        lines: (plan.edges ?? []).filter((edge) => edge.from === slug || edge.to === slug).length,
+      };
+    };
+
+    await reopen();
+    const looseCard = await rectOf('loose');
+    await page.mouse.click(looseCard.x + looseCard.width / 2, looseCard.y + looseCard.height / 2);
+    await wait(700);
+    const wasTouching = await touching('loose');
+    check('a node offers its identifier for editing', (await identifierBox('loose')) !== null);
+
+    if (await retype('loose', 'free-standing')) {
+      const now = await touching('free-standing');
+      check('changing it gives the node the new one', now.exists);
+      check('and the old one is gone', !(await touching('loose')).exists);
+      check(
+        'and every line that touched it comes along',
+        now.lines === wasTouching.lines && wasTouching.lines > 0,
+        `${wasTouching.lines} -> ${now.lines}`,
+      );
+      check(
+        'and the panel is still about the same node',
+        (await identifierBox('free-standing')) !== null,
+      );
+
+      // An identifier another node already answers to is refused, and nothing
+      // is half-written when it is.
+      await retype('free-standing', 'alpha');
+      check(
+        'an identifier already in use is refused',
+        (await touching('free-standing')).exists && (await touching('alpha')).exists,
+      );
+
+      await reopen();
+      const renamedCard = await rectOf('free-standing');
+      check('the renamed node is still drawn', renamedCard !== null);
+      if (renamedCard !== null) {
+        await page.mouse.click(
+          renamedCard.x + renamedCard.width / 2,
+          renamedCard.y + renamedCard.height / 2,
+        );
+        await wait(700);
+        await retype('free-standing', 'loose');
+      }
+      check('and it can be given its old name back', (await touching('loose')).exists);
+    }
+
+    // Editing an identifier leaves the inspector open over the canvas, and the
+    // checks below ask what is drawn at a point. Put the screen back first.
+    await reopen();
+
     console.log('\ndrawing a connection');
     const terminal = await page
       .$eval('.react-flow__node[data-id="alpha"] .react-flow__handle.source', (el) => {

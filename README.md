@@ -208,7 +208,14 @@ the repair pass that turns arbitrary CRDT state back into a valid document, and
 the pure reference implementation of the write path. A `PlanDoc` is:
 
 - **nodes** — `feature`, `task`, `decision`, `note`, `group`. Each has a human-readable
-  `slug`, a title, Markdown `body`, `status`, and an optional pinned `position`.
+  `slug`, a title, Markdown `body`, `status`, and an optional pinned `position`. The
+  slug is derived from the title when the node is made and can be changed after,
+  through `rename_node` — which moves every edge, note anchor and containment
+  pointing at it in the same transaction, since edge identity is derived from the
+  endpoints. It matters because the slug is both the address an agent calls a node
+  by and the name of the file it exports to, so a node whose title had moved on used
+  to carry a name from its first minute in both places. A rename is recognised in the
+  history rather than read as a deletion and an unrelated arrival.
 - **edges** — `contains` (nesting; becomes directory structure on export),
   `depends_on` (ordering; becomes file numbering on export), and `relates_to`
   (association with no structural meaning).
@@ -253,7 +260,7 @@ at once.
 | `list_plans({ workspace? })`    | Plans, grouped by workspace, project and the folder each one is filed in                                                                                                                                                                                           |
 | `get_plan(id, { view })`        | `view`: `outline` \| `graph` \| `markdown`. Positions and styling are excluded by default to keep responses small                                                                                                                 |
 | `create_plan(spec)`             | Opens a plan, with whatever structure is already known or none at all. Takes a workspace and project slug, and a folder name to file it in at once; with one workspace reachable neither slug is needed, and with several it names them rather than guessing |
-| `apply_ops(id, ops[])`          | How a plan grows after that, and the only write door. Upsert by slug, so retries never duplicate. Each batch reaches every open canvas at once, so drawing in pieces is what a person watching actually sees. `upsert_comment` goes through the same door: an agent unsure of something leaves a note where a person will see it instead of drawing confidently around the guess. The server signs such a note `<owner>'s agent` — the surface has no author field, because nothing an agent put there would be worth trusting |
+| `apply_ops(id, ops[])`          | How a plan grows after that, and the only write door. Upsert by slug, so retries never duplicate. Each batch reaches every open canvas at once, so drawing in pieces is what a person watching actually sees. `rename_node` goes through it too, and is the one operation that is strict where the upserts are lenient: renaming a node that is not there, or onto an identifier another node answers to, fails the batch rather than being skipped. `upsert_comment` goes through the same door: an agent unsure of something leaves a note where a person will see it instead of drawing confidently around the guess. The server signs such a note `<owner>'s agent` — the surface has no author field, because nothing an agent put there would be worth trusting |
 | `layout(id, { scope })`         | Re-run layout over everything that is not pinned                                                                                                                                                                                  |
 | `export_plan(id)`               | Markdown tree plus `.canvas`. The download link it returns opens with the same key, because the content is what `get_plan` already hands over |
 | `list_folders({ project? })`    | The drawers inside a project, and how many plans each holds |

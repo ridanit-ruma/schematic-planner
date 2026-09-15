@@ -179,3 +179,31 @@ describe('concurrent editing', () => {
     expect(readPlanDoc(b).doc.nodes[0]?.body).toBe('say hello world');
   });
 });
+
+describe('renaming a node through the CRDT', () => {
+  it('moves the node, its lines and what was said about it together', () => {
+    const ydoc = new Y.Doc();
+    initializePlan(
+      ydoc,
+      planDocSchema.parse({
+        id: 'plan-1',
+        title: 'Plan',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        nodes: [
+          { slug: 'old', title: 'Old', body: 'what it does' },
+          { slug: 'other', title: 'Other' },
+        ],
+        edges: [{ id: 'flows_to:old>other', kind: 'flows_to', from: 'old', to: 'other' }],
+        comments: [{ id: 'note', body: 'about it', anchor: 'old' }],
+      }),
+    );
+
+    applyOps(ydoc, [{ op: 'rename_node', from: 'old', to: 'fresh' }]);
+
+    const plan = readPlanDoc(ydoc).doc;
+    expect(plan.nodes.map((node) => node.slug).sort()).toEqual(['fresh', 'other']);
+    expect(plan.nodes.find((node) => node.slug === 'fresh')?.body).toBe('what it does');
+    expect(plan.edges.map((edge) => edge.id)).toEqual(['flows_to:fresh>other']);
+    expect(plan.comments[0]?.anchor).toBe('fresh');
+  });
+});
