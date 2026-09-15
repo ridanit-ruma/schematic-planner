@@ -70,6 +70,20 @@ export class PlansController {
     return this.plans.read(user.id, id);
   }
 
+  /**
+   * What the plan is at, for a caller that will write against what it read.
+   *
+   * Its own route rather than a field on the plan: the document is what
+   * `GET plans/:id` returns and the revision is about the document rather than
+   * part of it — and a caller polling for drift should not have to fetch every
+   * node to learn one string.
+   */
+  @Get('plans/:id/revision')
+  async revision(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.plans.read(user.id, id);
+    return { revision: await this.plans.revision(id) };
+  }
+
   /** The workspace tree around this plan, for the switcher on the canvas. */
   @Get('plans/:id/navigation')
   navigation(@CurrentUser() user: AuthUser, @Param('id') id: string) {

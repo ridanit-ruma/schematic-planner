@@ -863,19 +863,7 @@ try {
     // so naming that identifier here reaches it before it exists.
     const opsWith = (payload) => call(`/plans/${fixture.id}/ops`, { method: 'POST', body: payload });
 
-    const readRevision = async () => {
-      const answer = await call('/mcp', {
-        method: 'POST',
-        body: {
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'tools/call',
-          params: { name: 'get_plan', arguments: { planId: fixture.id, view: 'outline' } },
-        },
-      });
-      const said = (answer?.result?.content ?? []).map((part) => part.text ?? '').join('\n');
-      return /Revision: (\S+)/.exec(said)?.[1] ?? null;
-    };
+    const readRevision = async () => (await call(`/plans/${fixture.id}/revision`))?.revision ?? null;
 
     const revision = await readRevision();
     check('a plan says what it is at', revision !== null, String(revision).slice(0, 24));
@@ -997,6 +985,9 @@ try {
        * size unfiltered, so an agent adding one node undid a person's box.
        */
       const held = await boundsOfNode('wordy');
+      // Or the two assertions below compare nothing with nothing and pass
+      // without having tested anything at all.
+      check('there are bounds to defend', held !== null, JSON.stringify(held));
       await call(`/plans/${fixture.id}/ops`, {
         method: 'POST',
         body: { ops: [{ op: 'upsert_node', node: { slug: 'late-arrival', title: 'Late arrival' } }] },
@@ -1004,7 +995,7 @@ try {
       await wait(1500);
       check(
         'a size somebody chose survives an agent adding a node',
-        JSON.stringify(await boundsOfNode('wordy')) === JSON.stringify(held),
+        held !== null && JSON.stringify(await boundsOfNode('wordy')) === JSON.stringify(held),
         `${JSON.stringify(held)} -> ${JSON.stringify(await boundsOfNode('wordy'))}`,
       );
 
@@ -1015,7 +1006,7 @@ try {
       await wait(1500);
       check(
         'and survives an Arrange of what nobody placed',
-        JSON.stringify(await boundsOfNode('wordy')) === JSON.stringify(held),
+        held !== null && JSON.stringify(await boundsOfNode('wordy')) === JSON.stringify(held),
         JSON.stringify(await boundsOfNode('wordy')),
       );
 

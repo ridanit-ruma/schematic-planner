@@ -190,6 +190,15 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
   const excerpt = plainExcerpt(node.body);
 
   return (
+    /*
+     * The corners are drawn beside the card rather than inside it. A resize
+     * control sits centred on the edge it belongs to — half in, half out — and
+     * the card clips its overflow to keep the status rail inside its rounded
+     * corners, which cut the half that takes the pointer. The box next door has
+     * no such clipping, which is why it worked there and not here.
+     */
+    <>
+      {editable && selected === true ? <Corners id={id} onResize={resizeNode} /> : null}
     <div
       className={cn(
         'relative flex overflow-hidden rounded-md bg-surface-2',
@@ -203,7 +212,6 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
       )}
       style={entrance}
     >
-      {editable && selected === true ? <Corners id={id} onResize={resizeNode} /> : null}
       <span aria-hidden className="w-1 shrink-0" style={{ background: STATUS_COLOR[node.status] }} />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col px-3 py-2">
@@ -239,6 +247,7 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
         className={HANDLE}
       />
     </div>
+    </>
   );
 }
 
