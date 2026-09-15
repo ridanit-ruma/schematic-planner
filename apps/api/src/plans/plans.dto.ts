@@ -29,7 +29,11 @@ export const movePlanSchema = z.object({
 export type MovePlanInput = z.infer<typeof movePlanSchema>;
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
 
-export const applyOpsSchema = z.object({ ops: planOpsSchema });
+export const applyOpsSchema = z.object({
+  ops: planOpsSchema,
+  /** What the caller read before writing. Given, a batch that lost the race applies nothing. */
+  expectedRevision: z.string().max(4000).optional(),
+});
 export type ApplyOpsInput = z.infer<typeof applyOpsSchema>;
 
 export const layoutSchema = z.object({

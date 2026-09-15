@@ -850,6 +850,87 @@ try {
       );
     }
 
+    console.log('\nwriting against what you read');
+    /*
+     * apply_ops writes whole fields — an upsert sets title, status and kind
+     * outright — so Yjs merges characters inside a body but not two setters of
+     * the same field. An agent acting on a stale read really can overwrite a
+     * person, and only an end-to-end check can see that the comparison happens
+     * inside the document lock rather than beside it.
+     */
+    const opsWith = (body) =>
+      page.evaluate(
+        async ({ id, t, payload }) => {
+          const r = await fetch(`/api/plans/${id}/ops`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${t}` },
+            body: JSON.stringify(payload),
+          });
+          return { status: r.status };
+        },
+        { id: fixture.id, t: token, payload: body },
+      );
+
+    // The revision is reported by the MCP surface; over REST the same value is
+    // reached by asking the tool endpoint the agent would ask.
+    const readRevision = async () => {
+      const out = await page.evaluate(
+        async ({ t, id }) => {
+          const r = await fetch('/api/mcp', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              accept: 'application/json, text/event-stream',
+              authorization: `Bearer ${t}`,
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'tools/call',
+              params: { name: 'get_plan', arguments: { planId: id, view: 'outline' } },
+            }),
+          });
+          return await r.text();
+        },
+        { t: token, id: fixture.id },
+      );
+      return /Revision: (\S+)/.exec(out)?.[1] ?? null;
+    };
+
+    const revision = await readRevision();
+    check('a plan says what it is at', revision !== null, String(revision).slice(0, 24));
+
+    if (revision !== null) {
+      const fresh = await opsWith({
+        ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Raced' } }],
+        expectedRevision: revision,
+      });
+      check('a batch written against it applies', fresh.status < 300, String(fresh.status));
+
+      const stale = await opsWith({
+        ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Overwritten' } }],
+        expectedRevision: revision,
+      });
+      check('and one written against a revision that has moved on is refused', stale.status === 409, String(stale.status));
+
+      const after = await call(`/plans/${fixture.id}`);
+      check(
+        'and the refused batch changed nothing at all',
+        (after.nodes ?? []).find((node) => node.slug === 'raced')?.title === 'Raced',
+        (after.nodes ?? []).find((node) => node.slug === 'raced')?.title ?? 'gone',
+      );
+
+      const unchecked = await opsWith({
+        ops: [{ op: 'upsert_node', node: { slug: 'raced', title: 'Unchecked' } }],
+      });
+      check('a batch naming no revision applies, as every client today does', unchecked.status < 300, String(unchecked.status));
+    }
+
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: { ops: [{ op: 'delete_node', slug: 'raced' }] },
+    });
+
     console.log('\na card with something to say');
     /*
      * Every layer but the canvas already honoured a node's size, and no

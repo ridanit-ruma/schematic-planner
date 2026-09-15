@@ -118,7 +118,7 @@ export class PlansController {
     @Param('id') id: string,
     @Body(new ZodPipe(applyOpsSchema)) body: ApplyOpsInput,
   ) {
-    return this.plans.applyOps(user.id, id, body.ops);
+    return this.plans.applyOps(user.id, id, body.ops, { userId: user.id }, body.expectedRevision);
   }
 
   @Post('plans/:id/layout')

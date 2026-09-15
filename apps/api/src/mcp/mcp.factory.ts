@@ -262,7 +262,11 @@ export class McpFactory {
       },
       async ({ planId, view }) => {
         try {
-          return text(renderPlan(await this.plans.read(identity.userId, planId), view));
+          const [doc, revision] = await Promise.all([
+            this.plans.read(identity.userId, planId),
+            this.plans.revision(planId),
+          ]);
+          return text(`${renderPlan(doc, view)}\n\nRevision: ${revision}`);
         } catch (error) {
           return failure(reason(error));
         }
@@ -535,7 +539,7 @@ export class McpFactory {
           'acted on it.',
         inputSchema: applyOpsShape,
       },
-      async ({ planId, ops }) => {
+      async ({ planId, ops, expectedRevision }) => {
         try {
           // Validated narrow, then widened into the internal union. The agent
           // never sees the placement fields the internal one carries — which is
@@ -543,11 +547,17 @@ export class McpFactory {
           // nothing an agent could put in an author field that is worth
           // trusting, and the server already knows whose key this is.
           const signed = signComments(planOpsSchema.parse(ops), agentAuthor(identity.name));
-          const doc = await this.plans.applyOps(identity.userId, planId, signed, {
-            userId: identity.userId,
-            apiKeyId: identity.keyId,
-          });
-          return text(`Applied ${ops.length} operation(s).\n\n${renderPlan(doc, 'outline')}`);
+          const doc = await this.plans.applyOps(
+            identity.userId,
+            planId,
+            signed,
+            { userId: identity.userId, apiKeyId: identity.keyId },
+            expectedRevision,
+          );
+          const revision = await this.plans.revision(planId);
+          return text(
+            `Applied ${ops.length} operation(s).\n\n${renderPlan(doc, 'outline')}\n\nRevision: ${revision}`,
+          );
         } catch (error) {
           return failure(reason(error));
         }

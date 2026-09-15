@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { exportPlan, exportPlanToZip, type ExportBundle } from '@schematic/exporter';
 import { layoutPlan } from '@schematic/layout';
 import {
@@ -14,7 +14,10 @@ import {
 import {
   ORIGIN_AGENT,
   ORIGIN_LAYOUT,
+  StaleRevisionError,
   applyOps as applyOpsToDoc,
+  planRevision,
+  planRevisionFromUpdate,
   commitLayout,
 } from '@schematic/ydoc';
 
@@ -317,6 +320,25 @@ export class PlansService {
     return this.current(planId);
   }
 
+  /**
+   * What the plan is at, for a caller who will write against what it just read.
+   *
+   * Taken from the live document when there is one and from the stored bytes
+   * otherwise — never from `updatedAt`, which is written by a debounced save and
+   * therefore lags the document a client is actually racing.
+   */
+  async revision(planId: string): Promise<string> {
+    const live = this.collab.loaded(planId);
+    if (live !== undefined) return planRevision(live);
+
+    const plan = await this.prisma.plan.findUnique({
+      where: { id: planId },
+      select: { ydoc: true },
+    });
+    if (plan === null) throw new NotFoundException('Plan not found');
+    return planRevisionFromUpdate(plan.ydoc);
+  }
+
   async update(
     userId: string,
     planId: string,
@@ -422,6 +444,7 @@ export class PlansService {
     planId: string,
     ops: readonly PlanOp[],
     actor: ChangeActor = { userId },
+    expectedRevision?: string,
   ): Promise<PlanDoc> {
     await this.access.requirePlan(userId, planId, 'EDITOR');
 
@@ -430,13 +453,23 @@ export class PlansService {
     // happened, and the history should not report it as one.
     const batched: ChangeActor = { ...actor, batchId: actor.batchId ?? randomUUID() };
 
-    const applied = await this.collab.withDocument(
+    const applied = await this.refusingStale(() =>
+      this.collab.withDocument(
       planId,
       (document) => {
+        // Compared here and nowhere else. Read the revision before opening the
+        // document and the check races the very thing it guards: the plan can
+        // move between the comparison and the write. Inside the transaction the
+        // two are one act, and a batch that loses writes nothing at all.
+        if (expectedRevision !== undefined) {
+          const current = planRevision(document);
+          if (current !== expectedRevision) throw new StaleRevisionError(expectedRevision, current);
+        }
         applyOpsToDoc(document, ops, ORIGIN_AGENT);
         return this.documents.project(planId, document).doc;
       },
       batched,
+      ),
     );
 
     // Agents declare structure and never coordinates, so everything they add
@@ -444,6 +477,9 @@ export class PlansService {
     // batch of new nodes piles up on the origin until somebody presses Arrange.
     if (!applied.nodes.some((node) => node.position === null)) return applied;
 
+    // No check on this one: placing what was just added is the tail of the same
+    // act, and the revision it would be compared against is the one this call
+    // itself just moved.
     const { positions, sizes, labels } = await layoutPlan(applied, { scope: 'unpinned' });
     return this.collab.withDocument(
       planId,
@@ -537,6 +573,27 @@ export class PlansService {
       throw new NotFoundException('That link has expired');
     }
     return this.current(share.planId);
+  }
+
+  /**
+   * Turns a lost race into an answer a client can act on without asking again.
+   *
+   * The refusal names what the plan is at now, so the retry is read, reconcile,
+   * resubmit — rather than read, guess, lose again. A conflict rather than a
+   * validation failure, because nothing about the batch was wrong.
+   */
+  private async refusingStale<T>(run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      if (error instanceof StaleRevisionError) {
+        throw new ConflictException(
+          `stale_revision: the plan is at ${error.current}, not ${error.expected}. ` +
+            'Nothing was applied. Read it again and resubmit against the revision it is at now.',
+        );
+      }
+      throw error;
+    }
   }
 
   async current(planId: string): Promise<PlanDoc> {

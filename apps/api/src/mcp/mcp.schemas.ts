@@ -202,6 +202,16 @@ export const agentOpSchema = z.discriminatedUnion('op', [
 
 export const applyOpsShape = {
   planId: z.string().min(1),
+  expectedRevision: z
+    .string()
+    .max(4000)
+    .optional()
+    .describe(
+      'The revision this batch was written against, as get_plan reported it. Given, the batch ' +
+        'is applied only if the plan is still at it, and refused whole if somebody has changed ' +
+        'the plan since — nothing is half-written. Omit it unless you read the plan first and ' +
+        'your operations depend on what you read',
+    ),
   ops: z
     .array(agentOpSchema)
     .min(1)
