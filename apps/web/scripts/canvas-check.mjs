@@ -475,7 +475,10 @@ try {
     // to open leaves an empty canvas, and every rect read after it comes back
     // null — which the checks below then report as nodes drawn in the wrong
     // place, or crash on. So the drawing is waited for rather than assumed.
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    // Six, not three. The socket this link carries fails often enough that three
+    // were spent without the plan arriving, and every check after that read an
+    // empty canvas as a drawing in the wrong place.
+    for (let attempt = 0; attempt < 6; attempt += 1) {
       if (attempt === 0) {
         await page.goto(`${BASE}/plan/${fixture.id}`, { waitUntil: 'domcontentloaded' });
       } else {
@@ -485,6 +488,7 @@ try {
       const drawn = await page.$eval('.react-flow__node', (list) => list.length).catch(() => 0);
       if (drawn > 0) return;
       console.log('  the plan did not arrive; opening it again');
+      await wait(1000 * (attempt + 1));
     }
   };
 
