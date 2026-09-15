@@ -9,9 +9,16 @@ import {
   type NodeTypes,
   useReactFlow,
 } from '@xyflow/react';
-import { normalizeEdge, planEdgeInputSchema, type PlanOp, type Position } from '@schematic/schema';
+import {
+  groupSize,
+  isGroup,
+  normalizeEdge,
+  planEdgeInputSchema,
+  type PlanOp,
+  type Position,
+} from '@schematic/schema';
 import { ORIGIN_LOCAL, commitLayout, commitNodePosition, nudgeEdges } from '@schematic/ydoc';
-import { Grid2x2, MessageSquarePlus, Plus, Redo2, Trash2, Undo2 } from 'lucide-react';
+import { Group, Grid2x2, MessageSquarePlus, Plus, Redo2, Trash2, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useStore } from 'zustand';
 import type * as Y from 'yjs';
@@ -24,7 +31,8 @@ import {
   ContextSub,
 } from '@/components/ui/context-menu';
 import { plural } from '@/lib/utils';
-import { resolveDrop, type DropTarget } from './group-drop';
+import { resolveDrop, type DropTarget, type Rect } from './group-drop';
+import { groupOps } from './make-group';
 import type { PlanStore } from './plan-store';
 import { PlanStoreProvider } from './store-context';
 import { useReadingWalk } from './use-reading-walk';
@@ -44,6 +52,39 @@ import type { Undo } from './use-undo';
  * single most expensive mistake available here.
  */
 const nodeTypes: NodeTypes = { plan: PlanNodeCard };
+
+/**
+ * How long a node must be held *still* over an ordinary card before letting go
+ * would put it inside that card, and how far the hand may drift and still count
+ * as still.
+ *
+ * Dropping into something already drawn as a box needs no wait: the box is
+ * visible, aiming at it is the whole gesture. Turning a card into a box is a
+ * change to the shape of the plan, and on a dense canvas a card is something
+ * you pass over on the way somewhere else — so it asks to be meant.
+ *
+ * Stillness is measured on the pointer rather than on the clock alone. Timing
+ * how long the card has been underneath counts a slow crossing as a rest, and a
+ * hand crossing a crowded canvas slowly is exactly the case this exists to let
+ * through untouched. So any real movement starts the wait over, and the gesture
+ * is what it says it is: stop on the card, and it lights up.
+ */
+const ARM_MS = 500;
+const STILL_PX = 3;
+
+/** Where the hand is, whether it is a mouse or a finger. */
+function pointerOf(event: MouseEvent | TouchEvent): Position | null {
+  if ("clientX" in event) return { x: event.clientX, y: event.clientY };
+  const touch = event.touches[0] ?? event.changedTouches[0];
+  return touch === undefined ? null : { x: touch.clientX, y: touch.clientY };
+}
+
+/** The bounds a node occupies on the canvas: a box if it is one, else a card. */
+function boxOf(node: PlanFlowNode): { width: number; height: number } {
+  return isGroup(node.data.node, node.data.childCount)
+    ? groupSize(node.data.node)
+    : { width: node.measured?.width ?? 260, height: node.measured?.height ?? 76 };
+}
 const edgeTypes: EdgeTypes = { plan: PlanEdgeLine };
 
 /**
@@ -118,6 +159,7 @@ export function PlanCanvas({
   const select = useStore(store, (state) => state.select);
   const absolute = useStore(store, (state) => state.absolute);
   const parentOf = useStore(store, (state) => state.parentOf);
+  const arm = useStore(store, (state) => state.arm);
   const selectEdge = useStore(store, (state) => state.selectEdge);
   const highlight = useStore(store, (state) => state.highlight);
   const selectComment = useStore(store, (state) => state.selectComment);
@@ -156,11 +198,85 @@ export function PlanCanvas({
     [nodes, remoteDrag],
   );
 
+  /**
+   * The card the drag is currently resting on, and the wait that turns resting
+   * into meaning it. Kept in a ref as well as in the store because the drop
+   * has to read the answer without the canvas re-rendering every time it
+   * changes.
+   */
+  const dwell = useRef<{
+    over: string | null;
+    /** Where the hand was when this wait began, in screen pixels. */
+    pointer: Position;
+    timer: ReturnType<typeof setTimeout> | undefined;
+  }>({ over: null, pointer: { x: 0, y: 0 }, timer: undefined });
+  const armed = useRef<string | null>(null);
+
+  const disarm = useCallback(() => {
+    clearTimeout(dwell.current.timer);
+    dwell.current = { over: null, pointer: { x: 0, y: 0 }, timer: undefined };
+    if (armed.current !== null) {
+      armed.current = null;
+      arm(null);
+    }
+  }, [arm]);
+
+  useEffect(() => () => clearTimeout(dwell.current.timer), []);
+
   const handleDrag = useCallback(
-    (_: unknown, node: PlanFlowNode) => {
+    (event: MouseEvent | TouchEvent, node: PlanFlowNode) => {
       connection.publishDrag({ [node.id]: node.position });
+
+      const parent = node.parentId === undefined ? null : absolute[node.parentId];
+      const box = boxOf(node);
+      const centre = {
+        x: (parent?.x ?? 0) + node.position.x + box.width / 2,
+        y: (parent?.y ?? 0) + node.position.y + box.height / 2,
+      };
+
+      // Only ordinary cards are waited on. A box is a box already.
+      const over =
+        nodes.find((candidate) => {
+          if (candidate.id === node.id) return false;
+          if (isGroup(candidate.data.node, candidate.data.childCount)) return false;
+          const at = absolute[candidate.id];
+          if (at === undefined) return false;
+          const size = boxOf(candidate);
+          return (
+            centre.x >= at.x &&
+            centre.x <= at.x + size.width &&
+            centre.y >= at.y &&
+            centre.y <= at.y + size.height
+          );
+        })?.id ?? null;
+
+      // Measured from where the wait began rather than from the last event, so
+      // a crossing made of many small steps still adds up to a crossing.
+      const pointer = pointerOf(event);
+      if (pointer === null) return;
+      const travelled =
+        Math.abs(pointer.x - dwell.current.pointer.x) +
+        Math.abs(pointer.y - dwell.current.pointer.y);
+      if (over === dwell.current.over && travelled < STILL_PX) return;
+
+      clearTimeout(dwell.current.timer);
+      if (armed.current !== null) {
+        armed.current = null;
+        arm(null);
+      }
+      dwell.current = {
+        over,
+        pointer,
+        timer:
+          over === null
+            ? undefined
+            : setTimeout(() => {
+                armed.current = over;
+                arm(over);
+              }, ARM_MS),
+      };
     },
-    [connection],
+    [absolute, arm, connection, nodes],
   );
 
   /**
@@ -205,19 +321,23 @@ export function PlanCanvas({
         }
       }
 
+      // Anything already drawn as a box takes a drop on sight. An ordinary
+      // card takes one only when it has been held over long enough to light up,
+      // which is the same answer the person was looking at when they let go.
+      const held = armed.current;
       const targets: DropTarget[] = nodes
-        .filter((candidate) => candidate.data.childCount > 0 && candidate.data.node.size !== null)
+        .filter(
+          (candidate) =>
+            isGroup(candidate.data.node, candidate.data.childCount) || candidate.id === held,
+        )
         .map((candidate) => ({
           slug: candidate.id,
-          rect: {
-            ...(absolute[candidate.id] ?? { x: 0, y: 0 }),
-            width: candidate.data.node.size?.width ?? 0,
-            height: candidate.data.node.size?.height ?? 0,
-          },
+          rect: { ...(absolute[candidate.id] ?? { x: 0, y: 0 }), ...boxOf(candidate) } as Rect,
           depth: Math.round(((candidate.zIndex ?? 0) as number) / 10),
         }));
 
       const drop = resolveDrop(snapped, targets, forbidden);
+      disarm();
       const was = parentOf[node.id] ?? null;
 
       if (drop.parent !== was) {
@@ -264,8 +384,28 @@ export function PlanCanvas({
         commitLayout(doc, moved, ORIGIN_LOCAL, grown);
       }
     },
-    [absolute, connection, doc, grid, nodes, onApplyOps, parentOf],
+    [absolute, connection, disarm, doc, grid, nodes, onApplyOps, parentOf],
   );
+
+  /**
+   * A box drawn around what is selected — the other way to make a group, and
+   * the one that does not need anything to be dropped on anything.
+   */
+  const selection = useMemo(() => nodes.filter((node) => node.selected === true), [nodes]);
+
+  const groupSelection = (): void => {
+    const result = groupOps(
+      selection.map((node) => ({
+        slug: node.id,
+        rect: { ...(absolute[node.id] ?? { x: 0, y: 0 }), ...boxOf(node) },
+      })),
+      parentOf,
+      nodes.map((node) => node.id),
+    );
+    if (result === null) return;
+    onApplyOps(result.ops);
+    select(result.slug);
+  };
 
   const handleConnect = useCallback(
     (params: Connection) => {
@@ -352,6 +492,12 @@ export function PlanCanvas({
             >
               <MessageSquarePlus className="size-3.5 text-ink-faint" />
               {under?.kind === 'node' ? 'Leave a note on this node' : 'Leave a note here'}
+            </ContextAction>
+          )}
+          {selection.length < 2 ? null : (
+            <ContextAction onSelect={groupSelection}>
+              <Group className="size-3.5 text-ink-faint" />
+              Group {plural(selection.length, 'node')}
             </ContextAction>
           )}
           {under === null ? null : (

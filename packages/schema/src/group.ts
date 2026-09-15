@@ -1,0 +1,33 @@
+import type { PlanNode } from './plan.js';
+
+/**
+ * Bounds a group is drawn at before anybody has sized it.
+ *
+ * Wide enough for a card and its padding with room to drop a second one
+ * beside it, because the first thing anybody does with an empty group is put
+ * something in it, and a box that has to be resized before it can be used is
+ * not a box you can use.
+ */
+export const DEFAULT_GROUP_SIZE = { width: 380, height: 260 } as const;
+
+/**
+ * Whether a node is drawn as the boundary around others rather than as a card.
+ *
+ * Two ways in, and both are needed. Holding something is one: a plan drawn by
+ * an agent nests nodes without ever saying the word group, and the box around
+ * them is what `contains` means on a canvas. Saying so is the other, and it is
+ * the one that was missing — while "is a group" was inferred from "already
+ * holds something", a person had no first move. Declaring an empty group draws
+ * a box, and a box is what you can drop the first node into.
+ */
+export function isGroup(node: Pick<PlanNode, 'kind'>, childCount: number): boolean {
+  return node.kind === 'group' || childCount > 0;
+}
+
+/**
+ * The bounds to draw a group at, which are also the bounds to test a drop
+ * against. One answer, so the picture and the hit test cannot disagree.
+ */
+export function groupSize(node: Pick<PlanNode, 'size'>): { width: number; height: number } {
+  return node.size ?? DEFAULT_GROUP_SIZE;
+}

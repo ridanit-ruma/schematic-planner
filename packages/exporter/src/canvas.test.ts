@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPlanGraph } from '@schematic/schema';
+import { buildPlanGraph, planDocSchema } from '@schematic/schema';
 
 import { toCanvas, type Canvas } from './canvas.js';
 import { exportPlan } from './bundle.js';
@@ -45,5 +45,20 @@ describe('toCanvas', () => {
   it('is valid JSON in the bundle', () => {
     const content = exportPlan(samplePlan()).files.find((f) => f.path === 'plan.canvas')?.content;
     expect(() => JSON.parse(content ?? '')).not.toThrow();
+  });
+});
+
+describe('a group that holds nothing yet', () => {
+  it('is exported as the frame it is drawn as, not as a card', () => {
+    const doc = planDocSchema.parse({
+      id: 'p',
+      title: 'P',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [{ slug: 'area', title: 'Area', kind: 'group', position: { x: 0, y: 0 } }],
+    });
+    const graph = buildPlanGraph(doc);
+    const canvas = toCanvas(doc, graph, assignPaths(doc, graph).fileOf);
+
+    expect(canvas.nodes[0]).toMatchObject({ id: 'area', type: 'group', label: 'Area' });
   });
 });

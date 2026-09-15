@@ -4,6 +4,7 @@ import {
   commentBodyText,
   commentsMap,
   commitCommentPosition,
+  commitCommentSize,
 } from '@schematic/ydoc';
 import { ViewportPortal, useReactFlow, useStore as useFlowStore } from '@xyflow/react';
 import { Check, RotateCcw, Trash2 } from 'lucide-react';
@@ -23,6 +24,16 @@ import { useYText } from './use-y-text';
 const DRAG_SLOP = 3;
 
 const WIDTH = 216;
+
+/**
+ * How small a note may be dragged.
+ *
+ * Nothing computes a note's bounds and nothing ever will: layout places the
+ * drawing, and a note is a remark beside it, as big as whoever wrote it decided
+ * it needed to be. The floor is only there so a note cannot be dragged shut and
+ * then be impossible to find again.
+ */
+const NOTE_MIN = { width: 160, height: 96 };
 /** How far clear of the drawing an unplaced note sits. */
 const ABOVE = 150;
 
@@ -147,6 +158,10 @@ function Note({
   // Where it is while being dragged. The document hears about it once, at the end.
   const [held, setHeld] = useState<Position | null>(null);
   const grab = useRef<{ pointer: Position; from: Position; moved: boolean } | null>(null);
+  // The same bargain for the corner: drawn as it is dragged, stored once.
+  const [stretched, setStretched] = useState<{ width: number; height: number } | null>(null);
+  const corner = useRef<{ pointer: Position; from: { width: number; height: number } } | null>(null);
+  const size = stretched ?? comment.size;
 
   const at = held ?? comment.position ?? fallback;
 
@@ -198,6 +213,42 @@ function Note({
     if (moved !== null) commitCommentPosition(doc, comment.id, moved, ORIGIN_LOCAL);
   };
 
+  const onCornerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
+    if (readOnly || event.button !== 0) return;
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const note = event.currentTarget.parentElement;
+    corner.current = {
+      pointer: screenToFlowPosition({ x: event.clientX, y: event.clientY }),
+      // From what it is actually drawn at, which for a note nobody has resized
+      // is whatever its own words came to.
+      from: size ?? {
+        width: WIDTH,
+        height: note?.offsetHeight ?? NOTE_MIN.height,
+      },
+    };
+  };
+
+  const onCornerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
+    const start = corner.current;
+    if (start === null) return;
+    event.stopPropagation();
+    const now = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    setStretched({
+      width: Math.max(NOTE_MIN.width, start.from.width + (now.x - start.pointer.x)),
+      height: Math.max(NOTE_MIN.height, start.from.height + (now.y - start.pointer.y)),
+    });
+  };
+
+  const onCornerUp = (event: React.PointerEvent<HTMLDivElement>): void => {
+    const next = stretched;
+    if (corner.current === null) return;
+    event.stopPropagation();
+    corner.current = null;
+    setStretched(null);
+    if (next !== null) commitCommentSize(doc, comment.id, next, ORIGIN_LOCAL);
+  };
+
   const apply = (patch: Partial<PlanComment>): void => {
     const target = commentsMap(doc).get(comment.id);
     if (target === undefined) return;
@@ -242,7 +293,7 @@ function Note({
           // is a picture of a note: visible, and unable to be opened, dragged or
           // deleted. The cursors layer next door wants exactly that and says
           // pointer-events-none out loud; this one has to say the opposite.
-          'pointer-events-auto nopan nodrag absolute top-0 left-0 rounded-md border bg-surface-3 text-left elevated',
+          'group/note pointer-events-auto nopan nodrag absolute top-0 left-0 flex flex-col rounded-md border bg-surface-3 text-left elevated',
           comment.resolved
             ? 'border-rule opacity-60'
             : 'border-collab/45 shadow-[0_0_0_1px_rgb(139_92_246/0.12)]',
@@ -250,7 +301,12 @@ function Note({
         // Above every node: React Flow stacks nodes by containment depth in
         // small numbers, and a note behind the card it is about is a note
         // nobody can read or reach.
-        style={{ transform: `translate(${at.x}px, ${at.y}px)`, width: WIDTH, zIndex: 1000 }}
+        style={{
+          transform: `translate(${at.x}px, ${at.y}px)`,
+          width: size?.width ?? WIDTH,
+          ...(size !== null && size !== undefined && { height: size.height }),
+          zIndex: 1000,
+        }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -278,7 +334,10 @@ function Note({
             onPointerDown={(event) => event.stopPropagation()}
             rows={4}
             placeholder="What about this?"
-            className="w-full resize-none bg-transparent px-2 py-1 text-xs leading-relaxed text-ink outline-none placeholder:text-ink-faint"
+            className={cn(
+              'w-full resize-none bg-transparent px-2 py-1 text-xs leading-relaxed text-ink outline-none placeholder:text-ink-faint',
+              size !== null && size !== undefined && 'min-h-0 flex-1',
+            )}
           />
         ) : (
           // A div and not a button: a checkbox inside a button is invalid, and
@@ -294,7 +353,10 @@ function Note({
             }}
             // A long note is scrolled, not dragged.
             onPointerDown={(event) => event.stopPropagation()}
-            className="max-h-64 w-full overflow-y-auto px-2 py-1 text-left"
+            className={cn(
+              'w-full overflow-y-auto px-2 py-1 text-left',
+              size === null || size === undefined ? 'max-h-64' : 'min-h-0 flex-1',
+            )}
           >
             {body === '' ? (
               <span className="text-xs text-ink-faint">Empty note</span>
@@ -333,6 +395,23 @@ function Note({
                 <span className="sr-only">Delete note</span>
               </button>
             </Tooltip>
+          </div>
+        )}
+        {readOnly ? null : (
+          /* A corner to pull. Out of the way until the pointer is on the note,
+             because a note is mostly read and a grip on every one of them is
+             furniture on a drawing. */
+          <div
+            onPointerDown={onCornerDown}
+            onPointerMove={onCornerMove}
+            onPointerUp={onCornerUp}
+            onPointerCancel={onCornerUp}
+            className="absolute right-0 bottom-0 size-4 cursor-nwse-resize opacity-0 transition-opacity group-hover/note:opacity-100"
+          >
+            <span
+              aria-hidden
+              className="absolute right-1 bottom-1 block size-1.5 border-r border-b border-ink-faint"
+            />
           </div>
         )}
       </div>
