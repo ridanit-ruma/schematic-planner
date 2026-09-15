@@ -471,27 +471,34 @@ try {
     child.x + child.width <= box.x + box.width + 1 &&
     child.y + child.height <= box.y + box.height + 1;
   const reopen = async () => {
-    // The plan arrives over a socket, not with the page. A socket that failed
-    // to open leaves an empty canvas, and every rect read after it comes back
-    // null — which the checks below then report as nodes drawn in the wrong
-    // place, or crash on. So the drawing is waited for rather than assumed.
-    // Six, not three. The socket this link carries fails often enough that three
-    // were spent without the plan arriving, and every check after that read an
-    // empty canvas as a drawing in the wrong place.
-    for (let attempt = 0; attempt < 6; attempt += 1) {
+    /*
+     * The plan arrives over a socket, not with the page, and a slow first load
+     * is the common case rather than a fault — after the invitation section
+     * this is a cold connection and a fresh document.
+     *
+     * So it is watched rather than restarted. Reloading interrupts a document
+     * that is still on its way, which made an eager retry the reason the plan
+     * never arrived: every few seconds the load began again from nothing. It
+     * now waits up to twenty seconds, returning the moment anything is drawn,
+     * and only then opens the page again.
+     */
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       if (attempt === 0) {
         await page.goto(`${BASE}/plan/${fixture.id}`, { waitUntil: 'domcontentloaded' });
       } else {
         await page.reload({ waitUntil: 'domcontentloaded' });
       }
-      await wait(4000);
-      // `$eval` and not `$eval`: the single form hands the callback the first
-      // matching element, whose `.length` is undefined, so this asked whether
-      // the plan had arrived and was told no however many nodes were on screen.
-      const drawn = await page.$eval('.react-flow__node', (list) => list.length).catch(() => 0);
-      if (drawn > 0) return;
+      for (let waited = 0; waited < 20; waited += 1) {
+        await wait(1000);
+        const drawn = await page.$$eval('.react-flow__node', (list) => list.length).catch(() => 0);
+        if (drawn > 0) {
+          // A frame for the browser to lay the new nodes out before anything
+          // measures one.
+          await wait(600);
+          return;
+        }
+      }
       console.log('  the plan did not arrive; opening it again');
-      await wait(1000 * (attempt + 1));
     }
     // Said out loud. Every check after this reads an empty canvas, and without
     // it they blame whatever they were about rather than the socket.
