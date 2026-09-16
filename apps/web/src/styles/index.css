@@ -1,16 +1,6 @@
 @import 'tailwindcss';
 
 /*
- * A screen with no pointer on it.
- *
- * Not "a small screen": a tablet with a keyboard is wide and still touched, and
- * a phone in landscape is neither. What changes is that there is no hover to
- * reveal a control with and no pixel-accurate aim to hit one by, so anything
- * that was only ever findable by hovering is invisible there.
- */
-@custom-variant coarse (@media (pointer: coarse));
-
-/*
  * Craft Minimal Workspace — the palette, type and rhythm this product is drawn
  * in. Dark only: the surface stepping, the translucent borders and the focus
  * glow are all tuned against an obsidian ground, and a light counterpart that
@@ -301,3 +291,34 @@
   --xy-selection-border-default: 1px dashed var(--accent);
 }
 
+
+/*
+ * The width grip, on a screen with no pointer on it.
+ *
+ * Not "a small screen": a tablet with a keyboard is wide and still touched, and
+ * a phone in landscape is neither. What changes is that there is no hover to
+ * reveal a control with, and no pixel-accurate aim to hit one by.
+ *
+ * Plain CSS rather than a Tailwind variant. A `@custom-variant` for this
+ * compiled to nothing at all — the whole fix shipped inert, and the gate found
+ * no `(pointer: coarse)` rule anywhere in the stylesheet.
+ */
+@media (pointer: coarse) {
+  /* A finger is about forty pixels across, so twelve is under the floor for
+     one. Reaching further in — and past the border, where there is nothing but
+     canvas — is the difference between a grip and a rumour. */
+  .plan-grip::before {
+    left: -1.5rem;
+    right: -0.5rem;
+  }
+
+  /* Revealed by a gesture the device cannot make is not revealed. Here the
+     mark is shown by having selected the node instead. */
+  .plan-grip::after {
+    width: 0.375rem;
+  }
+
+  .plan-grip[data-selected='true']::after {
+    opacity: 1;
+  }
+}

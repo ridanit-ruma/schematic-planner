@@ -16,7 +16,6 @@ import {
   movableSegments,
   pathOf,
   routeOf,
-  segmentOfLabel,
   type Side,
 } from './edge-path';
 import { snapValue } from './snap';
@@ -89,7 +88,6 @@ function Line({
   // The shape while it is being dragged. The document hears once, at the end —
   // the same bargain as a node's position and a note's.
   const [held, setHeld] = useState<Position[] | null>(null);
-  const [heldLabel, setHeldLabel] = useState<Position | null>(null);
   // One drag, one place to keep it. The old arrangement had three hit areas
   // overlapping and two refs kept apart so that a bend being moved was not also
   // read as the line being grabbed underneath it.
@@ -99,8 +97,6 @@ function Line({
     origin: number;
     pointer: Position;
     route: Position[];
-    label: Position | null;
-    carries: boolean;
     moved: boolean;
   } | null>(null);
 
@@ -171,12 +167,10 @@ function Line({
    * catch it either, because nothing had moved — the point was wrong the moment
    * it was written.
    *
-   * `heldLabel` is the exception, and only within a gesture: while a note is
-   * being dragged it is drawn under the finger, and the moment that ends it
-   * returns to the line.
+   * Moving a run therefore moves the writing on it, with nothing carrying it:
+   * the route changes and the answer changes with it.
    */
-  const placed = heldLabel;
-  const at = placed ?? labelAt(route, corridor);
+  const at = labelAt(route, corridor);
   const show = note !== '' && legible;
 
   return (
@@ -234,19 +228,12 @@ function Line({
                   ends.targetSide,
                   edgeData?.waypoints ?? [],
                 );
-                // Where the writing is on the committed route, rather than a
-                // point that used to be stored. Same question, asked of the
-                // thing that now answers it.
-                const label = labelAt(committed, corridor);
                 drag.current = {
                   index: run.index,
                   axis: run.axis,
                   origin: run.axis === 'x' ? run.a.x : run.a.y,
                   pointer: screenToFlowPosition({ x: event.clientX, y: event.clientY }),
                   route: committed,
-                  label,
-                  // Only the writing sitting on this run travels with it.
-                  carries: segmentOfLabel(committed, label) === run.index,
                   moved: false,
                 };
                 event.currentTarget.setPointerCapture(event.pointerId);
@@ -265,30 +252,19 @@ function Line({
                 const grid = readGrid();
                 const loose = start.origin + travelled;
                 const to = grid.on ? snapValue(loose, grid.step) : loose;
+                // The writing is worked out from the route, so moving the
+                // route moves it. Carrying it by hand was the old arrangement's
+                // answer to a point that was stored somewhere else.
                 setHeld(dragSegment(start.route, start.index, to));
-
-                if (start.carries && start.label !== null) {
-                  const shift = to - start.origin;
-                  setHeldLabel(
-                    start.axis === 'x'
-                      ? { x: start.label.x + shift, y: start.label.y }
-                      : { x: start.label.x, y: start.label.y + shift },
-                  );
-                }
               }}
               onPointerUp={() => {
                 const start = drag.current;
                 const shape = held;
-                const label = heldLabel;
                 drag.current = null;
                 setHeld(null);
-                setHeldLabel(null);
                 if (start === null) return;
                 if (start.moved && shape !== null) {
-                  // `undefined` and not `null`: null means "put the writing back
-                  // at the midpoint", and a run moved out from under a label that
-                  // was sitting somewhere else must not take its place away.
-                  routeEdge(id, shape, label ?? undefined);
+                  routeEdge(id, shape);
                   return;
                 }
                 // A grab that never moved was a click. This surface swallows the

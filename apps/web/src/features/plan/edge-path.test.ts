@@ -269,15 +269,35 @@ describe('where the writing on a line sits', () => {
     expect([first.x, second.x, third.x]).toEqual([75, 150, 225]);
   });
 
-  it('keeps every note on the run itself', () => {
+  it('keeps them a row apart across the run, which is what guarantees it', () => {
+    // Along the run is not enough on its own: two flows out of one node into
+    // two others are two different lines, and their longest runs are often
+    // parallel and level — so two notes fifteen pixels apart along a run still
+    // sat on top of each other, being a hundred wide.
     const route = [
       { x: 0, y: 0 },
       { x: 0, y: 200 },
       { x: 500, y: 200 },
     ];
-    for (let index = 0; index < 3; index += 1) {
-      expect(labelAt(route, { of: 3, index }).y).toBe(200);
-    }
+    const rows = [0, 1, 2].map((index) => labelAt(route, { of: 3, index }).y);
+    expect(rows).toEqual([178, 200, 222]);
+  });
+
+  it('puts a single note on its run and nowhere else', () => {
+    const route = [
+      { x: 0, y: 0 },
+      { x: 500, y: 0 },
+    ];
+    expect(labelAt(route, { of: 1, index: 0 })).toEqual({ x: 250, y: 0 });
+  });
+
+  it('steps sideways when the run it sits on is upright', () => {
+    const route = [
+      { x: 100, y: 0 },
+      { x: 100, y: 400 },
+    ];
+    const columns = [0, 1].map((index) => labelAt(route, { of: 2, index }).x);
+    expect(columns).toEqual([89, 111]);
   });
 
   it('answers for a line with nothing to sit on', () => {

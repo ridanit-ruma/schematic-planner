@@ -683,13 +683,17 @@ export function PlanCanvas({
         // less than half a step.
         /*
          * React Flow quantises the live drag itself, which is what makes a node
-         * feel magnetic rather than merely end up tidy — but it does it on the
-         * node's corner and cannot be taught otherwise. Under the terminal
-         * anchor the drop does the snapping instead, so the drag stops feeling
-         * magnetic and the line between two snapped nodes runs straight. That
-         * is the trade, and it is the one the setting exists to offer.
+         * feel magnetic rather than merely end up tidy. It does it on the node's
+         * corner and cannot be taught another anchor — so under the terminal
+         * anchor the drop corrects it afterwards, by less than half a step.
+         *
+         * Switching this off under that anchor was tried and is what the gate
+         * refused: a drag that is not quantised at all lands a few pixels from
+         * where every check that measures one expects it, and three unrelated
+         * gestures started failing. Correcting a snapped position is a smaller
+         * change than not snapping.
          */
-        snapToGrid={grid.on && grid.anchor === 'edge'}
+        snapToGrid={grid.on}
         snapGrid={[grid.step, grid.step]}
         onNodeDrag={readOnly ? undefined : handleDrag}
         onNodeDragStop={readOnly ? undefined : handleDragStop}

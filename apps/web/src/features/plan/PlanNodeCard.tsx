@@ -47,12 +47,8 @@ const HANDLE =
  * after the card puts it over the terminal rather than under it.
  */
 const RESIZE_EDGE =
-  '!border-transparent touch-none ' +
-  "before:absolute before:inset-y-1 before:-left-3 before:right-0 before:cursor-ew-resize before:content-[''] " +
-  // A finger is about forty pixels across, so twelve is under the floor for
-  // one. Reaching further in — and a little past the border, where there is
-  // nothing but canvas — is the difference between a grip and a rumour.
-  'coarse:before:-left-6 coarse:before:-right-2';
+  'plan-grip !border-transparent touch-none ' +
+  "before:absolute before:inset-y-1 before:-left-3 before:right-0 before:cursor-ew-resize before:content-['']";
 
 /**
  * What the strip looks like, so that it can be found without being told.
@@ -64,10 +60,7 @@ const RESIZE_EDGE =
 const RESIZE_MARK =
   'after:pointer-events-none after:absolute after:inset-y-1 after:right-0 after:w-1 ' +
   'after:-translate-x-full after:rounded-full after:bg-accent after:transition-opacity ' +
-  "after:content-[''] hover:after:!opacity-100 " +
-  // A touch screen never hovers, so on one the mark is shown by selection
-  // instead. Revealed by a gesture the device cannot make is not revealed.
-  'coarse:after:w-1.5';
+  "after:content-[''] hover:after:!opacity-100";
 
 
 interface Size {
@@ -109,12 +102,8 @@ function WidthHandle({
        * claiming the gesture for a pan once the finger has travelled, which is
        * why widening a card on a phone moved one grid step and then stopped.
        */
-      className={cn(
-        RESIZE_EDGE,
-        RESIZE_MARK,
-        selected ? 'after:opacity-40' : 'after:opacity-0',
-        selected && 'coarse:after:!opacity-100',
-      )}
+      data-selected={selected ? 'true' : 'false'}
+      className={cn(RESIZE_EDGE, RESIZE_MARK, selected ? 'after:opacity-40' : 'after:opacity-0')}
     />
   );
 }

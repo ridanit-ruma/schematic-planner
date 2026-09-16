@@ -332,12 +332,23 @@ function distanceToSegment(point: Position, a: Position, b: Position): number {
  * them, so on a freshly arranged canvas the notes floated well clear of the
  * flows they belonged to: they were sitting on a line in a picture nobody sees.
  *
- * The longest run, because it is the one with room. `share` spreads the notes
- * of several flows that run between the same pair down that corridor rather
- * than stacking them all at its middle: one lands at a half, two at a third and
- * two thirds, three at a quarter, a half and three quarters. Keeping them apart
- * is the one thing ELK was doing for us that deleting its point gave back.
+ * The longest run, because it is the one with room. `share` then keeps the
+ * notes of several flows leaving one node off each other, in two ways at once
+ * — and it takes both.
+ *
+ * **Along the run**, so they read as a column down a corridor rather than a
+ * pile at its middle: one lands at a half, two at a third and two thirds,
+ * three at a quarter, a half and three quarters.
+ *
+ * **Across it**, by a row each, because along is not enough on its own. Two
+ * flows out of one node into two others are two different lines, and their
+ * longest runs are often parallel and level — so two notes fifteen pixels
+ * apart along a run still sat on top of each other, being a hundred wide. A
+ * row of clearance is a guarantee; a fraction of a run somebody else's line
+ * happens to share is not.
  */
+const NOTE_ROW = 22;
+
 export function labelAt(
   route: readonly Position[],
   share: { of: number; index: number } = { of: 1, index: 0 },
@@ -353,8 +364,13 @@ export function labelAt(
   }
 
   const along = (share.index + 1) / (share.of + 1);
-  return {
+  const on = {
     x: best.from.x + (best.to.x - best.from.x) * along,
     y: best.from.y + (best.to.y - best.from.y) * along,
   };
+
+  // Centred on the run, so one note sits exactly on it and a pair straddle it.
+  const across = (share.index - (share.of - 1) / 2) * NOTE_ROW;
+  const upright = Math.abs(best.to.y - best.from.y) > Math.abs(best.to.x - best.from.x);
+  return upright ? { x: on.x + across, y: on.y } : { x: on.x, y: on.y + across };
 }
