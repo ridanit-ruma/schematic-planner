@@ -1915,17 +1915,26 @@ try {
   };
 
   /*
-   * Under a path the application owns. A bare `/nowhere` is answered by the
-   * marketing site at the proxy before it ever reaches this app, and a check
-   * written against that was reading Next's 404 page and calling it ours.
+   * Under a path the application owns, which is a short explicit list in the
+   * Caddyfile: /login /register /recent /settings/* /admin/* /workspace/*
+   * /plan/* /share/* /invite/*. Everything else — including /recent/anything,
+   * because the list has /recent and not /recent/* — is the marketing site,
+   * which serves its own 404 page with a 404 status and always has. Two checks
+   * written against those paths were reading Next's error page and calling it
+   * ours. /settings/* is the application's, and nothing under it but agents is
+   * a route.
    */
-  const unknown = await notFoundAt(`/recent/nowhere-${Date.now()}`);
+  const unknown = await notFoundAt(`/settings/nowhere-${Date.now()}`);
   check(
     'an address that is not a route says so',
     unknown.text.includes('There is no page here'),
     unknown.text.replace(/\s+/g, ' ').slice(0, 70),
   );
   check('and leaves you at the address you typed', unknown.at.includes('/nowhere-'), unknown.at);
+
+  // And the marketing site, which owns every other address, answers one too.
+  const outside = await page.goto(`${BASE}/nowhere-${Date.now()}`, { waitUntil: 'domcontentloaded' });
+  check('an address outside the application is a 404 from the server', outside?.status() === 404, String(outside?.status()));
 
   const strange = await notFoundAt(`/workspace/not-yours-${Date.now()}`);
   check(
