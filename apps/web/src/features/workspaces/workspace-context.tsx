@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Navigate, Outlet, useParams } from 'react-router';
+import { Outlet, useParams } from 'react-router';
 
-import { Problem, Spinner } from '@/components/ui/feedback';
+import { NotFound, Problem, Spinner } from '@/components/ui/feedback';
 import { workspaces as api, type WorkspaceSummary } from '@/lib/api';
 import { useLiveList } from '@/lib/use-live-list';
 import { rememberWorkspace, rememberedWorkspace, resolveWorkspace } from './current-workspace';
@@ -13,8 +13,8 @@ interface WorkspacesValue {
    * Puts one into the list without waiting to be told about it again.
    *
    * A workspace you have just made is not in the list yet, and the route for it
-   * bounces anything it cannot resolve back to where you were — so creating one
-   * and going to it looked like creating one and staying put. The server has
+   * has no way to tell that from a workspace that is not yours — so creating one
+   * and going to it showed you a 404 of your own workspace. The server has
    * already handed back the whole thing; there is nothing to wait for.
    */
   readonly add: (workspace: WorkspaceSummary) => void;
@@ -125,7 +125,10 @@ export function WorkspaceLayout() {
   }, [current]);
   const value = useMemo(() => (current === undefined ? null : { current }), [current]);
 
-  if (value === null) return <Navigate to="/" replace />;
+  // Not a redirect to "/". A slug you are not a member of is indistinguishable
+  // from one that does not exist, deliberately, and both are somewhere you
+  // cannot go rather than a reason to put you back where you started.
+  if (value === null) return <NotFound subject="workspace" />;
 
   return (
     <CurrentContext.Provider value={value}>

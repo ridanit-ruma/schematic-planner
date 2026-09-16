@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 
 import { AppShell } from '@/components/AppShell';
-import { Spinner } from '@/components/ui/feedback';
+import { NotFound, Spinner } from '@/components/ui/feedback';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAuth } from '@/lib/auth-store';
 import { AccountSettingsPage } from '@/features/account/AccountSettingsPage';
@@ -113,7 +113,10 @@ export function App() {
             <Route path="trash" element={<TrashPage />} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/recent" replace />} />
+          {/* Not a redirect. Being quietly moved somewhere else hides the
+              fact that the address was wrong, and hides it hardest from the
+              person who typed it. */}
+          <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
     </TooltipProvider>

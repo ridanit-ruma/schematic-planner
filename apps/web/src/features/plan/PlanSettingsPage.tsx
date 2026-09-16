@@ -4,11 +4,11 @@ import { Link, useNavigate, useParams } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/field';
-import { Problem, Spinner } from '@/components/ui/feedback';
+import { NotFound, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { Page, Panel } from '@/components/ui/page';
 import { Select } from '@/components/ui/select';
-import { plans, projects as projectsApi, type PlanNavigation } from '@/lib/api';
+import { isMissing, plans, projects as projectsApi, type PlanNavigation } from '@/lib/api';
 import { useWorkspaces } from '@/features/workspaces/workspace-context';
 
 /**
@@ -68,6 +68,10 @@ export function PlanSettingsPage() {
       live = false;
     };
   }, [workspaceId, nav?.projectId]);
+
+  // An address that leads nowhere you can reach is not an error on a page;
+  // it is the absence of the page.
+  if (isMissing(error)) return <NotFound subject="plan" />;
 
   if (error !== null && nav === null) {
     return (

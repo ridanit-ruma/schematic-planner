@@ -1897,6 +1897,71 @@ try {
   await call(`/plans/${elsewhere.id}`, { method: 'DELETE' });
   await call(`/trash/plans/${elsewhere.id}`, { method: 'DELETE' });
 
+  console.log('\naddresses that lead nowhere');
+  /*
+   * Three silent redirects and one lie. An unknown address, a workspace that
+   * is not yours and a plan that is not yours each quietly moved you somewhere
+   * else, and the canvas drew an empty plan called "Untitled plan" — a drawing
+   * of something that is not there. The server has always answered 404 rather
+   * than 403 for all of them, deliberately; the screens now say so too.
+   */
+  const notFoundAt = async (path) => {
+    await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
+    await wait(3500);
+    return page.evaluate(() => {
+      const text = document.body.textContent ?? '';
+      return { text, at: window.location.pathname };
+    });
+  };
+
+  /*
+   * Under a path the application owns, which is a short explicit list in the
+   * Caddyfile: /login /register /recent /settings/* /admin/* /workspace/*
+   * /plan/* /share/* /invite/*. Everything else — including /recent/anything,
+   * because the list has /recent and not /recent/* — is the marketing site,
+   * which serves its own 404 page with a 404 status and always has. Two checks
+   * written against those paths were reading Next's error page and calling it
+   * ours. /settings/* is the application's, and nothing under it but agents is
+   * a route.
+   */
+  const unknown = await notFoundAt(`/settings/nowhere-${Date.now()}`);
+  check(
+    'an address that is not a route says so',
+    unknown.text.includes('There is no page here'),
+    unknown.text.replace(/\s+/g, ' ').slice(0, 70),
+  );
+  check('and leaves you at the address you typed', unknown.at.includes('/nowhere-'), unknown.at);
+
+  // And the marketing site, which owns every other address, answers one too.
+  const outside = await page.goto(`${BASE}/nowhere-${Date.now()}`, { waitUntil: 'domcontentloaded' });
+  check('an address outside the application is a 404 from the server', outside?.status() === 404, String(outside?.status()));
+
+  const strange = await notFoundAt(`/workspace/not-yours-${Date.now()}`);
+  check(
+    'a workspace that is not yours says so',
+    strange.text.includes('There is no workspace here'),
+    strange.text.replace(/\s+/g, ' ').slice(0, 70),
+  );
+  check('and does not name it as forbidden', !/forbidden|permission|not allowed/i.test(strange.text));
+  // The trail is read out of the address, which is right while every address
+  // leads somewhere: this one came out as "Demo's workspace > Projects" over a
+  // page saying there is nothing here.
+  check(
+    'and the trail does not describe an address that leads nowhere',
+    await page.evaluate(() => (document.querySelector('header')?.textContent ?? '').includes('Projects') === false),
+  );
+
+  // A plan id of the right shape that this account cannot open. The canvas
+  // used to sit at "connecting" over an empty document and draw it as a plan.
+  const hidden = await notFoundAt('/plan/cmxxxxxxxxxxxxxxxxxxxxxxxx');
+  check(
+    'a plan that is not yours says so rather than drawing an empty one',
+    hidden.text.includes('There is no plan here'),
+    hidden.text.replace(/\s+/g, ' ').slice(0, 70),
+  );
+  check('and draws no canvas at all', !hidden.text.includes('Untitled plan'));
+
+  await reopen();
   console.log('\nfolders as places');
   // A folder used to be a heading spliced into the middle of the plan table: a
   // raw `td` with none of the padding every other cell has, so its name sat

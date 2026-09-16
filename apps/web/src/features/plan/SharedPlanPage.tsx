@@ -7,9 +7,9 @@ import * as Y from 'yjs';
 import { useStore } from 'zustand';
 
 import { Button } from '@/components/ui/button';
-import { Problem, Spinner } from '@/components/ui/feedback';
+import { NotFound, Problem, Spinner } from '@/components/ui/feedback';
 import { config } from '@/lib/config';
-import { plans } from '@/lib/api';
+import { isMissing, plans } from '@/lib/api';
 import { PlanCanvas } from './PlanCanvas';
 import { useDocumentTitle } from '@/lib/use-document-title';
 import { PlanSize } from './TitleBlock';
@@ -29,6 +29,11 @@ export function SharedPlanPage() {
   useEffect(() => {
     plans.readShared(token).then(setDoc).catch(setError);
   }, [token]);
+
+  // An address that leads nowhere you can reach is not an error on a page;
+  // it is the absence of the page. Everything below this line assumes the
+  // thing exists and is yours.
+  if (isMissing(error)) return <NotFound subject="shared plan" />;
 
   if (error !== null) {
     return (

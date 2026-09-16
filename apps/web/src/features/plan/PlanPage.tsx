@@ -8,7 +8,7 @@ import { useStore } from 'zustand';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
-import { Problem, Spinner } from '@/components/ui/feedback';
+import { NotFound, Problem, Spinner } from '@/components/ui/feedback';
 import { downloadExport, plans } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { useDocumentTitle } from '@/lib/use-document-title';
@@ -24,7 +24,11 @@ import { usePlanUndo, useUndoKeys } from './use-undo';
 export function PlanPage() {
   const { planId = '' } = useParams();
   const user = useAuth((state) => state.user);
-  const { connection, status } = usePlanDocument(planId, user);
+  const { connection, status, denied } = usePlanDocument(planId, user);
+
+  // Before the rail, because the rail is a list of this workspace's plans and
+  // this address is not in a workspace you can see.
+  if (denied) return <NotFound subject="plan" />;
 
   // The rail sits outside the document gate: opening a plan tears the previous
   // connection down, and a rail inside would unmount and refetch itself every
