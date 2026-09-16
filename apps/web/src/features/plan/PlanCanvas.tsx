@@ -190,6 +190,24 @@ export function PlanCanvas({
   const taken = useRef(false);
   useOpeningFit(doc, nodes.length, taken);
   const grid = useGrid();
+
+  /**
+   * The height the grid holds a node by, which only a card has.
+   *
+   * The `terminal` anchor lines up where the wires leave a node, and on a card
+   * that is the vertical middle of a fixed box. A box drawn round other nodes
+   * has neither: its size is read back off whatever is inside it and changes
+   * every time a child moves, so holding it by a middle that moves is holding
+   * it by nothing. Passing zero leaves a box on the outer edge under either
+   * setting, which is also the only way its children stay put relative to it.
+   */
+  const anchorHeight = useCallback(
+    (node: PlanFlowNode | undefined): number =>
+      node === undefined || isGroup(node.data.node, node.data.childCount)
+        ? 0
+        : boxOf(bounds, node).height,
+    [bounds],
+  );
   // A line decides on its own whether to offer the handles that bend it, and
   // React Flow hands it nothing but its data, so the answer goes through the
   // store. It arrives here, with the socket.
@@ -319,7 +337,7 @@ export function PlanCanvas({
       // its own. Snapped before the drop is resolved, so that a node moved clear
       // of something it landed on is moved from a position already on the grid.
       const snapped = grid.on
-        ? { ...dropped, ...snapTo(dropped, grid.step, grid.anchor, dropped.height) }
+        ? { ...dropped, ...snapTo(dropped, grid.step, grid.anchor, anchorHeight(node)) }
         : dropped;
 
       // A group cannot be dropped into itself or into anything it holds.
@@ -409,7 +427,7 @@ export function PlanCanvas({
       }
       if (moved.size > 0) commitLayout(doc, moved, ORIGIN_LOCAL);
     },
-    [absolute, bounds, connection, disarm, doc, grid, nodes, onApplyOps, parentOf],
+    [absolute, anchorHeight, bounds, connection, disarm, doc, grid, nodes, onApplyOps, parentOf],
   );
 
   /**
@@ -525,10 +543,11 @@ export function PlanCanvas({
     onApplyOps([{ op: 'delete_edge', kind: 'contains', from: holderOfUnder, to: under.id }]);
     if (box === undefined || size === undefined || at === undefined) return;
     const below = { x: at.x, y: box.y + boxOf(bounds, size).height + 40 };
+    const moving = nodes.find((candidate) => candidate.id === under.id);
     commitNodePosition(
       doc,
       under.id,
-      grid.on ? snapTo(below, grid.step, grid.anchor, boxOf(bounds, size).height) : below,
+      grid.on ? snapTo(below, grid.step, grid.anchor, anchorHeight(moving)) : below,
       ORIGIN_LOCAL,
     );
   };

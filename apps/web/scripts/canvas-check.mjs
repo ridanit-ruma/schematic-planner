@@ -764,9 +764,17 @@ try {
         return Math.round(Math.min(...lines.map((line) => near(line, at))));
       });
     });
+    /*
+     * Beside, not on, once several notes share one run: they step across it a
+     * row apart so that none covers another, so the note furthest out sits
+     * (n-1)/2 rows clear of its line. 40px admits four notes on one run and
+     * still catches the defect this check exists for, which put them hundreds
+     * of pixels away. A source with more than four flows out of it would
+     * spread wider than this and the corridor would need stacking instead.
+     */
     check(
-      'and every note sits on the line it belongs to',
-      adrift !== null && Math.max(...adrift) < 24,
+      'and every note sits on or beside the line it belongs to',
+      adrift !== null && Math.max(...adrift) < 40,
       adrift === null ? 'nothing to measure' : `furthest ${Math.max(...adrift)}px from a line`,
     );
 
