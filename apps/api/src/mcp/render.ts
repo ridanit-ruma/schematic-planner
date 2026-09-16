@@ -491,16 +491,34 @@ function precedence(doc: PlanDoc): Map<string, string[]> {
   return before;
 }
 
-/** A node nobody works on: the boxes that hold things, and the remarks beside them. */
-function isWork(node: { kind: string }): boolean {
-  return node.kind !== 'group' && node.kind !== 'note';
+/**
+ * A node nobody works on: the boxes that hold things, and the remarks beside
+ * them.
+ *
+ * Holding others is the second way to be a box, and the canvas has always drawn
+ * it that way — a node with children is the boundary around them whatever it
+ * calls itself. A Plan groups its tasks under features, so without this the
+ * four slices of a Plan were offered as four things to start, and the reader
+ * was back to deciding which lines to ignore. That is the judgement this
+ * answer exists to remove.
+ */
+function isWork(node: { kind: string; slug: string }, holds: ReadonlySet<string>): boolean {
+  return node.kind !== 'group' && node.kind !== 'note' && !holds.has(node.slug);
+}
+
+/** Every node that has something nested under it. */
+function holders(doc: PlanDoc): Set<string> {
+  const held = new Set<string>();
+  for (const edge of doc.edges) if (edge.kind === 'contains') held.add(edge.from);
+  return held;
 }
 
 const SETTLED = new Set(['done', 'dropped']);
 
 /** Where a plan has got to, in one line. */
 export function progressLine(doc: PlanDoc): string {
-  const work = doc.nodes.filter(isWork);
+  const holds = holders(doc);
+  const work = doc.nodes.filter((node) => isWork(node, holds));
   if (work.length === 0) return '';
 
   const count = (status: string) => work.filter((node) => node.status === status).length;
@@ -528,7 +546,8 @@ export function progressLine(doc: PlanDoc): string {
 export function renderNext(doc: PlanDoc, limit: number): string {
   const before = precedence(doc);
   const status = new Map(doc.nodes.map((node) => [node.slug, node.status]));
-  const work = doc.nodes.filter(isWork);
+  const holds = holders(doc);
+  const work = doc.nodes.filter((node) => isWork(node, holds));
 
   if (work.length === 0) {
     return (

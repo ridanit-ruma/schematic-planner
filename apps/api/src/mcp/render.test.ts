@@ -518,3 +518,32 @@ describe('a read that always ends with something to do', () => {
     expect(said).toContain('Nothing else is ready');
   });
 });
+
+describe('a node that holds other nodes', () => {
+  const sliced = planDocSchema.parse({
+    id: 'p15',
+    title: 'Sliced',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    nodes: [
+      { slug: 'a-slice', kind: 'feature', title: 'A slice of the work', status: 'planned' },
+      { slug: 'the-work', kind: 'task', title: 'The work', body: 'Do it.', status: 'planned' },
+    ],
+    edges: [{ id: 'c1', kind: 'contains', from: 'a-slice', to: 'the-work' }],
+  });
+
+  /*
+   * A Plan groups its tasks under features. Those are the boxes the canvas
+   * draws round them — grouping, not work — and offering them as things to
+   * start puts the reader back to deciding which lines to ignore, which is the
+   * judgement this tool exists to remove.
+   */
+  it('is not offered as something to do', () => {
+    const said = renderNext(sliced, 3);
+    expect(said).toContain('the-work');
+    expect(said).not.toContain('a-slice');
+  });
+
+  it('is not counted in how far the plan has got', () => {
+    expect(progressLine(sliced)).toBe('0 of 1 done');
+  });
+});
