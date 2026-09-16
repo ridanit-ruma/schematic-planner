@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import { DropdownAction } from '@/components/ui/dropdown-menu';
-import { Empty, Problem, Spinner } from '@/components/ui/feedback';
+import { Empty, NotFound, Problem, Spinner } from '@/components/ui/feedback';
 import { Field, Input, Textarea } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
 import { Page } from '@/components/ui/page';
@@ -13,6 +13,7 @@ import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import {
   canAdminister,
   folders,
+  isMissing,
   plans,
   projects,
   type FolderSummary,
@@ -120,6 +121,11 @@ export function FolderPage() {
       setError(cause);
     }
   };
+
+  // An address that leads nowhere you can reach is not an error on a page; it
+  // is the absence of the page. A drawer that is not there and a drawer in
+  // somebody else's project are one answer, as they are everywhere else.
+  if (isMissing(error)) return <NotFound subject="folder" />;
 
   if (error !== null) {
     return (
