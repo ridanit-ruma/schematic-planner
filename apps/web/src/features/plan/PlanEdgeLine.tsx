@@ -120,11 +120,14 @@ function Line({
   const path = pathOf(route);
 
   /*
-   * How many flows run between this pair, and which of them this is.
+   * How many flows leave this node, and which of them this is.
    *
-   * Their notes would otherwise land on the same point: three flows out of one
-   * node share a corridor and share its middle. Ordered by edge id so that two
-   * people looking at the same plan put them in the same places.
+   * By the terminal they leave and not by the pair they join: three flows out
+   * of one node into three different ones still share the corridor beside it,
+   * and counting pairs left all three notes at the same fraction of their own
+   * runs — which the gate caught as three notes, three overlapping. Ordered by
+   * edge id so that two people looking at the same plan put them in the same
+   * places.
    *
    * Two selectors, each returning a number. One returning `{ of, index }` is a
    * fresh object every call, and zustand compares with `Object.is` — so the
@@ -132,14 +135,11 @@ function Line({
    * gate's first section said so: `nodes render  0 nodes`.
    */
   const alongside = usePlanStore(
-    (state) =>
-      state.edges.filter(
-        (other) => other.source === edgeData?.from && other.target === edgeData?.to,
-      ).length,
+    (state) => state.edges.filter((other) => other.source === edgeData?.from).length,
   );
   const amongThem = usePlanStore((state) =>
     state.edges
-      .filter((other) => other.source === edgeData?.from && other.target === edgeData?.to)
+      .filter((other) => other.source === edgeData?.from)
       .map((other) => other.id)
       .sort()
       .indexOf(id),
@@ -234,7 +234,10 @@ function Line({
                   ends.targetSide,
                   edgeData?.waypoints ?? [],
                 );
-                const label = edge?.labelPosition ?? null;
+                // Where the writing is on the committed route, rather than a
+                // point that used to be stored. Same question, asked of the
+                // thing that now answers it.
+                const label = labelAt(committed, corridor);
                 drag.current = {
                   index: run.index,
                   axis: run.axis,
@@ -243,7 +246,7 @@ function Line({
                   route: committed,
                   label,
                   // Only the writing sitting on this run travels with it.
-                  carries: label !== null && segmentOfLabel(committed, label) === run.index,
+                  carries: segmentOfLabel(committed, label) === run.index,
                   moved: false,
                 };
                 event.currentTarget.setPointerCapture(event.pointerId);
