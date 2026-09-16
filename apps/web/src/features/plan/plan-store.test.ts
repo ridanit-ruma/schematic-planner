@@ -1,4 +1,4 @@
-import { CARD, DEFAULT_GROUP_SIZE, cardHeight, planDocSchema, planOpsSchema } from '@schematic/schema';
+import { CARD, GROUP_PADDING, cardHeight, planDocSchema, planOpsSchema } from '@schematic/schema';
 import { applyOps, initializePlan } from '@schematic/ydoc';
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
@@ -167,7 +167,7 @@ describe('a group that holds nothing yet', () => {
     expect(area?.style).toEqual({ width: 380, height: 260 });
   });
 
-  it('keeps the bounds it is given', () => {
+  it('is drawn at the same bounds whatever size is written on it', () => {
     const { doc, bound } = seeded();
     applyOps(
       doc,
@@ -179,9 +179,11 @@ describe('a group that holds nothing yet', () => {
       ]),
     );
 
+    // Nothing holds it to a size: a box is what it holds, and this one holds
+    // nothing yet, so it is drawn at the bounds a first node can be dropped in.
     expect(byId(bound.store.getState().nodes, 'area')?.style).toEqual({
-      width: 600,
-      height: 400,
+      width: 380,
+      height: 260,
     });
   });
 
@@ -271,7 +273,7 @@ describe('how tall a card is drawn', () => {
   });
 });
 
-describe('a box around a card that has grown', () => {
+describe('a box around what it holds', () => {
   const held = () => {
     const made = seeded();
     applyOps(
@@ -284,10 +286,16 @@ describe('a box around a card that has grown', () => {
     return made;
   };
 
-  it('is at least the bounds it was given', () => {
+  it('is exactly what it holds, plus the room a box keeps', () => {
     const { bound } = held();
     const box = byId(bound.store.getState().nodes, 'box')?.style;
-    expect(box?.width).toBeGreaterThanOrEqual(DEFAULT_GROUP_SIZE.width);
+    const card = byId(bound.store.getState().nodes, 'db')?.style;
+    expect(Number(box?.width)).toBe(
+      Number(card?.width) + GROUP_PADDING.left + GROUP_PADDING.right,
+    );
+    expect(Number(box?.height)).toBe(
+      Number(card?.height) + GROUP_PADDING.top + GROUP_PADDING.bottom,
+    );
   });
 
   it('grows when what it holds outgrows it', () => {
@@ -300,16 +308,35 @@ describe('a box around a card that has grown', () => {
     expect(after).toBeGreaterThan(before);
   });
 
-  it('keeps bounds somebody gave it that are larger than it needs', () => {
+  it('ignores bounds somebody wrote on it, because the contents are the answer', () => {
     const { doc, bound } = held();
+    const drawn = byId(bound.store.getState().nodes, 'box')?.style;
     applyOps(
       doc,
       ops([{ op: 'upsert_node', node: { slug: 'box', size: { width: 1200, height: 900 } } }]),
     );
 
-    expect(byId(bound.store.getState().nodes, 'box')?.style).toEqual({
-      width: 1200,
-      height: 900,
-    });
+    expect(byId(bound.store.getState().nodes, 'box')?.style).toEqual(drawn);
+  });
+
+  /*
+   * The half the old rule could not do. A box grew down and to the right from
+   * its own stored corner, so a child dragged above or left of it hung outside
+   * the boundary that was supposed to contain it.
+   */
+  it('reaches up to a child dragged above it', () => {
+    const { doc, bound } = held();
+    const before = byId(bound.store.getState().nodes, 'box');
+    applyOps(
+      doc,
+      ops([{ op: 'upsert_node', node: { slug: 'db', position: { x: -400, y: -400 } } }]),
+    );
+
+    const box = bound.store.getState().absolute['box'];
+    const card = bound.store.getState().absolute['db'];
+    expect(before).toBeDefined();
+    expect(box).toBeDefined();
+    expect(box?.x).toBe((card?.x ?? 0) - GROUP_PADDING.left);
+    expect(box?.y).toBe((card?.y ?? 0) - GROUP_PADDING.top);
   });
 });

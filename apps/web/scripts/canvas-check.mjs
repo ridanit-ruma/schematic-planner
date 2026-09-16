@@ -432,6 +432,34 @@ try {
     }
   }
 
+  /**
+   * What one canvas unit is worth on screen right now.
+   *
+   * A drag written in screen pixels means a different distance in the drawing
+   * at every zoom, and the canvas fits the whole plan — so a section that adds
+   * nodes changes what the section after it is actually dragging.
+   */
+  const zoomNow = () =>
+    page.evaluate(() =>
+      Number(
+        /scale\(([0-9.]+)\)/.exec(
+          document.querySelector('.react-flow__viewport')?.style.transform ?? '',
+        )?.[1] ?? '1',
+      ),
+    );
+
+  /**
+   * Where to take hold of a box.
+   *
+   * Its label band, at the middle of it. The corners look like the obvious
+   * place and are not: a box is drawn tight around its contents, so the room
+   * between its edge and the first child is twenty canvas units — which at a
+   * zoomed-out fit is a handful of screen pixels, and an offset written in
+   * screen pixels lands on the child instead and drags that.
+   */
+  const bandOf = (rect) =>
+    rect === null ? { x: -1, y: -1 } : { x: rect.x + rect.width / 2, y: rect.y + 6 };
+
   const rectOf = (slug) =>
     page
       .$eval(`.react-flow__node[data-id="${slug}"]`, (el) => {
@@ -578,10 +606,12 @@ try {
     console.log('\na group inside a group');
     const alphaBox = await rectOf('alpha');
     const betaBox = await rectOf('beta');
-    await drag(
-      { x: betaBox.x + betaBox.width - 30, y: betaBox.y + betaBox.height - 12 },
-      { x: alphaBox.x + alphaBox.width / 2, y: alphaBox.y + alphaBox.height - 30 },
-    );
+    // Squarely onto the other, because the rule asks what the two have in
+    // common and a box clipping a corner of another is not a box put inside it.
+    await drag(bandOf(betaBox), {
+      x: alphaBox.x + alphaBox.width / 2,
+      y: alphaBox.y + alphaBox.height / 2 - betaBox.height / 2 + 6,
+    });
     await reopen();
     check(
       'a group can be dropped into a group',
@@ -600,12 +630,9 @@ try {
     const outerWas = await rectOf('alpha');
     const innerWas = await rectOf('beta');
     const deepWas = await rectOf('b-one');
-    // By its own label band. The bottom of the box now holds the group that was
-    // dropped into it, and grabbing there picks that up instead.
-    await drag(
-      { x: outerWas.x + 30, y: outerWas.y + 10 },
-      { x: outerWas.x + 30 - 130, y: outerWas.y + 10 + 90 },
-    );
+    // By its own label band, which is the one part of a box no child is under.
+    const outerGrab = bandOf(outerWas);
+    await drag(outerGrab, { x: outerGrab.x - 130, y: outerGrab.y + 90 });
     const shift = {
       x: (await rectOf('alpha')).x - outerWas.x,
       y: (await rectOf('alpha')).y - outerWas.y,
@@ -680,10 +707,6 @@ try {
             (edge) => edge.kind === 'contains' && edge.from === from && edge.to === to,
           )
         : false;
-    };
-    const boundsOf = async (slug) => {
-      const doc = await call(`/plans/${fixture.id}`);
-      return (doc.nodes ?? []).find((node) => node.slug === slug)?.size ?? null;
     };
     // Off-screen rather than a crash when the node is not there: a failed check
     // names itself and the run still reaches a verdict, where reading .x off
@@ -846,31 +869,68 @@ try {
 
     // A box you can pull the corner of. Nothing but auto-layout could set these
     // bounds before.
-    console.log('\nreshaping a box');
+    console.log('\na box drawn around what is in it');
+    /*
+     * A box used to be a stored size with handles on it, and the two answers
+     * disagreed every time anything moved. It is now the bounding box of its
+     * contents, so there is nothing to pull and nothing to pull against.
+     */
     await reopen();
-    const beforeSize = await boundsOf('boxy');
-    const toSelect = await rectOf('boxy');
-    await page.mouse.click(toSelect.x + 40, toSelect.y + 10);
-    await wait(400);
-    const grip = await page
-      .$eval('.react-flow__node[data-id="boxy"] .react-flow__resize-control.handle', (el) => {
-        const rect = el.getBoundingClientRect();
-        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-      })
-      .catch(() => null);
-    check('a selected box offers a corner to pull', grip !== null);
-    if (grip !== null) {
-      await dragHolding(grip, { x: grip.x + 160, y: grip.y + 120 }, 0);
-      const afterSize = await boundsOf('boxy');
+    check(
+      'a box offers nothing to pull, because its size is not its own',
+      (await page.$$('.react-flow__node[data-id="boxy"] .react-flow__resize-control')).length === 0,
+    );
+
+    const boxed = await rectOf('boxy');
+    const heldCard = await rectOf('mk-one');
+    const isHeld = await holds('boxy', 'mk-one');
+    check(
+      'a box holds what is in it',
+      isHeld && boxed !== null && heldCard !== null && inside(heldCard, boxed),
+    );
+
+    /*
+     * The half the old rule could not do. A drop was clamped wholly inside the
+     * room its box had, and the box only ever grew down and to the right from
+     * its own stored corner — so dragging a child up and to the left either
+     * pushed it back or left it hanging outside the boundary holding it.
+     */
+    if (isHeld && heldCard !== null && boxed !== null) {
+      const cornerWas = { x: boxed.x, y: boxed.y };
+      const step = 60 * (await zoomNow());
+      await dragHolding(
+        { x: heldCard.x + heldCard.width / 2, y: heldCard.y + heldCard.height / 2 },
+        { x: heldCard.x + heldCard.width / 2 - step, y: heldCard.y + heldCard.height / 2 - step },
+        0,
+      );
+      const boxNow = await rectOf('boxy');
       check(
-        'and pulling it stores the new bounds',
-        afterSize !== null &&
-          afterSize.width > (beforeSize?.width ?? 0) + 40 &&
-          afterSize.height > (beforeSize?.height ?? 0) + 30,
-        `${JSON.stringify(beforeSize)} -> ${JSON.stringify(afterSize)}`,
+        'and reaches up and to the left after the child it holds',
+        boxNow !== null && boxNow.x < cornerWas.x - 10 && boxNow.y < cornerWas.y - 10,
+        `${Math.round(cornerWas.x)},${Math.round(cornerWas.y)} -> ${Math.round(boxNow?.x ?? 0)},${Math.round(boxNow?.y ?? 0)}`,
+      );
+      check(
+        'without letting go of it',
+        (await holds('boxy', 'mk-one')) && inside(await rectOf('mk-one'), await rectOf('boxy')),
       );
     }
 
+    // Taking a node out, said plainly rather than by dragging it far enough.
+    const toFree = await rectOf('mk-one');
+    if (toFree !== null) {
+      await page.mouse.click(toFree.x + toFree.width / 2, toFree.y + 8, { button: 'right' });
+      await wait(700);
+      const freed = await clickMenuItem('Take out of');
+      check('a node in a box is offered a way out of it', freed);
+      await wait(900);
+      if (freed) {
+        check('and taking it leaves the box', !(await holds('boxy', 'mk-one')));
+        check(
+          'and sets it down outside the boundary it has left',
+          !inside(await rectOf('mk-one'), await rectOf('boxy')),
+        );
+      }
+    }
 
     await call(`/plans/${fixture.id}/ops`, {
       method: 'POST',
@@ -1588,14 +1648,6 @@ try {
      * pixels on screen — measured that way, "it grew" and "nothing happened"
      * look alike.
      */
-    const zoomNow = () =>
-      page.evaluate(() =>
-        Number(
-          /scale\(([0-9.]+)\)/.exec(
-            document.querySelector('.react-flow__viewport')?.style.transform ?? '',
-          )?.[1] ?? '1',
-        ),
-      );
     const drawnHeight = async (slug) => {
       const height = await page
         .$eval(`.react-flow__node[data-id="${slug}"]`, (el) => el.getBoundingClientRect().height)
@@ -1625,6 +1677,16 @@ try {
 
     // The one gesture a card offers, on a node nothing else has touched.
     const toWiden = await rectOf('widthy');
+    // A single dollar hands back one element, whose `.length` is undefined, so
+    // this could only ever fail. Two dollars, and a moment for the canvas to
+    // finish drawing itself after the reopen above.
+    let grips = 0;
+    for (let attempt = 0; attempt < 8 && grips !== 1; attempt += 1) {
+      await wait(300);
+      grips = (await page.$$('.react-flow__node[data-id="widthy"] .react-flow__resize-control'))
+        .length;
+    }
+    check('the grip is there before anything is selected', grips === 1, `${grips} found`);
     await page.mouse.click(toWiden.x + toWiden.width / 2, toWiden.y + toWiden.height / 2);
     await wait(600);
     const handles = await page
@@ -1638,13 +1700,30 @@ try {
       handles.join(' | ').slice(0, 70),
     );
 
+    /*
+     * Six pixels inside the right edge, which is where a hand aiming at an edge
+     * actually lands. The band used to straddle the border: three pixels in was
+     * the connection terminal and started a line, eight out was the canvas and
+     * panned it, and both looked like the card refusing to resize.
+     */
     const widthGrip = await page
-      .$eval('.react-flow__node[data-id="widthy"] .react-flow__resize-control', (el) => {
+      .$eval('.react-flow__node[data-id="widthy"]', (el) => {
         const rect = el.getBoundingClientRect();
-        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+        return { x: rect.x + rect.width - 6, y: rect.y + rect.height * 0.25 };
       })
       .catch(() => null);
-    check('and it can be reached by the pointer', widthGrip !== null);
+    const onGrip =
+      widthGrip === null
+        ? 'nowhere'
+        : await page.evaluate(
+            (at) => String(document.elementFromPoint(at.x, at.y)?.className ?? 'nothing'),
+            widthGrip,
+          );
+    check(
+      'and the pointer lands on it six pixels inside the edge',
+      onGrip.includes('react-flow__resize-control'),
+      onGrip.slice(0, 60),
+    );
 
     if (widthGrip !== null) {
       const narrowAt = await drawnHeight('widthy');
@@ -1714,7 +1793,13 @@ try {
 
     const boxWas = await drawnHeight('holder');
     check('a card can sit in a box', inside(await rectOf('wordy'), await rectOf('holder')));
-    check('and the box is the bounds it was given', Math.round(boxWas) === 300, String(Math.round(boxWas)));
+    // 40 above for the label and 20 below, which is what ELK leaves too. The
+    // 300 written on this box when it was made is not consulted by anything.
+    check(
+      'and the box is exactly what it holds, whatever size is written on it',
+      Math.round(boxWas) === Math.round(await drawnHeight('wordy')) + 60,
+      `${Math.round(boxWas)} around ${Math.round(await drawnHeight('wordy'))}`,
+    );
 
     await call(`/plans/${fixture.id}/ops`, {
       method: 'POST',

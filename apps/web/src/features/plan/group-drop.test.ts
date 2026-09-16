@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveDrop, type DropTarget } from './group-drop';
-import { snapTo } from './snap';
+import { resolveDrop, type DropTarget, type Rect } from './group-drop';
 
 const group: DropTarget = {
   slug: 'group',
@@ -16,37 +15,80 @@ const inner: DropTarget = {
 const card = { width: 260, height: 76 };
 const none = new Set<string>();
 
-describe('resolveDrop', () => {
+describe('which box a drop lands in', () => {
   it('leaves a node dropped on the open canvas alone', () => {
     const drop = resolveDrop({ x: 900, y: 900, ...card }, [group], none);
-    expect(drop).toEqual({ parent: null, position: { x: 900, y: 900 }, grow: null });
+    expect(drop).toEqual({ parent: null, position: { x: 900, y: 900 } });
   });
 
-  it('takes the group whose bounds hold the centre', () => {
-    expect(resolveDrop({ x: 150, y: 20, ...card }, [group], none).parent).toBe('group');
+  it('takes a box the node is wholly inside', () => {
+    expect(resolveDrop({ x: 150, y: 150, ...card }, [group], none).parent).toBe('group');
   });
 
-  it('prefers the innermost group when they are nested', () => {
-    expect(resolveDrop({ x: 150, y: 150, ...card }, [group, inner], none).parent).toBe('inner');
+  it('takes a box holding more than half of the node', () => {
+    // 160 of 260 wide inside the left edge: nearly two thirds of it.
+    expect(resolveDrop({ x: -100, y: 200, ...card }, [group], none).parent).toBe('group');
   });
 
-  it('pulls a straddling node wholly inside', () => {
-    // Dropped over the left edge: centre is inside, the card is not.
+  it('leaves a node that is mostly outside on the canvas', () => {
+    // 100 of 260 wide inside: under half, so the box does not own it.
+    expect(resolveDrop({ x: -160, y: 200, ...card }, [group], none).parent).toBeNull();
+  });
+
+  /*
+   * Measured against the smaller of the two. A box is drawn tight around its
+   * contents, so nothing the size of a box ever covers half of another box —
+   * judged by the moved node's own area alone, one box could never be put
+   * inside another at all.
+   */
+  it('takes a box dropped squarely onto another box', () => {
+    const outer: DropTarget = {
+      slug: 'outer',
+      rect: { x: 0, y: 0, width: 300, height: 200 },
+      depth: 0,
+    };
+    const big = { x: -100, y: -100, width: 700, height: 500 };
+    expect(resolveDrop(big, [outer], none).parent).toBe('outer');
+  });
+
+  it('leaves a box that only clips the corner of another', () => {
+    const outer: DropTarget = {
+      slug: 'outer',
+      rect: { x: 0, y: 0, width: 300, height: 200 },
+      depth: 0,
+    };
+    const big = { x: 250, y: 160, width: 700, height: 500 };
+    expect(resolveDrop(big, [outer], none).parent).toBeNull();
+  });
+
+  it('does not move a node it takes in', () => {
     const drop = resolveDrop({ x: -100, y: 200, ...card }, [group], none);
-    expect(drop.parent).toBe('group');
-    expect(drop.position.x).toBe(20);
-    expect(drop.position.x + card.width).toBeLessThanOrEqual(600 - 20);
+    expect(drop.position).toEqual({ x: -100, y: 200 });
   });
 
-  it('keeps clear of the band a group labels itself in', () => {
-    expect(resolveDrop({ x: 100, y: -10, ...card }, [group], none).position.y).toBe(40);
+  it('prefers the box that holds most of the node', () => {
+    const left: DropTarget = { slug: 'left', rect: { x: 0, y: 0, width: 200, height: 400 }, depth: 0 };
+    const right: DropTarget = {
+      slug: 'right',
+      rect: { x: 200, y: 0, width: 400, height: 400 },
+      depth: 0,
+    };
+    // 60 of 260 wide in the left box, 200 in the right one.
+    expect(resolveDrop({ x: 140, y: 100, ...card }, [left, right], none).parent).toBe('right');
   });
 
-  it('grows a group too small for what was dropped in it', () => {
-    const tight: DropTarget = { slug: 'tight', rect: { x: 0, y: 0, width: 200, height: 90 }, depth: 0 };
-    const drop = resolveDrop({ x: 20, y: 20, ...card }, [tight], none);
-    expect(drop.parent).toBe('tight');
-    expect(drop.grow).toEqual({ width: 260 + 40, height: 76 + 60 });
+  it('prefers the deeper box when both hold all of it', () => {
+    const wide: DropTarget = {
+      slug: 'wide',
+      rect: { x: 0, y: 0, width: 900, height: 900 },
+      depth: 0,
+    };
+    const tight: DropTarget = {
+      slug: 'tight',
+      rect: { x: 100, y: 100, width: 400, height: 400 },
+      depth: 1,
+    };
+    expect(resolveDrop({ x: 150, y: 150, ...card }, [wide, tight], none).parent).toBe('tight');
   });
 
   it('refuses to drop a group into itself or into what it holds', () => {
@@ -55,50 +97,30 @@ describe('resolveDrop', () => {
   });
 });
 
-/**
- * Snapping happens before the drop is resolved, never after.
- *
- * Both want the last word about where a node goes, and only one of them can have
- * it. Being wholly inside the group it belongs to is an invariant — the picture
- * would otherwise say a node is in a group while the plan says it is not —
- * whereas sitting on a grid line is a convenience. So the clamp runs last, and
- * these record what that costs.
- */
-describe('a snapped position going through the clamp', () => {
-  const step = 20;
+describe('landing clear of what is already in the box', () => {
+  const occupied = (rects: readonly Rect[]) => new Map([['group', rects]]);
 
-  it('still ends up wholly inside the group', () => {
-    // Over the left edge, and off the grid on the way in.
-    const drop = resolveDrop({ ...snapTo({ x: -97, y: 203 }, step), ...card }, [group], none);
-    expect(drop.parent).toBe('group');
-    expect(drop.position.x).toBeGreaterThanOrEqual(20);
-    expect(drop.position.x + card.width).toBeLessThanOrEqual(600 - 20);
+  it('stays exactly where it was dropped when nothing is there', () => {
+    const drop = resolveDrop({ x: 150, y: 150, ...card }, [group], none, occupied([]));
+    expect(drop.position).toEqual({ x: 150, y: 150 });
   });
 
-  it('lands on a line when the clamp has nothing to say', () => {
-    const drop = resolveDrop({ ...snapTo({ x: 137, y: 151 }, step), ...card }, [group], none);
-    expect(drop.position).toEqual({ x: 140, y: 160 });
+  it('slides below a node it was dropped on top of, keeping its column', () => {
+    const sitting: Rect = { x: 140, y: 140, width: 260, height: 76 };
+    const drop = resolveDrop({ x: 150, y: 150, ...card }, [group], none, occupied([sitting]));
+    expect(drop.position).toEqual({ x: 150, y: 140 + 76 + 20 });
   });
 
-  /*
-   * The corner of a group is the one position a tight group can offer, so it has
-   * to be on the grid itself — which is why every side of CONTAINER_PADDING is a
-   * multiple of it. With 16 down the sides this landed at x 16 and a card could
-   * be on the grid or inside its group, never both.
-   */
-  it('offers the corner of a group as a grid position', () => {
-    const drop = resolveDrop({ ...snapTo({ x: 0, y: 0 }, step), ...card }, [group], none);
-    expect(drop.parent).toBe('group');
-    expect(drop.position).toEqual({ x: 20, y: 40 });
-    expect(drop.position.x % step).toBe(0);
-    expect(drop.position.y % step).toBe(0);
+  it('keeps going past a second node in the way', () => {
+    const first: Rect = { x: 140, y: 140, width: 260, height: 76 };
+    const second: Rect = { x: 140, y: 236, width: 260, height: 76 };
+    const drop = resolveDrop({ x: 150, y: 150, ...card }, [group], none, occupied([first, second]));
+    expect(drop.position.y).toBe(236 + 76 + 20);
   });
 
-  /* But only when the group itself is on the grid: the room is measured from it. */
-  it('cannot offer one inside a group that is off the grid', () => {
-    const askew: DropTarget = { slug: 'askew', rect: { x: 7, y: 3, width: 600, height: 400 }, depth: 0 };
-    const drop = resolveDrop({ ...snapTo({ x: 0, y: 0 }, step), ...card }, [askew], none);
-    expect(drop.position).toEqual({ x: 27, y: 43 });
-    expect(drop.position.x % step).not.toBe(0);
+  it('leaves a node dropped beside one alone, because there is room in every direction', () => {
+    const sitting: Rect = { x: 0, y: 140, width: 260, height: 76 };
+    const drop = resolveDrop({ x: 300, y: 140, ...card }, [group], none, occupied([sitting]));
+    expect(drop.position).toEqual({ x: 300, y: 140 });
   });
 });

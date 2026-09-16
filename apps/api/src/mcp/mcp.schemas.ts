@@ -43,9 +43,13 @@ export const agentEdgeSchema = z.object({
 });
 
 export const planViewSchema = z
-  .enum(['outline', 'graph', 'markdown'])
+  .enum(['outline', 'detail', 'graph', 'markdown'])
   .default('outline')
-  .describe('outline = indented tree, graph = json nodes and edges, markdown = full export');
+  .describe(
+    'outline = the tree with the flows out of each node, and a * against every node that has ' +
+      'a body; detail = the same with every body printed; graph = json nodes and edges; ' +
+      'markdown = the full export, frontmatter and all',
+  );
 
 const workspaceArg = z
   .string()
@@ -127,6 +131,63 @@ export const traceShape = {
 export const getPlanShape = {
   planId: z.string().min(1),
   view: planViewSchema,
+};
+
+/**
+ * Reading a few nodes properly, rather than the whole document badly.
+ *
+ * Every other view is a summary, and the only route to what a node actually
+ * said was the full export — pulling the document to read one paragraph of it.
+ */
+export const readNodesShape = {
+  planId: z.string().min(1),
+  slugs: z
+    .array(slugSchema)
+    .min(1)
+    .max(100)
+    .describe('The nodes to print in full, by slug, as get_plan lists them'),
+};
+
+/**
+ * Finding the drawing that already covers something.
+ *
+ * Without it the only way to answer "where is this drawn?" is to list every
+ * plan and open each one — which an agent will not do, so it draws a second
+ * plan of the same system instead, and a workspace becomes a pile.
+ */
+export const searchShape = {
+  query: z
+    .string()
+    .min(2)
+    .max(200)
+    .describe('Words to look for in node titles, identifiers, tags and bodies, and plan titles'),
+  workspace: workspaceArg,
+  projectSlug: projectArg.describe('Narrow it to one project. Omitted, everywhere the key reaches'),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .default(20)
+    .describe('How many matching nodes to report'),
+};
+
+/**
+ * What has happened to a plan, so an agent coming back can see what changed.
+ *
+ * A plan is a drawing two parties share. Without this an agent has no way to
+ * ask what the person did while it was away, and its only options are to
+ * assume nothing changed or to read the whole plan again.
+ */
+export const planHistoryShape = {
+  planId: z.string().min(1),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(200)
+    .default(40)
+    .describe('How many changes back to go, newest first'),
 };
 
 /** Every field but the slug is optional: an upsert merges into what is there. */

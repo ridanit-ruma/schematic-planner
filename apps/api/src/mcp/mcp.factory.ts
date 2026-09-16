@@ -17,7 +17,16 @@ import { ProjectsService } from '../projects/projects.service.js';
 import { WorkspacesService } from '../workspaces/workspaces.service.js';
 import type { McpIdentity } from '../auth/api-key.service.js';
 import { agentAuthor, signComments } from './authorship.js';
-import { renderPlan, renderPlanList, renderTrace } from './render.js';
+import {
+  matchingLine,
+  renderFound,
+  renderHistory,
+  renderNodes,
+  renderPlan,
+  renderPlanList,
+  renderTrace,
+  type Found,
+} from './render.js';
 import {
   applyOpsShape,
   createFolderShape,
@@ -34,7 +43,10 @@ import {
   listPlansShape,
   listProjectsShape,
   movePlanShape,
+  planHistoryShape,
+  readNodesShape,
   renameFolderShape,
+  searchShape,
 } from './mcp.schemas.js';
 import { chooseFolder, reachable, resolveWorkspace } from './workspace-scope.js';
 
@@ -302,6 +314,126 @@ export class McpFactory {
           return text(
             `${renderPlan(doc, view)}\n\n${renderProvenance(provenance)}Revision: ${revision}`,
           );
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'search',
+      {
+        title: 'Find where something is drawn',
+        description:
+          'Looks for words across every plan the key can reach — node titles, identifiers, ' +
+          'tags and bodies — and answers with the plans they are in. Use it before drawing ' +
+          'anything new: a second plan of a system somebody already drew is how a workspace ' +
+          'turns into a pile, and this is the only way to find the first one without opening ' +
+          'each in turn.',
+        inputSchema: searchShape,
+      },
+      async ({ query, workspace, projectSlug, limit }) => {
+        try {
+          const needles = query
+            .toLowerCase()
+            .split(/\s+/)
+            .filter((word) => word !== '');
+          if (needles.length === 0) return failure('Nothing to look for.');
+
+          const options = await reachable(this.workspaces, identity);
+          const scope =
+            workspace === undefined ? options : options.filter((one) => one.slug === workspace);
+
+          const found: Found[] = [];
+          let searched = 0;
+
+          for (const target of scope) {
+            for (const project of await this.projects.list(identity.userId, target.id)) {
+              if (projectSlug !== undefined && project.slug !== projectSlug) continue;
+
+              const [plans, drawers] = await Promise.all([
+                this.plans.list(identity.userId, project.id),
+                this.folders.list(identity.userId, project.id),
+              ]);
+              const drawerName = new Map(drawers.map((drawer) => [drawer.id, drawer.name]));
+
+              for (const summary of plans) {
+                // Every plan is decoded to look inside it, so the work is
+                // bounded by saying enough is enough rather than by hoping.
+                if (found.length >= limit || searched >= SEARCH_PLAN_LIMIT) break;
+                searched += 1;
+
+                const doc = await this.plans.read(identity.userId, summary.id);
+                const place = {
+                  planId: summary.id,
+                  planTitle: doc.title,
+                  workspace: target.slug,
+                  project: project.slug,
+                  folder: summary.folderId === null
+                    ? null
+                    : (drawerName.get(summary.folderId) ?? null),
+                };
+
+                for (const node of doc.nodes) {
+                  if (found.length >= limit) break;
+                  const hit = whereItMatches(node, needles);
+                  if (hit === null) continue;
+                  found.push({
+                    ...place,
+                    slug: node.slug,
+                    kind: node.kind,
+                    status: node.status,
+                    title: node.title,
+                    where: hit.where,
+                    line: hit.line,
+                  });
+                }
+              }
+            }
+          }
+
+          return text(renderFound(found, query, (id) => this.planUrl(id), searched));
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'read_nodes',
+      {
+        title: 'Read what these nodes say',
+        description:
+          'The full body of the nodes you name, with what each one is wired to and what holds ' +
+          'it. Every other view is a summary — this is the one that gives you the words. Read ' +
+          'the plan first and ask for the handful you actually need; asking for all of them is ' +
+          'get_plan with view "detail".',
+        inputSchema: readNodesShape,
+      },
+      async ({ planId, slugs }) => {
+        try {
+          const doc = await this.plans.read(identity.userId, planId);
+          return text(renderNodes(doc, slugs));
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'plan_history',
+      {
+        title: 'What has changed on this plan',
+        description:
+          'Who changed what, newest first — a person dragging a node, an agent applying a ' +
+          'batch, a note answered. A plan is a drawing two parties share, so use this when you ' +
+          'come back to one you drew earlier rather than assuming it is as you left it.',
+        inputSchema: planHistoryShape,
+      },
+      async ({ planId, limit }) => {
+        try {
+          const entries = await this.plans.changes(identity.userId, planId, limit);
+          return text(renderHistory(entries));
         } catch (error) {
           return failure(reason(error));
         }
@@ -684,4 +816,32 @@ export class McpFactory {
 
     return server;
   }
+}
+
+/**
+ * How many plans one search will open.
+ *
+ * Every plan has to be decoded to look inside it, so this is real work. The
+ * ceiling is generous enough to cover a workspace somebody actually uses and
+ * low enough that a search cannot become a way to read the whole instance.
+ */
+const SEARCH_PLAN_LIMIT = 120;
+
+/** Where in a node the words are, and the line they are on. */
+function whereItMatches(
+  node: { slug: string; title: string; tags: readonly string[]; body: string },
+  needles: readonly string[],
+): { where: string; line: string } | null {
+  const holds = (value: string) => {
+    const lowered = value.toLowerCase();
+    return needles.every((needle) => lowered.includes(needle));
+  };
+
+  if (holds(node.title)) return { where: 'title', line: node.title };
+  if (holds(node.slug)) return { where: 'identifier', line: node.slug };
+  const tag = node.tags.find((one) => holds(one));
+  if (tag !== undefined) return { where: 'tag', line: tag };
+
+  const line = matchingLine(node.body, needles);
+  return line === null ? null : { where: 'body', line };
 }

@@ -33,62 +33,35 @@ const HANDLE =
   "before:absolute before:-inset-2 before:content-['']";
 
 /**
- * A group is only ever resized from its right and bottom edges.
+ * The one gesture a node offers, and the strip that takes it.
  *
- * The other four handles move the box's own corner, and everything inside a
- * group is placed against that corner — so dragging the top-left would have to
- * move every descendant in the same gesture to keep the plan and the picture
- * agreeing. Growing down and to the right leaves the contents exactly where
- * they are, which is what somebody enlarging a box to fit another node wants
- * anyway.
+ * A card's width is a person's to choose; its height is not, and a box has
+ * neither — it is drawn around what it holds. So this is the only handle on the
+ * canvas, and it is a card's right edge.
+ *
+ * Twelve pixels, all of them *inside* the card. Measured on the old one, the
+ * band that actually resized was eight pixels straddling the border: inward of
+ * it the connection terminal took the pointer and started a line, outward of it
+ * the canvas took it and panned. Both read as "I grabbed the edge and nothing
+ * happened". Reaching inward instead leaves the pane alone, and drawing this
+ * after the card puts it over the terminal rather than under it.
  */
-/** How small a box may be dragged. A card has its own floor, on one axis. */
-const RESIZE_MIN = { width: 200, height: 140 };
+const RESIZE_EDGE =
+  '!border-transparent ' +
+  "before:absolute before:inset-y-1 before:-left-3 before:right-0 before:cursor-ew-resize before:content-['']";
 
 /**
- * The edge itself is one pixel, which is what it should look like; the strip
- * that takes the pointer is sixteen. Same bargain as a terminal above.
- */
-const RESIZE_EDGE = "!border-accent before:absolute before:-inset-2 before:content-['']";
-const RESIZE_CORNER =
-  "!size-2 !rounded-none !border !border-accent !bg-surface-1 " +
-  "before:absolute before:-inset-2 before:content-['']";
-
-/**
- * The corner, offered the same way on a box and on a card.
+ * What the strip looks like, so that it can be found without being told.
  *
- * Only ever the right and bottom edges. The other handles move the node's own
- * top-left corner — which everything inside a box is placed against, and which
- * for any node is the field pinning and auto-layout already argue over. Growing
- * down and to the right changes how big and nothing about where.
+ * Invisible until the node was selected is how a resize handle stays a secret:
+ * you have to already know it is there to go looking for it. This one answers
+ * the pointer — a rule down the edge on hover, brighter while it is held.
  */
-function Corners({ id, onResize }: { id: string; onResize: (id: string, size: Size) => void }) {
-  const common = { minWidth: RESIZE_MIN.width, minHeight: RESIZE_MIN.height };
-  return (
-    <>
-      <NodeResizeControl
-        position="right"
-        variant={ResizeControlVariant.Line}
-        {...common}
-        onResizeEnd={(_, size) => onResize(id, size)}
-        className={RESIZE_EDGE}
-      />
-      <NodeResizeControl
-        position="bottom"
-        variant={ResizeControlVariant.Line}
-        {...common}
-        onResizeEnd={(_, size) => onResize(id, size)}
-        className={RESIZE_EDGE}
-      />
-      <NodeResizeControl
-        position="bottom-right"
-        {...common}
-        onResizeEnd={(_, size) => onResize(id, size)}
-        className={RESIZE_CORNER}
-      />
-    </>
-  );
-}
+const RESIZE_MARK =
+  'after:pointer-events-none after:absolute after:inset-y-1 after:right-0 after:w-1 ' +
+  'after:-translate-x-full after:rounded-full after:bg-accent after:transition-opacity ' +
+  "after:content-[''] hover:after:!opacity-100";
+
 
 interface Size {
   width: number;
@@ -103,7 +76,15 @@ interface Size {
  * handle that does not hold is worse than no handle. The width is the axis a
  * person does have an opinion about, and the height is then measured at it.
  */
-function WidthHandle({ id, onResize }: { id: string; onResize: (id: string, size: Size) => void }) {
+function WidthHandle({
+  id,
+  selected,
+  onResize,
+}: {
+  id: string;
+  selected: boolean;
+  onResize: (id: string, size: Size) => void;
+}) {
   return (
     <NodeResizeControl
       position="right"
@@ -111,7 +92,9 @@ function WidthHandle({ id, onResize }: { id: string; onResize: (id: string, size
       minWidth={CARD.minWidth}
       maxWidth={CARD.maxWidth}
       onResizeEnd={(_, size) => onResize(id, size)}
-      className={RESIZE_EDGE}
+      // Faint on the node being worked on, solid under the pointer, absent
+      // otherwise: a drawing should not be fringed with controls.
+      className={cn(RESIZE_EDGE, RESIZE_MARK, selected ? 'after:opacity-40' : 'after:opacity-0')}
     />
   );
 }
@@ -168,10 +151,6 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
         )}
         style={entrance}
       >
-        {/* Offered on the selected node only. An invisible grab strip along
-            every edge on the canvas would take drags meant for the canvas
-            behind it, and a thing is pointed at before it is reshaped. */}
-        {editable && selected === true ? <Corners id={id} onResize={resizeNode} /> : null}
         {/* A header band, so the name belongs to the box rather than floating
             over whatever the first child happens to be. */}
         <div className="flex items-center gap-2 rounded-t-lg border-b border-rule bg-group-head px-3 py-2">
@@ -215,14 +194,18 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
 
   return (
     /*
-     * The corners are drawn beside the card rather than inside it. A resize
-     * control sits centred on the edge it belongs to — half in, half out — and
-     * the card clips its overflow to keep the status rail inside its rounded
-     * corners, which cut the half that takes the pointer. The box next door has
-     * no such clipping, which is why it worked there and not here.
+     * Everything that takes a pointer is drawn beside the card, after it, in
+     * the order it should win in.
+     *
+     * The card clips its own overflow, to keep the status rail inside its
+     * rounded corners — so a control inside it is cut in half, and a control
+     * before it is painted over. Measured on the running instance, a pointer
+     * six pixels inside the right edge landed on the card's own text column and
+     * dragged the node. The grip comes after the card, and the terminals after
+     * the grip, so the terminal keeps the twenty-four pixels it needs and the
+     * grip has the rest of the edge.
      */
     <>
-      {editable && selected === true ? <WidthHandle id={id} onResize={resizeNode} /> : null}
     <div
       className={cn(
         'relative flex h-full w-full overflow-hidden rounded-md bg-surface-2',
@@ -255,6 +238,10 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
         ) : null}
       </div>
 
+    </div>
+      {editable ? (
+        <WidthHandle id={id} selected={selected === true} onResize={resizeNode} />
+      ) : null}
       {/* Square terminals rather than dots: this is a drawing, not a flowchart. */}
       <Handle
         type="target"
@@ -266,7 +253,6 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
         position={HandlePosition.Right}
         className={HANDLE}
       />
-    </div>
     </>
   );
 }

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_GROUP_SIZE, groupSize, growToHold, isGroup } from './group.js';
+import {
+  DEFAULT_GROUP_SIZE,
+  GROUP_PADDING,
+  groupSize,
+  holdingBox,
+  isGroup,
+  overlapShare,
+} from './group.js';
 
 describe('what counts as a group', () => {
   it('is a group because it says so, holding nothing', () => {
@@ -27,33 +34,55 @@ describe('the bounds a group is drawn at', () => {
   });
 });
 
-describe('the bounds a box is drawn at', () => {
-  it('is what somebody gave it when that is enough', () => {
-    expect(growToHold({ width: 600, height: 400 }, { width: 300, height: 200 })).toEqual({
-      width: 600,
-      height: 400,
+describe('the box that holds what is in it', () => {
+  it('is nothing at all when it holds nothing', () => {
+    expect(holdingBox([])).toBeNull();
+  });
+
+  it('wraps one child with the room a box keeps', () => {
+    expect(holdingBox([{ x: 100, y: 100, width: 260, height: 80 }])).toEqual({
+      x: 100 - GROUP_PADDING.left,
+      y: 100 - GROUP_PADDING.top,
+      width: 260 + GROUP_PADDING.left + GROUP_PADDING.right,
+      height: 80 + GROUP_PADDING.top + GROUP_PADDING.bottom,
     });
   });
 
-  it('grows to hold a child that has outgrown it', () => {
-    expect(growToHold({ width: 300, height: 200 }, { width: 300, height: 480 })).toEqual({
-      width: 300,
-      height: 480,
-    });
+  it('reaches up and to the left, not only down and to the right', () => {
+    const box = holdingBox([
+      { x: 200, y: 200, width: 100, height: 100 },
+      { x: 40, y: 10, width: 100, height: 100 },
+    ]);
+    expect(box?.x).toBe(40 - GROUP_PADDING.left);
+    expect(box?.y).toBe(10 - GROUP_PADDING.top);
+    expect(box?.width).toBe(300 - 40 + GROUP_PADDING.left + GROUP_PADDING.right);
+    expect(box?.height).toBe(300 - 10 + GROUP_PADDING.top + GROUP_PADDING.bottom);
   });
 
-  it('grows on each axis independently', () => {
-    expect(growToHold({ width: 600, height: 200 }, { width: 300, height: 480 })).toEqual({
-      width: 600,
-      height: 480,
-    });
+  it('follows a child that has grown taller, because nothing else remembers a height', () => {
+    const short = holdingBox([{ x: 0, y: 0, width: 260, height: 76 }]);
+    const tall = holdingBox([{ x: 0, y: 0, width: 260, height: 420 }]);
+    expect(tall?.height).toBe((short?.height ?? 0) + 344);
+  });
+});
+
+describe('how much of a node is inside a box', () => {
+  const box = { x: 0, y: 0, width: 400, height: 400 };
+
+  it('is all of it when it sits wholly inside', () => {
+    expect(overlapShare({ x: 50, y: 50, width: 100, height: 100 }, box)).toBe(1);
   });
 
-  it('falls back to bounds a node can be dropped into when it holds nothing', () => {
-    expect(growToHold(null, null)).toEqual(DEFAULT_GROUP_SIZE);
+  it('is none of it when they do not touch', () => {
+    expect(overlapShare({ x: 500, y: 500, width: 100, height: 100 }, box)).toBe(0);
   });
 
-  it('is at least what its contents need even with no size of its own', () => {
-    expect(growToHold(null, { width: 900, height: 100 }).width).toBe(900);
+  it('is none of it when they share only an edge', () => {
+    expect(overlapShare({ x: 400, y: 0, width: 100, height: 100 }, box)).toBe(0);
+  });
+
+  it('counts the part inside, as a share of the node and not of the box', () => {
+    expect(overlapShare({ x: 350, y: 0, width: 100, height: 100 }, box)).toBeCloseTo(0.5);
+    expect(overlapShare({ x: 360, y: 0, width: 100, height: 100 }, box)).toBeCloseTo(0.4);
   });
 });

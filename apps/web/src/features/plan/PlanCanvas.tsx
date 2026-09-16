@@ -28,6 +28,7 @@ import {
   Shrink,
   Trash2,
   Undo2,
+  Ungroup,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useStore } from 'zustand';
@@ -309,17 +310,14 @@ export function PlanCanvas({
       const dropped = {
         x: (parent?.x ?? 0) + node.position.x,
         y: (parent?.y ?? 0) + node.position.y,
-        width: node.measured?.width ?? node.data.node.size?.width ?? 260,
-        height: node.measured?.height ?? node.data.node.size?.height ?? 76,
+        ...boxOf(bounds, node),
       };
 
       // Snapped in absolute coordinates rather than left to React Flow, which
       // quantises the position relative to whatever a node sits in: a child of a
       // group that layout left off the grid would otherwise land on a lattice of
-      // its own. Snapped here, before the drop is resolved, so that resolveDrop
-      // still has the last word — it clamps a node wholly inside the group it
-      // landed in, and a node is never left straddling the edge of one to save
-      // half a grid step.
+      // its own. Snapped before the drop is resolved, so that a node moved clear
+      // of something it landed on is moved from a position already on the grid.
       const snapped = grid.on ? { ...dropped, ...snapTo(dropped, grid.step) } : dropped;
 
       // A group cannot be dropped into itself or into anything it holds.
@@ -352,7 +350,20 @@ export function PlanCanvas({
           depth: Math.round(((candidate.zIndex ?? 0) as number) / 10),
         }));
 
-      const drop = resolveDrop(snapped, targets, forbidden);
+      // Where a drop must not land. Only siblings count: a node keeps the
+      // column it was aimed at and slides past what is under it.
+      const occupants = new Map<string, Rect[]>();
+      for (const candidate of nodes) {
+        const holder = parentOf[candidate.id];
+        if (holder === undefined || candidate.id === node.id) continue;
+        const at = absolute[candidate.id];
+        if (at === undefined) continue;
+        const list = occupants.get(holder) ?? [];
+        list.push({ ...at, ...boxOf(bounds, candidate) });
+        occupants.set(holder, list);
+      }
+
+      const drop = resolveDrop(snapped, targets, forbidden, occupants);
       disarm();
       const was = parentOf[node.id] ?? null;
 
@@ -392,13 +403,7 @@ export function PlanCanvas({
         for (const slug of descendantsOf(node.id, parentOf)) carried.set(slug, shift);
         nudgeEdges(doc, carried, ORIGIN_LOCAL);
       }
-      const grown =
-        drop.grow === null || drop.parent === null
-          ? undefined
-          : new Map([[drop.parent, drop.grow]]);
-      if (moved.size > 0 || grown !== undefined) {
-        commitLayout(doc, moved, ORIGIN_LOCAL, grown);
-      }
+      if (moved.size > 0) commitLayout(doc, moved, ORIGIN_LOCAL);
     },
     [absolute, bounds, connection, disarm, doc, grid, nodes, onApplyOps, parentOf],
   );
@@ -479,26 +484,44 @@ export function PlanCanvas({
   };
 
   /**
-   * Hands a node back to layout.
+   * Hands a card back to the standard width.
    *
-   * Without this a card dragged once is a card that can never be an ordinary
-   * card again, and a plan slowly becomes a collage. Clearing the size is also
-   * what lets the next arrange measure the body afresh, since a size somebody
-   * chose is deliberately never recomputed.
+   * Without this a card widened once is a card that can never be an ordinary
+   * card again, and a plan slowly becomes a collage. Only a card is offered it:
+   * a box has no size of its own to restore, being whatever it holds.
    */
   const under_ = under?.kind === 'node' ? nodes.find((c) => c.id === under.id) : undefined;
-  const sizedUnder = under_?.data.node.size ?? null;
-  // A box is handed back to layout; a card is handed back to the standard
-  // width. Different sentences because they are different acts: a card has no
-  // height of its own to restore, only the width somebody chose for it.
-  const undoSizeLabel =
-    under_ !== undefined && isGroup(under_.data.node, under_.data.childCount)
-      ? 'Fit to contents'
-      : 'Use the standard width';
+  const widenedUnder =
+    under_ !== undefined && !isGroup(under_.data.node, under_.data.childCount)
+      ? under_.data.node.size
+      : null;
 
   const fitUnder = (): void => {
     if (under === null || under.kind !== 'node') return;
     onApplyOps([{ op: 'upsert_node', node: { slug: under.id, size: null } }]);
+  };
+
+  /**
+   * Takes a node out of the box it is in.
+   *
+   * Dragging it far enough out does the same thing, and on a crowded canvas
+   * "far enough out" can be a long way — past the box, past whatever is beside
+   * it, without passing over a third box on the journey. This is the move said
+   * plainly. The node is set down below the box it has left, where there is
+   * room by construction, because leaving it where it was would put it inside
+   * the boundary it no longer belongs to.
+   */
+  const holderOfUnder = under?.kind === 'node' ? (parentOf[under.id] ?? null) : null;
+
+  const takeOutOfBox = (): void => {
+    if (under === null || under.kind !== 'node' || holderOfUnder === null) return;
+    const box = absolute[holderOfUnder];
+    const size = nodes.find((candidate) => candidate.id === holderOfUnder);
+    const at = absolute[under.id];
+    onApplyOps([{ op: 'delete_edge', kind: 'contains', from: holderOfUnder, to: under.id }]);
+    if (box === undefined || size === undefined || at === undefined) return;
+    const below = { x: at.x, y: box.y + boxOf(bounds, size).height + 40 };
+    commitNodePosition(doc, under.id, grid.on ? snapTo(below, grid.step) : below, ORIGIN_LOCAL);
   };
 
   const removeUnder = (): void => {
@@ -539,10 +562,16 @@ export function PlanCanvas({
               Group {plural(selection.length, 'node')}
             </ContextAction>
           )}
-          {sizedUnder === null ? null : (
+          {holderOfUnder === null ? null : (
+            <ContextAction onSelect={takeOutOfBox}>
+              <Ungroup className="size-3.5 text-ink-faint" />
+              Take out of {nodes.find((c) => c.id === holderOfUnder)?.data.node.title ?? 'the box'}
+            </ContextAction>
+          )}
+          {widenedUnder === null ? null : (
             <ContextAction onSelect={fitUnder}>
               <Shrink className="size-3.5 text-ink-faint" />
-              {undoSizeLabel}
+              Use the standard width
             </ContextAction>
           )}
           {under === null ? null : (
