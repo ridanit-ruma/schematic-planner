@@ -580,40 +580,61 @@ try {
      * child left at exactly the moment it would have stretched it. The check
      * went with the behaviour.
      */
-    const box = await rectOf('alpha');
-    const one = await rectOf('a-one');
-    await drag(
-      { x: one.x + one.width / 2, y: one.y + one.height / 2 },
-      { x: box.x + box.width + 300, y: box.y + 30 },
-    );
+    /*
+     * On a box of its own, because dragging a child a long way changes the
+     * shape of the box that holds it — and every section below this one starts
+     * from the fixture's shape. The same note this file carries about giving
+     * each gesture its own node.
+     */
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          {
+            op: 'upsert_node',
+            node: { slug: 'farbox', kind: 'group', title: 'Farbox', position: { x: -2600, y: 200 }, pinned: true },
+          },
+          {
+            op: 'upsert_node',
+            node: { slug: 'far-one', title: 'Far one', position: { x: -2580, y: 240 }, pinned: true },
+          },
+          { op: 'upsert_edge', edge: { kind: 'contains', from: 'farbox', to: 'far-one' } },
+        ],
+      },
+    });
     await reopen();
-    check(
-      'a node dragged far out of a box is still in it',
-      (await countIn('alpha')) === 2,
-      String(await countIn('alpha')),
-    );
-    check(
-      'and the box has stretched to hold it',
-      inside(await rectOf('a-one'), await rectOf('alpha')),
-    );
 
-    // Back where it was, so the sections below start from the fixture's shape.
-    const back = await rectOf('alpha');
-    const away = await rectOf('a-one');
-    await drag(
-      { x: away.x + away.width / 2, y: away.y + away.height / 2 },
-      { x: back.x + 40, y: back.y + back.height - 30 },
-    );
+    const box = await rectOf('farbox');
+    const one = await rectOf('far-one');
+    if (box !== null && one !== null) {
+      await drag(
+        { x: one.x + one.width / 2, y: one.y + one.height / 2 },
+        { x: box.x + box.width + 260, y: box.y + 30 },
+      );
+      await reopen();
+      check(
+        'a node dragged far out of a box is still in it',
+        (await countIn('farbox')) === 1,
+        String(await countIn('farbox')),
+      );
+      check(
+        'and the box has stretched to hold it',
+        inside(await rectOf('far-one'), await rectOf('farbox')),
+      );
+    } else {
+      check('a node dragged far out of a box is still in it', false, 'the fixture was not drawn');
+    }
+
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          { op: 'delete_node', slug: 'far-one' },
+          { op: 'delete_node', slug: 'farbox' },
+        ],
+      },
+    });
     await reopen();
-    check(
-      'and it can be put back without leaving either',
-      (await countIn('alpha')) === 2,
-      String(await countIn('alpha')),
-    );
-    check(
-      'and nothing is left straddling the edge',
-      inside(await rectOf('a-one'), await rectOf('alpha')),
-    );
 
     console.log('\na group inside a group');
     const alphaBox = await rectOf('alpha');
