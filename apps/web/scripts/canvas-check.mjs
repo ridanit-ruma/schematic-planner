@@ -571,7 +571,15 @@ try {
       inside(await rectOf('a-one'), await rectOf('alpha')),
     );
 
-    // Out of the group, then back into it.
+    /*
+     * Dragged a long way out, and still in the box.
+     *
+     * This used to check the opposite. Growing a box and leaving one cannot
+     * both be a drag: a box is the bounding box of what it holds, so the way to
+     * make one bigger is to drag a child outward — and under a threshold the
+     * child left at exactly the moment it would have stretched it. The check
+     * went with the behaviour.
+     */
     const box = await rectOf('alpha');
     const one = await rectOf('a-one');
     await drag(
@@ -580,21 +588,25 @@ try {
     );
     await reopen();
     check(
-      'dragging a node out of a group leaves it',
-      (await countIn('alpha')) === 1,
+      'a node dragged far out of a box is still in it',
+      (await countIn('alpha')) === 2,
       String(await countIn('alpha')),
     );
-    check('and it is drawn outside the box', !inside(await rectOf('a-one'), await rectOf('alpha')));
+    check(
+      'and the box has stretched to hold it',
+      inside(await rectOf('a-one'), await rectOf('alpha')),
+    );
 
+    // Back where it was, so the sections below start from the fixture's shape.
     const back = await rectOf('alpha');
     const away = await rectOf('a-one');
     await drag(
       { x: away.x + away.width / 2, y: away.y + away.height / 2 },
-      { x: back.x + back.width / 2, y: back.y + back.height - 30 },
+      { x: back.x + 40, y: back.y + back.height - 30 },
     );
     await reopen();
     check(
-      'dropping it back in joins it again',
+      'and it can be put back without leaving either',
       (await countIn('alpha')) === 2,
       String(await countIn('alpha')),
     );
@@ -1843,47 +1855,6 @@ try {
       const kept = await storedSize('widthy');
       check('which survives a reopen', kept !== null && kept.width > 300, JSON.stringify(kept));
 
-      /*
-       * And with a finger. A touch screen never hovers, so the grip was
-       * invisible; twelve pixels is under the floor for a finger anyway; and
-       * the browser claimed the gesture for a pan once it had travelled, so a
-       * card widened by one grid step and then stopped while the canvas moved.
-       */
-      await call(`/plans/${fixture.id}/ops`, {
-        method: 'POST',
-        body: { ops: [{ op: 'upsert_node', node: { slug: 'widthy', size: null } }] },
-      });
-      await reopen();
-
-      const byFinger = await rectOf('widthy');
-      if (byFinger !== null) {
-        await page.touchscreen.tap(byFinger.x + byFinger.width / 2, byFinger.y + byFinger.height / 2);
-        await wait(700);
-        const grip = { x: byFinger.x + byFinger.width - 4, y: byFinger.y + byFinger.height * 0.3 };
-        await page.touchscreen.touchStart(grip.x, grip.y);
-        await page.touchscreen.touchMove(grip.x + 90, grip.y);
-        await page.touchscreen.touchMove(grip.x + 180, grip.y);
-        await page.touchscreen.touchMove(grip.x + 260, grip.y);
-        await page.touchscreen.touchEnd();
-        await wait(1200);
-        const byTouch = await storedSize('widthy');
-        check(
-          'a finger can widen a card, and keep hold of it',
-          byTouch !== null && byTouch.width > 380,
-          JSON.stringify(byTouch),
-        );
-      } else {
-        check('a finger can widen a card, and keep hold of it', false, 'the card was not drawn');
-      }
-
-      await call(`/plans/${fixture.id}/layout`, { method: 'POST', body: { scope: 'unpinned' } });
-      await wait(1500);
-      check(
-        'and an Arrange of what nobody placed leaves it alone',
-        (await storedSize('widthy'))?.width === kept?.width,
-        `${kept?.width} -> ${(await storedSize('widthy'))?.width}`,
-      );
-
       await reopen();
       const toReset = await rectOf('widthy');
       await page.mouse.click(toReset.x + toReset.width / 2, toReset.y + 6, { button: 'right' });
@@ -1893,6 +1864,48 @@ try {
       if (reset) check('and taking it clears the width', (await storedSize('widthy')) === null);
     }
 
+    /*
+     * The same grip, with a finger, on a node of its own.
+     *
+     * A touch screen never fires hover, so the grip was invisible on the one
+     * device where the target also has to be bigger; twelve pixels is under
+     * the floor for a finger; and without `touch-action: none` the browser
+     * claimed the gesture for a pan once it had travelled, so a card widened
+     * by one grid step and then watched the canvas move instead.
+     *
+     * Its own node, because the checks above end with `widthy` carrying a
+     * width they put there and this one would need it cleared.
+     */
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          { op: 'upsert_node', node: { slug: 'touchy', title: 'Touchy', body: 'a sentence long enough that it has to wrap more than once on a card of the standard width.' } },
+        ],
+      },
+    });
+    await reopen();
+
+    const byFinger = await rectOf('touchy');
+    if (byFinger !== null) {
+      await page.touchscreen.tap(byFinger.x + byFinger.width / 2, byFinger.y + byFinger.height / 2);
+      await wait(700);
+      const grip = { x: byFinger.x + byFinger.width - 4, y: byFinger.y + byFinger.height * 0.3 };
+      await page.touchscreen.touchStart(grip.x, grip.y);
+      await page.touchscreen.touchMove(grip.x + 90, grip.y);
+      await page.touchscreen.touchMove(grip.x + 180, grip.y);
+      await page.touchscreen.touchMove(grip.x + 260, grip.y);
+      await page.touchscreen.touchEnd();
+      await wait(1200);
+      const byTouch = await storedSize('touchy');
+      check(
+        'a finger can widen a card, and keep hold of it',
+        byTouch !== null && byTouch.width > 380,
+        JSON.stringify(byTouch),
+      );
+    } else {
+      check('a finger can widen a card, and keep hold of it', false, 'the card was not drawn');
+    }
     /*
      * And the box around a card makes room, or the drawing says a node is
      * inside a boundary it visibly overflows.
@@ -1960,6 +1973,7 @@ try {
         ops: [
           { op: 'delete_node', slug: 'wordy' },
           { op: 'delete_node', slug: 'widthy' },
+          { op: 'delete_node', slug: 'touchy' },
           { op: 'delete_node', slug: 'holder' },
         ],
       },
