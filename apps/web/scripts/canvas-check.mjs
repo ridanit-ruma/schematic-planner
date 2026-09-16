@@ -1277,12 +1277,29 @@ try {
       return bent?.waypoints ?? [];
     };
 
-    /** Where the writing on that line sits, if it has been placed. */
-    const labelOn = async () => {
+    /** Which line has corners on it, and what it says. */
+    const bentEdge = async () => {
       const doc = await call(`/plans/${fixture.id}`);
-      const bent = (doc.edges ?? []).find((edge) => (edge.waypoints?.length ?? 0) > 0);
-      return bent?.labelPosition ?? null;
+      return (doc.edges ?? []).find((edge) => (edge.waypoints?.length ?? 0) > 0) ?? null;
     };
+
+    /*
+     * Where the writing on that line is drawn, in canvas units.
+     *
+     * Read off the chip's own transform rather than its screen rectangle,
+     * because the two differ by whatever the viewport is zoomed to and the run
+     * it has to agree with is stored in canvas units. There is nowhere else to
+     * read it: the point is worked out from the route on every render and never
+     * written down.
+     */
+    const labelOn = async (id) =>
+      page.evaluate((edgeId) => {
+        const chip = document.querySelector(`[data-edge="${edgeId}"]`);
+        if (chip === null) return null;
+        const found = [...chip.style.transform.matchAll(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/g)];
+        const last = found.at(-1);
+        return last === undefined ? null : { x: Number(last[1]), y: Number(last[2]) };
+      }, id);
 
     // Press, drag sideways, let go. Sideways only: a vertical run moves on one
     // axis, and a Firefox pointer that leaves the window is refused outright
@@ -1313,42 +1330,20 @@ try {
         JSON.stringify(first.slice(0, 2)),
       );
 
-      // The writing has to be sitting on the run for carrying it to mean
-      // anything. Left where layout put it, it is on some other leg and the
-      // check passes by doing nothing, which is not a check.
-      const bent = ((await call(`/plans/${fixture.id}`)).edges ?? []).find(
-        (edge) => (edge.waypoints?.length ?? 0) > 0,
-      );
-      if (bent !== undefined && first.length >= 2) {
-        await call(`/plans/${fixture.id}/ops`, {
-          method: 'POST',
-          body: {
-            ops: [
-              {
-                op: 'upsert_edge',
-                edge: {
-                  from: bent.from,
-                  to: bent.to,
-                  kind: bent.kind,
-                  via: bent.via ?? null,
-                  label: bent.label ?? null,
-                  carries: bent.carries ?? null,
-                  waypoints: bent.waypoints,
-                  labelPosition: {
-                    x: first[0].x,
-                    y: Math.round((first[0].y + first[1].y) / 2),
-                  },
-                },
-              },
-            ],
-          },
-        });
-        await wait(1600);
-      }
+      /*
+       * Nothing is placed here any more.
+       *
+       * This used to write a labelPosition onto the edge and then check that
+       * moving the run carried it. The writing is no longer drawn there: it is
+       * worked out from the route every render, which is what made it stop
+       * floating clear of the flow in the first place. Seeding a stored point
+       * would now prove only that a field nothing reads still holds a number.
+       */
+      const bent = await bentEdge();
 
       // An untouched line has no corner to compare against, so which way it went
       // is only provable between two drags.
-      const labelBefore = await labelOn();
+      const labelBefore = bent === null ? null : await labelOn(bent.id);
       const again = await edgeMid();
       if (again !== null && first.length >= 2) {
         await pushRun(again, -80);
@@ -1365,15 +1360,18 @@ try {
           `${first.length} -> ${second.length}`,
         );
 
-        const labelAfter = await labelOn();
+        const labelAfter = bent === null ? null : await labelOn(bent.id);
         check(
-          'the writing was put on the run that moves',
+          'the writing on a line is drawn somewhere',
           labelBefore !== null && labelAfter !== null,
           JSON.stringify(labelBefore),
         );
         if (labelBefore !== null && labelAfter !== null && second.length >= 1) {
           const moved = labelAfter.x - labelBefore.x;
           const run = second[0].x - first[0].x;
+          // Exactly, and for free: the chip is placed on the route the canvas
+          // draws, so a run that moves takes its writing with it with nothing
+          // carrying anything.
           check(
             'and the writing on the run travels with it',
             moved === run && run !== 0,

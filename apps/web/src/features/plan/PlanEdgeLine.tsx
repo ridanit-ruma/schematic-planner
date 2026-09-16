@@ -293,6 +293,7 @@ function Line({
           <div
             role="button"
             tabIndex={0}
+            data-edge={id}
             onClick={(event) => {
               // Otherwise the click reaches the pane behind and puts down what
               // it has just picked up.
