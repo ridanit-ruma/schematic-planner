@@ -1675,6 +1675,50 @@ try {
       `${await drawnBody('wordy')} against ${await drawnBody('loose')} characters`,
     );
 
+    /*
+     * A wheel over a body that can scroll is the body's. React Flow zooms on
+     * wheel, so a card too tall to fit could only be scrolled by catching its
+     * scrollbar — and the canvas moved under you while you tried.
+     */
+    const scrolledBy = () =>
+      page.evaluate(
+        () =>
+          document.querySelector('.react-flow__node[data-id="wordy"] .nodrag')?.scrollTop ?? -1,
+      );
+    const tall = await rectOf('wordy');
+    const zoomWas = await zoomNow();
+    const restedAt = await scrolledBy();
+    await page.mouse.move(tall.x + tall.width / 2, tall.y + tall.height / 2);
+    await page.mouse.wheel({ deltaY: 220 });
+    await wait(500);
+    const scrolledTo = await scrolledBy();
+    check(
+      'a wheel over a card that overflows scrolls it',
+      restedAt >= 0 && scrolledTo > restedAt,
+      `${restedAt} -> ${scrolledTo}`,
+    );
+    check(
+      'and the canvas did not zoom while it did',
+      Math.abs((await zoomNow()) - zoomWas) < 0.001,
+      `${zoomWas} -> ${await zoomNow()}`,
+    );
+
+    // And gives it back at the end, so a card is not a hole in the zoom.
+    await page.evaluate(() => {
+      const box = document.querySelector('.react-flow__node[data-id="wordy"] .nodrag');
+      if (box !== null) box.scrollTop = box.scrollHeight;
+    });
+    await wait(200);
+    const zoomBeforeEnd = await zoomNow();
+    await page.mouse.wheel({ deltaY: 220 });
+    await wait(500);
+    check(
+      'and hands the wheel back once there is nowhere left to go',
+      Math.abs((await zoomNow()) - zoomBeforeEnd) > 0.001,
+      `${zoomBeforeEnd} -> ${await zoomNow()}`,
+    );
+    await page.mouse.move(5, 5);
+
     // The one gesture a card offers, on a node nothing else has touched.
     const toWiden = await rectOf('widthy');
     // A single dollar hands back one element, whose `.length` is undefined, so

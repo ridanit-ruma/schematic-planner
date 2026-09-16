@@ -228,6 +228,29 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
              settled that, and a second answer to it would be a second answer. */
           <div
             onPointerDown={(event) => event.stopPropagation()}
+            /*
+             * A wheel over a body that can still scroll is the body's, and the
+             * canvas's again at either end.
+             *
+             * React Flow zooms on wheel, and nothing over the card said
+             * otherwise — so a card too tall to fit could be scrolled only by
+             * catching its scrollbar, which on a trackpad is most of the width
+             * of a hair. Stopping every wheel would make a card a permanent
+             * hole in the zoom surface; stopping it only while the body has
+             * somewhere to go means the canvas keeps zooming over a card that
+             * fits, and takes the wheel back the moment the text runs out.
+             *
+             * No preventDefault: React attaches this passively, and once the
+             * event is not the canvas's the browser scrolls the div itself.
+             */
+            onWheel={(event) => {
+              const box = event.currentTarget;
+              const room =
+                event.deltaY < 0
+                  ? box.scrollTop > 0
+                  : box.scrollTop + box.clientHeight < box.scrollHeight - 1;
+              if (room) event.stopPropagation();
+            }}
             className="nodrag mt-1.5 min-h-0 flex-1 overflow-y-auto text-xs leading-snug text-ink-muted"
           >
             <Markdown body={node.body} />
