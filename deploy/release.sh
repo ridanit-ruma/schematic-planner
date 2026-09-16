@@ -73,15 +73,25 @@ for image in api web; do
     say "building $image at $short on $NODE"
     # setsid, so losing this connection does not lose the build. The marker in
     # the command line is how a later run finds it again.
-    ssh "$NODE" "cd \$HOME/$NODE_REPO && git fetch -q origin && git checkout -q $sha &&
+    #
+    # Timed out, and its exit ignored, because this connection only has to start
+    # the build: the loop below is what decides whether one is running. It has
+    # hung for an hour after the build it launched had finished and been tagged,
+    # holding the whole release behind an ssh channel that would not close — and
+    # killing that ssh took the script down with it, silently, mid-release.
+    timeout 60 ssh -n "$NODE" "cd \$HOME/$NODE_REPO && git fetch -q origin && git checkout -q $sha &&
       setsid nohup bash -c 'exec -a \"release-build $image $short\" \
         $BUILDER build -f $dockerfile \
           --build-arg NEXT_PUBLIC_SITE_URL=$SITE_URL \
           --build-arg NEXT_PUBLIC_APP_URL= \
           -t schematic-planner.local/$image:$short .' >$log 2>&1 </dev/null &
-      sleep 1"
+      sleep 1" || true
   fi
 
+  # A ceiling, because every question here goes over ssh and a connection that
+  # answers nothing reads as "still building" — which is a wait with no end. An
+  # hour is longer than any build this has ever taken.
+  waited=0
   while ! built "$image"; do
     # Asked again before giving up: the two questions are two round trips, and a
     # step that finishes between them has neither a process nor -- to the answer
@@ -91,6 +101,11 @@ for image in api web; do
       ssh "$NODE" "tail -20 $log" >&2 || true
       exit 1
     fi
+    if [ "$waited" -ge 240 ]; then
+      echo "gave up waiting for $image after an hour; its log is $log on $NODE" >&2
+      exit 1
+    fi
+    waited=$((waited + 1))
     sleep 15
   done
   echo "   built $image:$short"
