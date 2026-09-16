@@ -192,26 +192,34 @@ describe('layoutPlan', () => {
         ],
       });
 
-    it('gets a place of its own for every labelled flow', async () => {
+    /*
+     * Layout no longer says where the writing goes.
+     *
+     * It placed labels on the edges *it* routed, through its own channels and
+     * ports — and the canvas draws its own orthogonal runs instead. So a point
+     * recorded here was a point on a line in a picture nobody sees, and on a
+     * freshly arranged plan every note floated clear of the flow it belonged
+     * to. The canvas works it out from the route it actually draws.
+     */
+    it('says nothing about where the writing goes', async () => {
       const { labels } = await layoutPlan(busy(), { scope: 'all' });
-      expect([...labels.keys()].sort()).toEqual(['f1', 'f2', 'f3', 'f4']);
-    });
-
-    it('does not put two of them in the same place', async () => {
-      const { labels } = await layoutPlan(busy(), { scope: 'all' });
-      const placed = [...labels.values()];
-      for (let a = 0; a < placed.length; a += 1) {
-        for (let b = a + 1; b < placed.length; b += 1) {
-          const [one, other] = [placed[a]!, placed[b]!];
-          const apart = Math.abs(one.x - other.x) > 100 || Math.abs(one.y - other.y) > 18;
-          expect(apart, `labels at ${one.x},${one.y} and ${other.x},${other.y}`).toBe(true);
-        }
-      }
-    });
-
-    it('leaves a line with nothing written on it out of it', async () => {
-      const { labels } = await layoutPlan(plan(), { scope: 'all' });
       expect(labels.size).toBe(0);
+    });
+
+    /*
+     * The labels are still declared on the way in, and this is why: ELK leaves
+     * room in a corridor for writing it knows is coming. That part of its
+     * answer is worth having, and it shows up as space between the flows rather
+     * than as a position.
+     */
+    it('still leaves the flows room to be written on', async () => {
+      const { positions } = await layoutPlan(busy(), { scope: 'all' });
+      const rows = ['one', 'two', 'three', 'four']
+        .map((slug) => positions.get(slug)?.y ?? 0)
+        .sort((a, b) => a - b);
+      for (let index = 1; index < rows.length; index += 1) {
+        expect((rows[index] ?? 0) - (rows[index - 1] ?? 0)).toBeGreaterThan(40);
+      }
     });
   });
 });

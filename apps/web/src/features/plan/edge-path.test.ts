@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { legalize, midpoint, pathOf, routeOf, type Side } from './edge-path';
+import { labelAt, legalize, midpoint, pathOf, routeOf, type Side } from './edge-path';
 
 const source = { x: 0, y: 0 };
 const target = { x: 400, y: 200 };
@@ -239,5 +239,49 @@ describe('which run the writing belongs to', () => {
     const index = segmentOfLabel(route([]), { x: -9000, y: 9000 });
     expect(Number.isInteger(index)).toBe(true);
     expect(index).toBeGreaterThanOrEqual(0);
+  });
+});
+
+/*
+ * The writing goes on the line the router drew, not at a point a different
+ * router remembered. ELK placed the notes when it laid a plan out, through its
+ * own channels and ports; this file draws the line. Nothing reconciled them, so
+ * on a freshly arranged canvas every note floated clear of its flow.
+ */
+describe('where the writing on a line sits', () => {
+  it('puts one note in the middle of the longest run', () => {
+    const route = [
+      { x: 0, y: 0 },
+      { x: 0, y: 100 },
+      { x: 400, y: 100 },
+    ];
+    expect(labelAt(route, { of: 1, index: 0 })).toEqual({ x: 200, y: 100 });
+  });
+
+  it('spreads several down the corridor rather than stacking them', () => {
+    const route = [
+      { x: 0, y: 0 },
+      { x: 300, y: 0 },
+    ];
+    const first = labelAt(route, { of: 3, index: 0 });
+    const second = labelAt(route, { of: 3, index: 1 });
+    const third = labelAt(route, { of: 3, index: 2 });
+    expect([first.x, second.x, third.x]).toEqual([75, 150, 225]);
+  });
+
+  it('keeps every note on the run itself', () => {
+    const route = [
+      { x: 0, y: 0 },
+      { x: 0, y: 200 },
+      { x: 500, y: 200 },
+    ];
+    for (let index = 0; index < 3; index += 1) {
+      expect(labelAt(route, { of: 3, index }).y).toBe(200);
+    }
+  });
+
+  it('answers for a line with nothing to sit on', () => {
+    expect(labelAt([{ x: 7, y: 9 }])).toEqual({ x: 7, y: 9 });
+    expect(labelAt([])).toEqual({ x: 0, y: 0 });
   });
 });

@@ -321,3 +321,40 @@ function distanceToSegment(point: Position, a: Position, b: Position): number {
   const along = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / length));
   return Math.hypot(point.x - (a.x + along * dx), point.y - (a.y + along * dy));
 }
+
+/**
+ * Where the writing on a line sits.
+ *
+ * On the line — worked out from the route that is actually drawn, every render,
+ * with nothing stored. The writing used to be placed at a point ELK recorded
+ * when it laid the plan out, which is ELK's own routing through ELK's own
+ * channels and ports, and not the line this file draws. Nothing reconciled
+ * them, so on a freshly arranged canvas the notes floated well clear of the
+ * flows they belonged to: they were sitting on a line in a picture nobody sees.
+ *
+ * The longest run, because it is the one with room. `share` spreads the notes
+ * of several flows that run between the same pair down that corridor rather
+ * than stacking them all at its middle: one lands at a half, two at a third and
+ * two thirds, three at a quarter, a half and three quarters. Keeping them apart
+ * is the one thing ELK was doing for us that deleting its point gave back.
+ */
+export function labelAt(
+  route: readonly Position[],
+  share: { of: number; index: number } = { of: 1, index: 0 },
+): Position {
+  if (route.length < 2) return route[0] ?? { x: 0, y: 0 };
+
+  let best = { from: route[0] as Position, to: route[1] as Position, length: -1 };
+  for (let index = 1; index < route.length; index += 1) {
+    const from = route[index - 1] as Position;
+    const to = route[index] as Position;
+    const length = distance(from, to);
+    if (length > best.length) best = { from, to, length };
+  }
+
+  const along = (share.index + 1) / (share.of + 1);
+  return {
+    x: best.from.x + (best.to.x - best.from.x) * along,
+    y: best.from.y + (best.to.y - best.from.y) * along,
+  };
+}

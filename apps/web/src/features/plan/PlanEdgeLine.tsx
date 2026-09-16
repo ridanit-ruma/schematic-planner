@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 
 import {
   dragSegment,
-  midpoint,
+  labelAt,
   movableSegments,
   pathOf,
   routeOf,
@@ -44,14 +44,12 @@ const STYLE: Record<string, { dash?: string; marker: boolean }> = {
 /**
  * When the note on a line is drawn, and when it is not.
  *
- * Once layout has given a note a place of its own it is always drawn: a card
- * looks the same at every zoom and so does the writing on a line, and hiding it
- * when the view pulled back meant a plan large enough to need pulling back was
- * a plan that opened as unlabelled boxes.
+ * A card looks the same at every zoom and so does the writing on a line, so
+ * what decides whether a note is drawn is room rather than taste: below this
+ * much of it the letters are a smudge and the run is too short to hold them.
  *
- * A note with nowhere of its own is the exception. It falls back to the
- * midpoint, which is exactly where parallel lines pile theirs up, so a line too
- * short to hold one keeps quiet and says what it carries in the inspector.
+ * A line too short to hold one keeps quiet and says what it carries in the
+ * inspector instead, because the writing would be wider than the run it sits on.
  */
 const NOTE_ZOOM = 0.55;
 const NOTE_ROOM = 130;
@@ -120,7 +118,21 @@ function Line({
   const chain: readonly Position[] = held ?? edgeData?.waypoints ?? [];
   const route = routeOf(ends.source, ends.sourceSide, ends.target, ends.targetSide, chain);
   const path = pathOf(route);
-  const middle = midpoint(route);
+
+  /*
+   * How many flows run between this pair, and which of them this is.
+   *
+   * Their notes would otherwise land on the same point: three flows out of one
+   * node share a corridor and share its middle. Ordered by edge id so that two
+   * people looking at the same plan put them in the same places.
+   */
+  const corridor = usePlanStore((state) => {
+    const pair = state.edges.filter(
+      (other) => other.source === edgeData?.from && other.target === edgeData?.to,
+    );
+    const order = pair.map((other) => other.id).sort();
+    return { of: Math.max(1, order.length), index: Math.max(0, order.indexOf(id)) };
+  });
 
   const selectEdge = usePlanStore((state) => state.selectEdge);
   const editable = usePlanStore((state) => state.editable);
@@ -136,21 +148,24 @@ function Line({
   // an arrow with nothing written on it says only that two things touch.
   const note = edge === undefined ? '' : edgeNote(edge);
 
-  // Where layout put it, which is the only place that knows what else is near,
-  // and the middle of the line when it has no such place.
-  //
-  // The stored point is absolute — true for where the line was when the plan
-  // was laid out — so dragging a node withdraws it for every line that node
-  // touches, and those notes fall back to this midpoint and follow from then
-  // on. Guessing at staleness here instead was worse: moving a node away grows
-  // the box its two ends make until it swallows the stale point, so the note
-  // that had most obviously come adrift was the one that looked fine.
-  //
-  // The midpoint is exactly where parallel lines pile their notes up, so a line
-  // too short to hold one keeps quiet until it has somewhere of its own.
-  const placed = heldLabel ?? edge?.labelPosition ?? null;
-  const at = placed ?? middle;
-  const show = note !== '' && (placed !== null || legible);
+  /*
+   * On the line, worked out from the route that is drawn, every render.
+   *
+   * It used to be drawn at `edge.labelPosition` — a point ELK recorded when it
+   * laid the plan out, through ELK's own channels and ports, and not the line
+   * this file draws. Nothing reconciled the two, so on a freshly arranged
+   * canvas every note floated clear of the flow it belonged to: it was sitting
+   * on a line in a picture nobody sees. The guard against staleness could not
+   * catch it either, because nothing had moved — the point was wrong the moment
+   * it was written.
+   *
+   * `heldLabel` is the exception, and only within a gesture: while a note is
+   * being dragged it is drawn under the finger, and the moment that ends it
+   * returns to the line.
+   */
+  const placed = heldLabel;
+  const at = placed ?? labelAt(route, corridor);
+  const show = note !== '' && legible;
 
   return (
     <>

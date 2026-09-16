@@ -705,6 +705,50 @@ try {
       `${piled.notes} notes, ${piled.overlapping} overlapping`,
     );
 
+    /*
+     * And on the line it belongs to, on a plan straight out of an Arrange.
+     *
+     * This is the case the old staleness guard could not catch: the writing
+     * was drawn at a point ELK recorded on the edges ELK routed, and the
+     * canvas draws its own. Nothing had moved, so nothing withdrew the point
+     * — it was wrong the moment it was written, and every note floated well
+     * clear of its flow.
+     */
+    const adrift = await page.evaluate(() => {
+      const near = (path, at) => {
+        const length = path.getTotalLength();
+        let best = Infinity;
+        for (let along = 0; along <= length; along += 6) {
+          const point = path.getPointAtLength(along);
+          const box = path.getBoundingClientRect();
+          const view = path.ownerSVGElement?.getBoundingClientRect();
+          if (view === undefined) return Infinity;
+          const screen = path.getScreenCTM();
+          if (screen === null) return Infinity;
+          const x = screen.a * point.x + screen.c * point.y + screen.e;
+          const y = screen.b * point.x + screen.d * point.y + screen.f;
+          best = Math.min(best, Math.hypot(x - at.x, y - at.y));
+          void box;
+        }
+        return best;
+      };
+      const lines = [...document.querySelectorAll('.react-flow__edge-path')];
+      const notes = [...document.querySelectorAll('.react-flow__edgelabel-renderer div')].filter(
+        (el) => (el.textContent ?? '').trim() !== '',
+      );
+      if (lines.length === 0 || notes.length === 0) return null;
+      return notes.map((note) => {
+        const box = note.getBoundingClientRect();
+        const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+        return Math.round(Math.min(...lines.map((line) => near(line, at))));
+      });
+    });
+    check(
+      'and every note sits on the line it belongs to',
+      adrift !== null && Math.max(...adrift) < 24,
+      adrift === null ? 'nothing to measure' : `furthest ${Math.max(...adrift)}px from a line`,
+    );
+
     console.log('\nmaking a group');
     /*
      * The half that was missing. Whether a node was drawn as a box was inferred

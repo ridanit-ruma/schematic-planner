@@ -229,21 +229,21 @@ export async function layoutPlan(
   };
   collect(laid.children, { x: 0, y: 0 });
 
+  /*
+   * ELK's label positions are deliberately thrown away.
+   *
+   * It places them on the edges it routed, through its own channels and ports —
+   * and the canvas does not draw those edges. It has its own orthogonal router,
+   * so a point ELK recorded was a point on a line in a picture nobody sees, and
+   * every note on a freshly arranged plan floated clear of the flow it belonged
+   * to. The canvas now works the position out from the route it actually draws,
+   * every render, which is a thing that cannot go stale because it is not kept.
+   *
+   * The labels are still declared on the way in: they are what makes ELK leave
+   * room in a corridor for the writing that will go there, which is the part of
+   * its answer worth having.
+   */
   const labels = new Map<string, Position>();
-  const collectLabels = (graph: ElkNode): void => {
-    for (const edge of graph.edges ?? []) {
-      const label = edge.labels?.[0];
-      if (label?.x === undefined || label.y === undefined) continue;
-      const origin = origins.get(edge.container ?? 'root') ?? { x: 0, y: 0 };
-      // Stored as the centre, which is where the canvas draws from.
-      labels.set(edge.id, {
-        x: origin.x + label.x + (label.width ?? 0) / 2,
-        y: origin.y + label.y + (label.height ?? 0) / 2,
-      });
-    }
-    for (const child of graph.children ?? []) collectLabels(child);
-  };
-  collectLabels(laid);
 
   /*
    * A box's size is never a person's to keep.
