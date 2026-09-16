@@ -8,7 +8,7 @@ import {
 } from '@schematic/ydoc';
 import { ViewportPortal, useReactFlow, useStore as useFlowStore } from '@xyflow/react';
 import { Check, RotateCcw, Trash2 } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import type * as Y from 'yjs';
 
@@ -24,6 +24,14 @@ import { useYText } from './use-y-text';
 const DRAG_SLOP = 3;
 
 const WIDTH = 216;
+/**
+ * How tall an editor may grow to before it scrolls instead.
+ *
+ * A note is a remark beside a drawing. One that filled the canvas would have
+ * stopped being one, and the person writing it can drag it taller if they
+ * really mean it.
+ */
+const EDITOR_CEILING = 320;
 
 /**
  * How small a note may be dragged.
@@ -162,6 +170,25 @@ function Note({
   const [stretched, setStretched] = useState<{ width: number; height: number } | null>(null);
   const corner = useRef<{ pointer: Position; from: { width: number; height: number } } | null>(null);
   const size = stretched ?? comment.size;
+
+  /*
+   * The editor grows to the note, rather than the note shrinking to the editor.
+   *
+   * A note is read as rendered Markdown, which is as tall as its text, and
+   * written in a textarea, which was four rows whatever was in it. Tapping one
+   * to change it therefore collapsed it, and a long note was edited through a
+   * four-line window — worst on a phone, where tapping is the only way in.
+   *
+   * Only when nobody has dragged the note to a size: one that has been given a
+   * height fills it, and a person's answer outranks a measurement.
+   */
+  const editor = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    const box = editor.current;
+    if (box === null || (size !== null && size !== undefined)) return;
+    box.style.height = 'auto';
+    box.style.height = `${Math.min(box.scrollHeight, EDITOR_CEILING)}px`;
+  }, [body, open, size]);
 
   const at = held ?? comment.position ?? fallback;
 
@@ -327,6 +354,7 @@ function Note({
 
         {open && !readOnly ? (
           <textarea
+            ref={editor}
             autoFocus
             value={body}
             onChange={(event) => write(event.target.value)}

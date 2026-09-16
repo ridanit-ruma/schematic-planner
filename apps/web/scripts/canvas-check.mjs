@@ -1356,6 +1356,65 @@ try {
       const editing = await page.evaluate(() => document.querySelectorAll('textarea').length);
       check('clicking it opens its editor', editing > 0, `${editing} textarea`);
 
+      /*
+       * A note is read as rendered Markdown, as tall as its text, and written
+       * in a textarea that was four rows whatever was in it. So tapping a long
+       * note to change it collapsed it, and it was edited through a four-line
+       * window — worst on a phone, where tapping is the only way in.
+       */
+      const TALL = 'A note long enough to need more than four lines of room.';
+      await call(`/plans/${fixture.id}/ops`, {
+        method: 'POST',
+        body: {
+          ops: [
+            {
+              op: 'upsert_comment',
+              comment: {
+                id: 'gate-tall-note',
+                body: Array(7).fill(TALL).join('\n\n'),
+                anchor: 'alpha',
+                position: { x: 520, y: 320 },
+              },
+            },
+          ],
+        },
+      });
+      await reopen();
+
+      const tallNote = async () =>
+        page.evaluate((body) => {
+          const el = [...document.querySelectorAll('div')].find(
+            (d) => (d.className || '').toString().includes('nopan nodrag absolute') && d.textContent.includes(body),
+          );
+          return el === undefined ? null : el.getBoundingClientRect().height;
+        }, TALL);
+
+      const readAt = await tallNote();
+      if (readAt !== null) {
+        const box = await page.evaluate((body) => {
+          const el = [...document.querySelectorAll('div')].find(
+            (d) => (d.className || '').toString().includes('nopan nodrag absolute') && d.textContent.includes(body),
+          );
+          const r = el.getBoundingClientRect();
+          return { x: r.x, y: r.y, w: r.width, h: r.height };
+        }, TALL);
+        await page.mouse.click(box.x + box.w / 2, box.y + 8);
+        await wait(900);
+        const writeAt = await tallNote();
+        check(
+          'opening a long note to edit it does not shrink it',
+          writeAt !== null && writeAt >= readAt - 8,
+          `${Math.round(readAt)} -> ${Math.round(writeAt ?? 0)}`,
+        );
+        await call(`/plans/${fixture.id}/ops`, {
+          method: 'POST',
+          body: { ops: [{ op: 'delete_comment', id: 'gate-tall-note' }] },
+        });
+        await reopen();
+      } else {
+        check('opening a long note to edit it does not shrink it', false, 'the note was not drawn');
+      }
+
       const noteAt = async () => {
         const doc = await call(`/plans/${fixture.id}`);
         return (doc.comments ?? []).find((c) => c.id === 'gate-note')?.position ?? null;
