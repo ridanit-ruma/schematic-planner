@@ -36,10 +36,10 @@ const BELONGS = 0.5;
 /**
  * Where a dropped node belongs, and where it ends up.
  *
- * The box that holds it is whichever one it covers most of itself with, among
- * those it covers at least half of. Nothing is clamped: a box is drawn around
- * what it holds, so a node dropped past an edge takes the edge with it rather
- * than being pushed back inside one.
+ * The box that holds it is whichever one it has most in common with, among
+ * those it has at least half of the smaller of them in common with. Nothing is
+ * clamped: a box is drawn around what it holds, so a node dropped past an edge
+ * takes the edge with it rather than being pushed back inside one.
  */
 export function resolveDrop(
   moved: Rect,

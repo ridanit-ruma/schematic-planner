@@ -5,6 +5,8 @@ import {
   findNode,
   planOpsSchema,
   tracePlan,
+  type PlanDoc,
+  type PlanOp,
 } from '@schematic/schema';
 
 import { READING_STEP_MS } from '@schematic/ydoc';
@@ -735,7 +737,11 @@ export class McpFactory {
           'guess — a note sits on the canvas where a person will see it and can answer, which ' +
           'is better than a plan drawn confidently around an assumption. Notes somebody else ' +
           'left are in get_plan; read them before carrying on, and resolve one when you have ' +
-          'acted on it.',
+          'acted on it.\n\n' +
+          'A flow is identified by what sets it off, so drawing the same pair again with a ' +
+          'different via adds a second flow rather than correcting the first. To change what ' +
+          'sets a flow off, delete_edge it with the old via in the same batch. The reply says ' +
+          'so when a batch leaves two flows running between one pair.',
         inputSchema: applyOpsShape,
       },
       async ({ planId, ops, expectedRevision }) => {
@@ -754,8 +760,10 @@ export class McpFactory {
             expectedRevision,
           );
           const revision = await this.plans.revision(planId);
+          const doubled = doubledFlows(doc, signed);
           return text(
-            `Applied ${ops.length} operation(s).\n\n${renderPlan(doc, 'outline')}\n\nRevision: ${revision}`,
+            `Applied ${ops.length} operation(s).\n\n${doubled}${renderPlan(doc, 'outline')}` +
+              `\n\nRevision: ${revision}`,
           );
         } catch (error) {
           return failure(reason(error));
@@ -844,4 +852,47 @@ function whereItMatches(
 
   const line = matchingLine(node.body, needles);
   return line === null ? null : { where: 'body', line };
+}
+
+/**
+ * A warning for the one write that quietly draws the wrong thing.
+ *
+ * What sets a flow off is part of its identity, which is what lets two
+ * different triggers run between the same pair of nodes. The cost is that
+ * redrawing a flow with a corrected trigger adds a second one instead of
+ * changing the first, and nothing said so: an agent tidying up its own wording
+ * doubled the line and read back an outline it had no reason to look twice at.
+ *
+ * Only pairs this batch touched are reported, and only when there is now more
+ * than one flow between them — two deliberate triggers are a drawing somebody
+ * meant, said once, and then never mentioned again.
+ */
+export function doubledFlows(doc: PlanDoc, applied: readonly PlanOp[]): string {
+  const drawn = new Set<string>();
+  for (const op of applied) {
+    if (op.op === 'upsert_edge' && op.edge.kind === 'flows_to') {
+      drawn.add(`${op.edge.from}>${op.edge.to}`);
+    }
+  }
+  if (drawn.size === 0) return '';
+
+  const lines: string[] = [];
+  for (const pair of drawn) {
+    const [from, to] = pair.split('>');
+    const flows = doc.edges.filter(
+      (edge) => edge.kind === 'flows_to' && edge.from === from && edge.to === to,
+    );
+    if (flows.length < 2) continue;
+    const triggers = flows.map((edge) => (edge.via === null ? 'no trigger' : `"${edge.via}"`));
+    lines.push(`  ${from} --> ${to}, set off by ${triggers.join(' and ')}`);
+  }
+  if (lines.length === 0) return '';
+
+  return (
+    'More than one flow now runs between these:\n' +
+    `${lines.join('\n')}\n` +
+    'That is right if you meant to draw two triggers. If you meant to correct one, a flow is ' +
+    'identified by its trigger, so the old one is still there — remove it with delete_edge ' +
+    'carrying the via it was drawn with.\n\n'
+  );
 }
