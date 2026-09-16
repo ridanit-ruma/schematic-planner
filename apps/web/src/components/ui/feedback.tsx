@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router';
 
 import { cn } from '@/lib/utils';
 
@@ -72,12 +73,12 @@ export function NotFound({ subject = 'page' }: { subject?: string }) {
           This address does not lead anywhere you can reach. It may never have existed, it may
           have been deleted, or it may belong to somebody who has not shared it with you.
         </p>
-        <a
-          href="/recent"
+        <Link
+          to="/recent"
           className="mt-5 inline-block text-sm text-accent underline underline-offset-2"
         >
           Back to what you were working on
-        </a>
+        </Link>
       </div>
     </div>
   );
