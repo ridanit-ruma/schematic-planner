@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/field';
-import { Empty, Problem, Spinner } from '@/components/ui/feedback';
+import { Empty, NotFound, Problem, Spinner } from '@/components/ui/feedback';
 import { DropdownAction } from '@/components/ui/dropdown-menu';
 import { Modal } from '@/components/ui/modal';
 import { Page } from '@/components/ui/page';
@@ -14,6 +14,7 @@ import {
   canAdminister,
   folders,
   plans,
+  isMissing,
   projects,
   type FolderSummary,
   type PlanSummary,
@@ -131,6 +132,11 @@ export function PlanIndexPage() {
       setError(cause);
     }
   };
+
+  // An address that leads nowhere you can reach is not an error on a page;
+  // it is the absence of the page. Everything below this line assumes the
+  // thing exists and is yours.
+  if (isMissing(error)) return <NotFound subject="project" />;
 
   if (error !== null) {
     return (

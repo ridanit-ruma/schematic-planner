@@ -23,6 +23,16 @@ export interface PlanDocumentHandle {
   status: ConnectionStatus;
   /** True once the first sync has arrived; before that the canvas is empty, not blank. */
   synced: boolean;
+  /**
+   * The server would not open this document.
+   *
+   * Refused and not-there are one answer here, as they are on every other route:
+   * the access check says "not found" for a plan that is somebody else's,
+   * because saying "forbidden" would confirm it exists. Without this the canvas
+   * sat at "connecting" over an empty document and drew a plan called "Untitled
+   * plan" — a drawing of something that is not there.
+   */
+  denied: boolean;
 }
 
 /**
@@ -35,6 +45,7 @@ export function usePlanDocument(
 ): PlanDocumentHandle {
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [synced, setSynced] = useState(false);
+  const [denied, setDenied] = useState(false);
   const [connection, setConnection] = useState<PlanConnection | null>(null);
   const frame = useRef<number | null>(null);
   const cursorFrame = useRef<number | null>(null);
@@ -47,6 +58,7 @@ export function usePlanDocument(
   useEffect(() => {
     setSynced(false);
     setStatus('connecting');
+    setDenied(false);
 
     const doc = new Y.Doc();
     const provider = new HocuspocusProvider({
@@ -61,6 +73,12 @@ export function usePlanDocument(
       },
       onSynced: () => setSynced(true),
       onDisconnect: () => setStatus('disconnected'),
+      // The provider retries a dropped socket for ever, which is right for a
+      // network that came back and wrong for an answer that will not change.
+      onAuthenticationFailed: () => {
+        setDenied(true);
+        provider.disconnect();
+      },
     });
 
     const bound = createPlanStore(doc);
@@ -147,5 +165,5 @@ export function usePlanDocument(
     };
   }, [planId, identity]);
 
-  return { connection, status, synced };
+  return { connection, status, synced, denied };
 }

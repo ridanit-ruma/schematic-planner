@@ -45,3 +45,40 @@ export function Problem({ error }: { error: unknown }) {
     </div>
   );
 }
+
+/**
+ * The screen for an address that leads nowhere you can reach.
+ *
+ * One screen for two different facts — the thing is not there, and the thing is
+ * not yours — because the server already answers both with 404. Telling a
+ * stranger that a plan exists but belongs to somebody else is telling them it
+ * exists, so the API refuses to distinguish them and a screen that did would
+ * give away what the API is protecting.
+ *
+ * It replaces three silent redirects. An unknown address, a workspace that is
+ * not yours and a plan that is not yours each quietly sent you somewhere else,
+ * and the canvas did worse: it drew an empty plan called "Untitled plan", which
+ * is a drawing of something that is not there.
+ */
+export function NotFound({ subject = 'page' }: { subject?: string }) {
+  return (
+    <div className="grid min-h-dvh place-items-center px-6">
+      <div className="max-w-md text-center">
+        <p className="slug text-ink-faint">404</p>
+        <h1 className="mt-2 text-base font-medium text-ink">
+          There is no {subject} here
+        </h1>
+        <p className="mt-1.5 text-sm text-ink-muted">
+          This address does not lead anywhere you can reach. It may never have existed, it may
+          have been deleted, or it may belong to somebody who has not shared it with you.
+        </p>
+        <a
+          href="/recent"
+          className="mt-5 inline-block text-sm text-accent underline underline-offset-2"
+        >
+          Back to what you were working on
+        </a>
+      </div>
+    </div>
+  );
+}

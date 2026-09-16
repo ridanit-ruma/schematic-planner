@@ -4,10 +4,10 @@ import { useNavigate, useParams } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/field';
-import { Problem, Spinner } from '@/components/ui/feedback';
+import { NotFound, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { Page, Panel } from '@/components/ui/page';
-import { canAdminister, projects } from '@/lib/api';
+import { canAdminister, isMissing, projects } from '@/lib/api';
 import { useWorkspace } from './workspace-context';
 
 /** What a project is called, and getting rid of it. The plans inside are the project's own screen. */
@@ -39,6 +39,10 @@ export function ProjectSettingsPage() {
       live = false;
     };
   }, [current.id, projectSlug]);
+
+  // An address that leads nowhere you can reach is not an error on a page;
+  // it is the absence of the page.
+  if (isMissing(error)) return <NotFound subject="project" />;
 
   if (error !== null && id === null) {
     return (

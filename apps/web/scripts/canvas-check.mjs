@@ -1897,6 +1897,38 @@ try {
   await call(`/plans/${elsewhere.id}`, { method: 'DELETE' });
   await call(`/trash/plans/${elsewhere.id}`, { method: 'DELETE' });
 
+  console.log('\naddresses that lead nowhere');
+  /*
+   * Three silent redirects and one lie. An unknown address, a workspace that
+   * is not yours and a plan that is not yours each quietly moved you somewhere
+   * else, and the canvas drew an empty plan called "Untitled plan" — a drawing
+   * of something that is not there. The server has always answered 404 rather
+   * than 403 for all of them, deliberately; the screens now say so too.
+   */
+  const notFoundAt = async (path) => {
+    await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
+    await wait(3500);
+    return page.evaluate(() => {
+      const text = document.body.textContent ?? '';
+      return { text, at: window.location.pathname };
+    });
+  };
+
+  const unknown = await notFoundAt(`/nowhere-${Date.now()}`);
+  check('an address that is not a route says so', unknown.text.includes('404'), unknown.text.slice(0, 60));
+  check('and leaves you at the address you typed', unknown.at.startsWith('/nowhere-'), unknown.at);
+
+  const strange = await notFoundAt(`/workspace/not-yours-${Date.now()}`);
+  check('a workspace that is not yours says so', strange.text.includes('404'), strange.text.slice(0, 60));
+  check('and does not name it as forbidden', !/forbidden|permission|not allowed/i.test(strange.text));
+
+  // A plan id of the right shape that this account cannot open. The canvas
+  // used to sit at "connecting" over an empty document and draw it as a plan.
+  const hidden = await notFoundAt('/plan/cmxxxxxxxxxxxxxxxxxxxxxxxx');
+  check('a plan that is not yours says so rather than drawing an empty one', hidden.text.includes('404'), hidden.text.slice(0, 60));
+  check('and draws no canvas at all', !hidden.text.includes('Untitled plan'));
+
+  await reopen();
   console.log('\nfolders as places');
   // A folder used to be a heading spliced into the middle of the plan table: a
   // raw `td` with none of the padding every other cell has, so its name sat

@@ -539,3 +539,14 @@ export async function downloadExport(planId: string, filename: string): Promise<
   anchor.click();
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Whether the server said this address leads nowhere the caller can reach.
+ *
+ * 404 and not 403, for everything below a workspace: a membership check that
+ * answered "forbidden" would confirm the thing exists, which is the fact being
+ * protected. So one test, and one screen behind it.
+ */
+export function isMissing(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
+}
