@@ -494,3 +494,27 @@ describe('where a plan has got to', () => {
     expect(renderNext(drawing, 3)).toContain('nothing to work on');
   });
 });
+
+describe('a read that always ends with something to do', () => {
+  const held = planDocSchema.parse({
+    id: 'p14',
+    title: 'Held',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    nodes: [
+      { slug: 'running', kind: 'task', title: 'Running', status: 'in_progress' },
+      { slug: 'after', kind: 'task', title: 'After', status: 'planned' },
+    ],
+    edges: [{ id: 'f1', kind: 'flows_to', from: 'running', to: 'after' }],
+  });
+
+  /*
+   * The one shape that used to answer with nothing: something started, nothing
+   * ready, so neither branch said a word and the reader was back to working it
+   * out — which is the whole thing this replaces.
+   */
+  it('says to finish what is started when nothing else is ready', () => {
+    const said = renderNext(held, 3);
+    expect(said).toContain('Already started');
+    expect(said).toContain('Nothing else is ready');
+  });
+});

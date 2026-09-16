@@ -594,13 +594,18 @@ export function renderNext(doc: PlanDoc, limit: number): string {
     lines.push('');
   }
 
-  if (ready.length === 0 && running.length === 0) {
+  if (ready.length === 0) {
+    // Every read of this has to end with something to do, or the reader is
+    // back to working it out — which is the whole thing this replaces.
     lines.push(
-      waiting.length === 0 && stuck.length === 0
-        ? 'Nothing is left. Every task is done or dropped.'
-        : 'Nothing is ready. Everything left is blocked or waiting on something unfinished.',
+      running.length > 0
+        ? 'Nothing else is ready. Finish what is already started.'
+        : waiting.length === 0 && stuck.length === 0
+          ? 'Nothing is left. Every task is done or dropped.'
+          : 'Nothing is ready. Everything left is blocked, or waiting on something unfinished.',
     );
-  } else if (ready.length > 0) {
+    lines.push('');
+  } else {
     lines.push(
       ready.length === 1
         ? 'Ready now:'
