@@ -2,7 +2,7 @@ import { exportPlan } from '@schematic/exporter';
 import { buildPlanGraph, type PlanDoc, type TraceResult } from '@schematic/schema';
 import type { NamedFolder } from './workspace-scope.js';
 
-export type PlanView = 'outline' | 'graph' | 'markdown';
+export type PlanView = 'outline' | 'detail' | 'graph' | 'markdown';
 
 /**
  * Positions and styling are excluded from every view. An agent declares
@@ -57,29 +57,118 @@ export function renderPlan(doc: PlanDoc, view: PlanView): string {
       .join('\n\n');
   }
 
+  if (view === 'detail') return outline(doc, { bodies: true });
+
   return outline(doc);
 }
 
-function outline(doc: PlanDoc): string {
+/**
+ * Named nodes, in full, with what they are wired to.
+ *
+ * The gap this fills: every view was a summary. An agent asked to carry out the
+ * task drawn on one node could see its title and its status and nothing it
+ * actually said, and the only way to the words was the whole export — the
+ * document, to read one paragraph of it.
+ */
+export function renderNodes(doc: PlanDoc, slugs: readonly string[]): string {
+  const graph = buildPlanGraph(doc);
+  const lines: string[] = [];
+  const missing: string[] = [];
+
+  for (const slug of slugs) {
+    const node = graph.nodes.get(slug);
+    if (node === undefined) {
+      missing.push(slug);
+      continue;
+    }
+
+    lines.push(`## ${node.title} (${node.slug})`, `${node.kind} / ${node.status}`);
+    if (node.tags.length > 0) lines.push(`tags: ${node.tags.join(', ')}`);
+
+    const holder = graph.parentOf.get(slug);
+    if (holder !== undefined) lines.push(`inside: ${holder}`);
+    const children = graph.childrenOf.get(slug) ?? [];
+    if (children.length > 0) lines.push(`holds: ${children.join(', ')}`);
+
+    for (const line of wiring(doc, slug)) lines.push(line);
+
+    const meta = Object.entries(node.meta ?? {});
+    for (const [key, value] of meta) lines.push(`${key}: ${value}`);
+
+    lines.push('', node.body.trim() === '' ? '_nothing written here yet_' : node.body.trim(), '');
+  }
+
+  if (missing.length > 0) {
+    lines.push(
+      `Nothing in this plan is called: ${missing.join(', ')}. ` +
+        'Names are matched by slug. Use get_plan to see what is there.',
+    );
+  }
+
+  return lines.join('\n');
+}
+
+/** The lines into and out of one node, written the way the drawing reads. */
+function wiring(doc: PlanDoc, slug: string): string[] {
+  const lines: string[] = [];
+  for (const edge of doc.edges) {
+    if (edge.kind === 'contains') continue;
+    if (edge.from !== slug && edge.to !== slug) continue;
+    const note = [edge.via, edge.carries].filter((part) => part !== null).join(': ');
+    const tail = note === '' ? '' : ` (${note})`;
+    lines.push(
+      edge.from === slug
+        ? `${edge.kind} --> ${edge.to}${tail}`
+        : `${edge.kind} <-- ${edge.from}${tail}`,
+    );
+  }
+  return lines;
+}
+
+function outline(doc: PlanDoc, options: { bodies?: boolean } = {}): string {
   const graph = buildPlanGraph(doc);
   const lines = [`# ${doc.title}`];
   if (doc.description !== '') lines.push('', doc.description);
   lines.push('');
+
+  /*
+   * The flows belong in the outline, because the flows are what the drawing is.
+   * Without them this listed a nesting — which is a document's table of
+   * contents wearing a diagram's clothes — and an agent reading a plan back
+   * could not see a single thing it had drawn about how the system works.
+   */
+  const flows = new Map<string, string[]>();
+  for (const edge of doc.edges) {
+    if (edge.kind === 'contains') continue;
+    const note = [edge.via, edge.carries].filter((part) => part !== null).join(': ');
+    const arrow = edge.kind === 'flows_to' ? '-->' : `--${edge.kind}-->`;
+    const list = flows.get(edge.from) ?? [];
+    list.push(`${arrow} ${edge.to}${note === '' ? '' : ` (${note})`}`);
+    flows.set(edge.from, list);
+  }
 
   const walk = (slugs: readonly string[], depth: number): void => {
     for (const slug of slugs) {
       const node = graph.nodes.get(slug);
       if (node === undefined) continue;
 
-      const deps = [...(graph.dependenciesOf.get(slug) ?? [])].sort();
-      const needs = deps.length === 0 ? '' : ` (needs: ${deps.join(', ')})`;
-      lines.push(
-        `${'  '.repeat(depth)}- ${node.slug} [${node.kind}/${node.status}] ${node.title}${needs}`,
-      );
+      const pad = '  '.repeat(depth);
+      const said = node.body.trim();
+      // Which nodes are worth asking read_nodes about, without printing them.
+      const written = options.bodies === true || said === '' ? '' : ' *';
+      lines.push(`${pad}- ${node.slug} [${node.kind}/${node.status}] ${node.title}${written}`);
+      for (const flow of flows.get(slug) ?? []) lines.push(`${pad}    ${flow}`);
+      if (options.bodies === true && said !== '') {
+        for (const line of said.split('\n')) lines.push(`${pad}    | ${line}`);
+      }
       walk(graph.childrenOf.get(slug) ?? [], depth + 1);
     }
   };
   walk(graph.roots, 0);
+
+  if (options.bodies !== true && doc.nodes.some((node) => node.body.trim() !== '')) {
+    lines.push('', 'A node marked * has a body. read_nodes prints them.');
+  }
 
   if (doc.nodes.length === 0) lines.push('_empty plan_');
 
@@ -234,4 +323,55 @@ export function renderPlanList(
 
   if (lines.length === 0) return 'No plans yet. Use create_plan to make one.';
   return lines.join('\n');
+}
+
+/**
+ * What has happened to a plan, newest first.
+ *
+ * A plan is a drawing two parties share, and an agent that comes back to one it
+ * drew earlier had no way to ask what the person did in the meantime — its only
+ * choices were to assume nothing had changed, or to read the whole thing again
+ * and diff it by eye.
+ *
+ * A key acts for the person who issued it, so both names are printed. `Ruma`
+ * alone reads as somebody at a keyboard; `claude` alone hides whose permission
+ * it was working under.
+ */
+export function renderHistory(entries: readonly PlanChange[]): string {
+  if (entries.length === 0) {
+    return 'Nothing has changed on this plan since it was made.';
+  }
+
+  const lines: string[] = [];
+  let batch: string | null | undefined;
+
+  for (const entry of entries) {
+    // One act at a time. A batch of forty operations is one thing somebody did,
+    // and printing forty authors and forty timestamps buries that.
+    if (entry.batchId !== batch) {
+      batch = entry.batchId;
+      lines.push('', `${whom(entry)} — ${entry.at.toISOString()}`);
+    }
+    const detail = entry.detail === null || entry.detail === '' ? '' : ` — ${oneLine(entry.detail)}`;
+    lines.push(`  ${entry.kind} ${entry.subject} (${entry.label})${detail}`);
+  }
+
+  return lines.join('\n').trim();
+}
+
+function whom(entry: PlanChange): string {
+  if (entry.by === null) return 'Somebody since deleted';
+  if (entry.by.agent === null) return entry.by.name;
+  return `${entry.by.agent}, for ${entry.by.name}`;
+}
+
+/** Only the parts of a change entry a reader needs. */
+export interface PlanChange {
+  readonly kind: string;
+  readonly subject: string;
+  readonly label: string;
+  readonly detail: string | null;
+  readonly at: Date;
+  readonly batchId: string | null;
+  readonly by: { readonly name: string; readonly agent: string | null } | null;
 }

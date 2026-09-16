@@ -91,11 +91,29 @@ export function holdingBox(children: readonly Rect[]): Rect | null {
   };
 }
 
+/** The area two boxes have in common, which is zero when they only touch. */
+export function overlapArea(one: Rect, other: Rect): number {
+  const width = Math.min(one.x + one.width, other.x + other.width) - Math.max(one.x, other.x);
+  const height = Math.min(one.y + one.height, other.y + other.height) - Math.max(one.y, other.y);
+  return width <= 0 || height <= 0 ? 0 : width * height;
+}
+
 /** How much of `moved` lies inside `over`, as a fraction of its own area. */
 export function overlapShare(moved: Rect, over: Rect): number {
-  const width = Math.min(moved.x + moved.width, over.x + over.width) - Math.max(moved.x, over.x);
-  const height = Math.min(moved.y + moved.height, over.y + over.height) - Math.max(moved.y, over.y);
-  if (width <= 0 || height <= 0) return 0;
   const area = moved.width * moved.height;
-  return area <= 0 ? 0 : (width * height) / area;
+  return area <= 0 ? 0 : overlapArea(moved, over) / area;
+}
+
+/**
+ * How much two boxes have in common, as a fraction of the smaller one.
+ *
+ * The share of the moved node alone is the obvious measure and it cannot
+ * express one box going into another: a box is drawn tight around its contents,
+ * so nothing the size of a box ever covers half of another box, and nesting
+ * became impossible. Against the smaller of the two, a card half over an edge
+ * and a box dropped squarely onto another both read the way they look.
+ */
+export function mutualShare(one: Rect, other: Rect): number {
+  const smaller = Math.min(one.width * one.height, other.width * other.height);
+  return smaller <= 0 ? 0 : overlapArea(one, other) / smaller;
 }

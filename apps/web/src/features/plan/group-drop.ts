@@ -1,4 +1,4 @@
-import { overlapShare, type Position, type Rect } from '@schematic/schema';
+import { mutualShare, overlapShare, type Position, type Rect } from '@schematic/schema';
 
 export interface Size {
   width: number;
@@ -23,7 +23,7 @@ export interface DropResolution {
 }
 
 /**
- * How much of a node has to be inside a box before the box owns it.
+ * How much has to be in common before the box owns the node.
  *
  * Half, because half is the answer a person can see. The rule this replaces
  * asked where the node's centre landed, which is the same threshold measured at
@@ -50,7 +50,7 @@ export function resolveDrop(
 ): DropResolution {
   const inside = targets
     .filter((target) => !forbidden.has(target.slug))
-    .map((target) => ({ target, share: overlapShare(moved, target.rect) }))
+    .map((target) => ({ target, share: mutualShare(moved, target.rect) }))
     .filter((candidate) => candidate.share >= BELONGS)
     // Most covered first. Among boxes that hold the node equally — one nested
     // inside another, both swallowing it whole — the deeper and then the

@@ -35,6 +35,32 @@ describe('which box a drop lands in', () => {
     expect(resolveDrop({ x: -160, y: 200, ...card }, [group], none).parent).toBeNull();
   });
 
+  /*
+   * Measured against the smaller of the two. A box is drawn tight around its
+   * contents, so nothing the size of a box ever covers half of another box —
+   * judged by the moved node's own area alone, one box could never be put
+   * inside another at all.
+   */
+  it('takes a box dropped squarely onto another box', () => {
+    const outer: DropTarget = {
+      slug: 'outer',
+      rect: { x: 0, y: 0, width: 300, height: 200 },
+      depth: 0,
+    };
+    const big = { x: -100, y: -100, width: 700, height: 500 };
+    expect(resolveDrop(big, [outer], none).parent).toBe('outer');
+  });
+
+  it('leaves a box that only clips the corner of another', () => {
+    const outer: DropTarget = {
+      slug: 'outer',
+      rect: { x: 0, y: 0, width: 300, height: 200 },
+      depth: 0,
+    };
+    const big = { x: 250, y: 160, width: 700, height: 500 };
+    expect(resolveDrop(big, [outer], none).parent).toBeNull();
+  });
+
   it('does not move a node it takes in', () => {
     const drop = resolveDrop({ x: -100, y: 200, ...card }, [group], none);
     expect(drop.position).toEqual({ x: -100, y: 200 });

@@ -432,6 +432,22 @@ try {
     }
   }
 
+  /**
+   * What one canvas unit is worth on screen right now.
+   *
+   * A drag written in screen pixels means a different distance in the drawing
+   * at every zoom, and the canvas fits the whole plan — so a section that adds
+   * nodes changes what the section after it is actually dragging.
+   */
+  const zoomNow = () =>
+    page.evaluate(() =>
+      Number(
+        /scale\(([0-9.]+)\)/.exec(
+          document.querySelector('.react-flow__viewport')?.style.transform ?? '',
+        )?.[1] ?? '1',
+      ),
+    );
+
   const rectOf = (slug) =>
     page
       .$eval(`.react-flow__node[data-id="${slug}"]`, (el) => {
@@ -579,8 +595,11 @@ try {
     const alphaBox = await rectOf('alpha');
     const betaBox = await rectOf('beta');
     await drag(
-      { x: betaBox.x + betaBox.width - 30, y: betaBox.y + betaBox.height - 12 },
-      { x: alphaBox.x + alphaBox.width / 2, y: alphaBox.y + alphaBox.height - 30 },
+      { x: betaBox.x + betaBox.width - 30, y: betaBox.y + 10 },
+      {
+        x: alphaBox.x + alphaBox.width / 2 + (betaBox.width / 2 - 30),
+        y: alphaBox.y + alphaBox.height / 2 - betaBox.height / 2 + 10,
+      },
     );
     await reopen();
     check(
@@ -870,15 +889,16 @@ try {
      */
     if (isHeld && heldCard !== null && boxed !== null) {
       const cornerWas = { x: boxed.x, y: boxed.y };
+      const step = 60 * (await zoomNow());
       await dragHolding(
         { x: heldCard.x + heldCard.width / 2, y: heldCard.y + heldCard.height / 2 },
-        { x: heldCard.x + heldCard.width / 2 - 60, y: heldCard.y + heldCard.height / 2 - 60 },
+        { x: heldCard.x + heldCard.width / 2 - step, y: heldCard.y + heldCard.height / 2 - step },
         0,
       );
       const boxNow = await rectOf('boxy');
       check(
         'and reaches up and to the left after the child it holds',
-        boxNow !== null && boxNow.x < cornerWas.x - 20 && boxNow.y < cornerWas.y - 20,
+        boxNow !== null && boxNow.x < cornerWas.x - 10 && boxNow.y < cornerWas.y - 10,
         `${Math.round(cornerWas.x)},${Math.round(cornerWas.y)} -> ${Math.round(boxNow?.x ?? 0)},${Math.round(boxNow?.y ?? 0)}`,
       );
       check(
@@ -1620,14 +1640,6 @@ try {
      * pixels on screen — measured that way, "it grew" and "nothing happened"
      * look alike.
      */
-    const zoomNow = () =>
-      page.evaluate(() =>
-        Number(
-          /scale\(([0-9.]+)\)/.exec(
-            document.querySelector('.react-flow__viewport')?.style.transform ?? '',
-          )?.[1] ?? '1',
-        ),
-      );
     const drawnHeight = async (slug) => {
       const height = await page
         .$eval(`.react-flow__node[data-id="${slug}"]`, (el) => el.getBoundingClientRect().height)
@@ -1686,7 +1698,18 @@ try {
         return { x: rect.x + rect.width - 6, y: rect.y + rect.height * 0.25 };
       })
       .catch(() => null);
-    check('and the pointer lands on it six pixels inside the edge', widthGrip !== null);
+    const onGrip =
+      widthGrip === null
+        ? 'nowhere'
+        : await page.evaluate(
+            (at) => String(document.elementFromPoint(at.x, at.y)?.className ?? 'nothing'),
+            widthGrip,
+          );
+    check(
+      'and the pointer lands on it six pixels inside the edge',
+      onGrip.includes('react-flow__resize-control'),
+      onGrip.slice(0, 60),
+    );
 
     if (widthGrip !== null) {
       const narrowAt = await drawnHeight('widthy');

@@ -194,16 +194,18 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
 
   return (
     /*
-     * The corners are drawn beside the card rather than inside it. A resize
-     * control sits centred on the edge it belongs to — half in, half out — and
-     * the card clips its overflow to keep the status rail inside its rounded
-     * corners, which cut the half that takes the pointer. The box next door has
-     * no such clipping, which is why it worked there and not here.
+     * Everything that takes a pointer is drawn beside the card, after it, in
+     * the order it should win in.
+     *
+     * The card clips its own overflow, to keep the status rail inside its
+     * rounded corners — so a control inside it is cut in half, and a control
+     * before it is painted over. Measured on the running instance, a pointer
+     * six pixels inside the right edge landed on the card's own text column and
+     * dragged the node. The grip comes after the card, and the terminals after
+     * the grip, so the terminal keeps the twenty-four pixels it needs and the
+     * grip has the rest of the edge.
      */
     <>
-      {editable ? (
-        <WidthHandle id={id} selected={selected === true} onResize={resizeNode} />
-      ) : null}
     <div
       className={cn(
         'relative flex h-full w-full overflow-hidden rounded-md bg-surface-2',
@@ -236,6 +238,10 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
         ) : null}
       </div>
 
+    </div>
+      {editable ? (
+        <WidthHandle id={id} selected={selected === true} onResize={resizeNode} />
+      ) : null}
       {/* Square terminals rather than dots: this is a drawing, not a flowchart. */}
       <Handle
         type="target"
@@ -247,7 +253,6 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
         position={HandlePosition.Right}
         className={HANDLE}
       />
-    </div>
     </>
   );
 }

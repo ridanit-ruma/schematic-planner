@@ -17,7 +17,7 @@ import { ProjectsService } from '../projects/projects.service.js';
 import { WorkspacesService } from '../workspaces/workspaces.service.js';
 import type { McpIdentity } from '../auth/api-key.service.js';
 import { agentAuthor, signComments } from './authorship.js';
-import { renderPlan, renderPlanList, renderTrace } from './render.js';
+import { renderHistory, renderNodes, renderPlan, renderPlanList, renderTrace } from './render.js';
 import {
   applyOpsShape,
   createFolderShape,
@@ -34,6 +34,8 @@ import {
   listPlansShape,
   listProjectsShape,
   movePlanShape,
+  planHistoryShape,
+  readNodesShape,
   renameFolderShape,
 } from './mcp.schemas.js';
 import { chooseFolder, reachable, resolveWorkspace } from './workspace-scope.js';
@@ -302,6 +304,47 @@ export class McpFactory {
           return text(
             `${renderPlan(doc, view)}\n\n${renderProvenance(provenance)}Revision: ${revision}`,
           );
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'read_nodes',
+      {
+        title: 'Read what these nodes say',
+        description:
+          'The full body of the nodes you name, with what each one is wired to and what holds ' +
+          'it. Every other view is a summary — this is the one that gives you the words. Read ' +
+          'the plan first and ask for the handful you actually need; asking for all of them is ' +
+          'get_plan with view "detail".',
+        inputSchema: readNodesShape,
+      },
+      async ({ planId, slugs }) => {
+        try {
+          const doc = await this.plans.read(identity.userId, planId);
+          return text(renderNodes(doc, slugs));
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'plan_history',
+      {
+        title: 'What has changed on this plan',
+        description:
+          'Who changed what, newest first — a person dragging a node, an agent applying a ' +
+          'batch, a note answered. A plan is a drawing two parties share, so use this when you ' +
+          'come back to one you drew earlier rather than assuming it is as you left it.',
+        inputSchema: planHistoryShape,
+      },
+      async ({ planId, limit }) => {
+        try {
+          const entries = await this.plans.changes(identity.userId, planId, limit);
+          return text(renderHistory(entries));
         } catch (error) {
           return failure(reason(error));
         }
