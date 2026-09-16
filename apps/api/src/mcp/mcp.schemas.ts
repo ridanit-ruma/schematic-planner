@@ -173,6 +173,23 @@ export const searchShape = {
 };
 
 /**
+ * Where a plan has got to, and what to do next.
+ *
+ * The question an agent carrying out a plan has every turn, and the one reading
+ * that did not exist.
+ */
+export const nextTaskShape = {
+  planId: z.string().min(1),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .default(3)
+    .describe('How many of the ready tasks to print in full. The rest are listed by name'),
+};
+
+/**
  * What has happened to a plan, so an agent coming back can see what changed.
  *
  * A plan is a drawing two parties share. Without this an agent has no way to
