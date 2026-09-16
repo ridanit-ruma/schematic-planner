@@ -249,7 +249,7 @@ describe('which run the writing belongs to', () => {
  * on a freshly arranged canvas every note floated clear of its flow.
  */
 describe('where the writing on a line sits', () => {
-  it('puts one note in the middle of the longest run', () => {
+  it('puts one note in the middle of the middle run', () => {
     const route = [
       { x: 0, y: 0 },
       { x: 0, y: 100 },
@@ -271,7 +271,7 @@ describe('where the writing on a line sits', () => {
 
   it('keeps them a row apart across the run, which is what guarantees it', () => {
     // Along the run is not enough on its own: two flows out of one node into
-    // two others are two different lines, and their longest runs are often
+    // two others are two different lines, and their middle runs are often
     // parallel and level — so two notes fifteen pixels apart along a run still
     // sat on top of each other, being a hundred wide.
     const route = [
@@ -298,6 +298,24 @@ describe('where the writing on a line sits', () => {
     ];
     const columns = [0, 1].map((index) => labelAt(route, { of: 2, index }).x);
     expect(columns).toEqual([89, 111]);
+  });
+
+  it('travels the exact distance the run it sits on was dragged', () => {
+    // The whole of why the run is named by its place in the route rather than
+    // by being the longest. Dragging the connecting run 80 to the left also
+    // makes the two runs beside it longer, so under the old rule the writing
+    // stopped being on the run that moved and jumped to one that had not.
+    const before = [
+      { x: 0, y: 0 },
+      { x: 300, y: 0 },
+      { x: 300, y: 200 },
+      { x: 600, y: 200 },
+    ];
+    const after = before.map((point, index) =>
+      index === 1 || index === 2 ? { x: point.x - 80, y: point.y } : point,
+    );
+    expect(labelAt(after).x - labelAt(before).x).toBe(-80);
+    expect(labelAt(after).y).toBe(labelAt(before).y);
   });
 
   it('answers for a line with nothing to sit on', () => {

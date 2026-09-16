@@ -332,9 +332,15 @@ function distanceToSegment(point: Position, a: Position, b: Position): number {
  * them, so on a freshly arranged canvas the notes floated well clear of the
  * flows they belonged to: they were sitting on a line in a picture nobody sees.
  *
- * The longest run, because it is the one with room. `share` then keeps the
- * notes of several flows leaving one node off each other, in two ways at once
- * — and it takes both.
+ * The middle run, counted along the route, because it is the same run whatever
+ * the line is doing. The longest one was the obvious choice and the wrong one:
+ * which run is longest changes as soon as somebody drags one, so the writing
+ * hopped to a different leg of the line in the middle of the gesture that was
+ * supposed to be carrying it. A run named by its place in the route cannot move
+ * out from under it.
+ *
+ * `share` then keeps the notes of several flows leaving one node off each
+ * other, in two ways at once — and it takes both.
  *
  * **Along the run**, so they read as a column down a corridor rather than a
  * pile at its middle: one lands at a half, two at a third and two thirds,
@@ -342,7 +348,7 @@ function distanceToSegment(point: Position, a: Position, b: Position): number {
  *
  * **Across it**, by a row each, because along is not enough on its own. Two
  * flows out of one node into two others are two different lines, and their
- * longest runs are often parallel and level — so two notes fifteen pixels
+ * middle runs are often parallel and level — so two notes fifteen pixels
  * apart along a run still sat on top of each other, being a hundred wide. A
  * row of clearance is a guarantee; a fraction of a run somebody else's line
  * happens to share is not.
@@ -355,13 +361,10 @@ export function labelAt(
 ): Position {
   if (route.length < 2) return route[0] ?? { x: 0, y: 0 };
 
-  let best = { from: route[0] as Position, to: route[1] as Position, length: -1 };
-  for (let index = 1; index < route.length; index += 1) {
-    const from = route[index - 1] as Position;
-    const to = route[index] as Position;
-    const length = distance(from, to);
-    if (length > best.length) best = { from, to, length };
-  }
+  // Rounded down, so a line with one run takes that one and a line with three
+  // takes the connecting run between the two that are pinned to their handles.
+  const run = Math.floor((route.length - 1) / 2);
+  const best = { from: route[run] as Position, to: route[run + 1] as Position };
 
   const along = (share.index + 1) / (share.of + 1);
   const on = {
