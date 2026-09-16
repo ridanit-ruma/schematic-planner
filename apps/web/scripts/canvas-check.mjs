@@ -448,6 +448,18 @@ try {
       ),
     );
 
+  /**
+   * Where to take hold of a box.
+   *
+   * Its label band, at the middle of it. The corners look like the obvious
+   * place and are not: a box is drawn tight around its contents, so the room
+   * between its edge and the first child is twenty canvas units — which at a
+   * zoomed-out fit is a handful of screen pixels, and an offset written in
+   * screen pixels lands on the child instead and drags that.
+   */
+  const bandOf = (rect) =>
+    rect === null ? { x: -1, y: -1 } : { x: rect.x + rect.width / 2, y: rect.y + 6 };
+
   const rectOf = (slug) =>
     page
       .$eval(`.react-flow__node[data-id="${slug}"]`, (el) => {
@@ -594,13 +606,12 @@ try {
     console.log('\na group inside a group');
     const alphaBox = await rectOf('alpha');
     const betaBox = await rectOf('beta');
-    await drag(
-      { x: betaBox.x + betaBox.width - 30, y: betaBox.y + 10 },
-      {
-        x: alphaBox.x + alphaBox.width / 2 + (betaBox.width / 2 - 30),
-        y: alphaBox.y + alphaBox.height / 2 - betaBox.height / 2 + 10,
-      },
-    );
+    // Squarely onto the other, because the rule asks what the two have in
+    // common and a box clipping a corner of another is not a box put inside it.
+    await drag(bandOf(betaBox), {
+      x: alphaBox.x + alphaBox.width / 2,
+      y: alphaBox.y + alphaBox.height / 2 - betaBox.height / 2 + 6,
+    });
     await reopen();
     check(
       'a group can be dropped into a group',
@@ -619,12 +630,9 @@ try {
     const outerWas = await rectOf('alpha');
     const innerWas = await rectOf('beta');
     const deepWas = await rectOf('b-one');
-    // By its own label band. The bottom of the box now holds the group that was
-    // dropped into it, and grabbing there picks that up instead.
-    await drag(
-      { x: outerWas.x + 30, y: outerWas.y + 10 },
-      { x: outerWas.x + 30 - 130, y: outerWas.y + 10 + 90 },
-    );
+    // By its own label band, which is the one part of a box no child is under.
+    const outerGrab = bandOf(outerWas);
+    await drag(outerGrab, { x: outerGrab.x - 130, y: outerGrab.y + 90 });
     const shift = {
       x: (await rectOf('alpha')).x - outerWas.x,
       y: (await rectOf('alpha')).y - outerWas.y,
