@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { planDocSchema } from '@schematic/schema';
 
-import { renderHistory, renderNodes, renderPlan } from './render.js';
+import { matchingLine, renderFound, renderHistory, renderNodes, renderPlan } from './render.js';
 
 const doc = planDocSchema.parse({
   id: 'p1',
@@ -324,5 +324,59 @@ describe('a note asking a question', () => {
     const outline = renderPlan(asked, 'outline');
     expect(outline).toContain('- [ ] Postgres');
     expect(outline).toContain('- [x] Redis');
+  });
+});
+
+describe('renderFound', () => {
+  const url = (id: string) => `https://example.test/plan/${id}`;
+  const hit = {
+    planId: 'p1',
+    planTitle: 'Sign in',
+    workspace: 'acme',
+    project: 'web',
+    folder: 'specs',
+    slug: 'login-page',
+    kind: 'feature',
+    status: 'planned',
+    title: 'Login page',
+    where: 'title',
+    line: 'Login page',
+  };
+
+  it('groups hits under the drawing they are in, with a link to it', () => {
+    const rendered = renderFound([hit, { ...hit, slug: 'login-form', title: 'Login form' }], 'login', url, 3);
+    expect(rendered).toContain('Sign in — acme / web / specs');
+    expect(rendered).toContain('https://example.test/plan/p1');
+    expect(rendered.match(/https:\/\/example.test/g)).toHaveLength(1);
+    expect(rendered).toContain('login-form');
+  });
+
+  it('says how far it looked when it found nothing', () => {
+    const rendered = renderFound([], 'login', url, 12);
+    expect(rendered).toContain('12 plans');
+    expect(rendered).toContain('"login"');
+  });
+});
+
+describe('matchingLine', () => {
+  const body = 'A first line.\n\nThe session cookie is set here, on the way back.\nAnd a third.';
+
+  it('finds the line every word is on', () => {
+    expect(matchingLine(body, ['session', 'cookie'])).toBe(
+      'The session cookie is set here, on the way back.',
+    );
+  });
+
+  it('wants every word on one line, not one word each', () => {
+    expect(matchingLine(body, ['session', 'third'])).toBeNull();
+  });
+
+  it('has nothing to quote when nothing matches', () => {
+    expect(matchingLine(body, ['postgres'])).toBeNull();
+  });
+
+  it('trims a line too long to quote', () => {
+    const long = `x${'y'.repeat(400)} session`;
+    expect(matchingLine(long, ['session'])?.length).toBeLessThan(200);
   });
 });

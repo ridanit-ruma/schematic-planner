@@ -406,3 +406,70 @@ export interface PlanChange {
   readonly batchId: string | null;
   readonly by: { readonly name: string; readonly agent: string | null } | null;
 }
+
+export interface Found {
+  readonly planId: string;
+  readonly planTitle: string;
+  readonly workspace: string;
+  readonly project: string;
+  readonly folder: string | null;
+  readonly slug: string;
+  readonly kind: string;
+  readonly status: string;
+  readonly title: string;
+  /** Where the words were found, and the line they were on. */
+  readonly where: string;
+  readonly line: string;
+}
+
+/**
+ * What was found, grouped by the drawing it was found in.
+ *
+ * One line per hit under one heading per plan, because the question behind a
+ * search here is almost always "is this already drawn, and where" — and a flat
+ * list of forty node names makes the reader work that out again themselves.
+ */
+export function renderFound(
+  found: readonly Found[],
+  query: string,
+  url: (planId: string) => string,
+  searched: number,
+): string {
+  if (found.length === 0) {
+    return (
+      `Nothing in ${searched} ${searched === 1 ? 'plan' : 'plans'} matches "${query}".\n` +
+      'Words are matched literally, on titles, identifiers, tags and bodies. ' +
+      'If it should be there, it may be drawn under a different name — list_plans, then read one.'
+    );
+  }
+
+  const lines: string[] = [];
+  let plan: string | null = null;
+
+  for (const hit of found) {
+    if (hit.planId !== plan) {
+      plan = hit.planId;
+      const where = hit.folder === null ? hit.project : `${hit.project} / ${hit.folder}`;
+      lines.push('', `${hit.planTitle} — ${hit.workspace} / ${where}`, `  ${url(hit.planId)}`);
+    }
+    lines.push(
+      `  ${hit.slug} [${hit.kind}/${hit.status}] ${hit.title}`,
+      `      ${hit.where}: ${hit.line}`,
+    );
+  }
+
+  return lines.join('\n').trim();
+}
+
+/** The first line the words appear on, trimmed to something quotable. */
+export function matchingLine(body: string, needles: readonly string[]): string | null {
+  for (const raw of body.split('\n')) {
+    const line = raw.trim();
+    if (line === '') continue;
+    const lowered = line.toLowerCase();
+    if (needles.every((needle) => lowered.includes(needle))) {
+      return line.length > 160 ? `${line.slice(0, 160)}…` : line;
+    }
+  }
+  return null;
+}

@@ -149,6 +149,30 @@ export const readNodesShape = {
 };
 
 /**
+ * Finding the drawing that already covers something.
+ *
+ * Without it the only way to answer "where is this drawn?" is to list every
+ * plan and open each one — which an agent will not do, so it draws a second
+ * plan of the same system instead, and a workspace becomes a pile.
+ */
+export const searchShape = {
+  query: z
+    .string()
+    .min(2)
+    .max(200)
+    .describe('Words to look for in node titles, identifiers, tags and bodies, and plan titles'),
+  workspace: workspaceArg,
+  projectSlug: projectArg.describe('Narrow it to one project. Omitted, everywhere the key reaches'),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .default(20)
+    .describe('How many matching nodes to report'),
+};
+
+/**
  * What has happened to a plan, so an agent coming back can see what changed.
  *
  * A plan is a drawing two parties share. Without this an agent has no way to
