@@ -1,6 +1,16 @@
 @import 'tailwindcss';
 
 /*
+ * A screen with no pointer on it.
+ *
+ * Not "a small screen": a tablet with a keyboard is wide and still touched, and
+ * a phone in landscape is neither. What changes is that there is no hover to
+ * reveal a control with and no pixel-accurate aim to hit one by, so anything
+ * that was only ever findable by hovering is invisible there.
+ */
+@custom-variant coarse (@media (pointer: coarse));
+
+/*
  * Craft Minimal Workspace — the palette, type and rhythm this product is drawn
  * in. Dark only: the surface stepping, the translucent borders and the focus
  * glow are all tuned against an obsidian ground, and a light counterpart that

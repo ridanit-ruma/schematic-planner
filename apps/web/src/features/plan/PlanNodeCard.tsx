@@ -47,8 +47,12 @@ const HANDLE =
  * after the card puts it over the terminal rather than under it.
  */
 const RESIZE_EDGE =
-  '!border-transparent ' +
-  "before:absolute before:inset-y-1 before:-left-3 before:right-0 before:cursor-ew-resize before:content-['']";
+  '!border-transparent touch-none ' +
+  "before:absolute before:inset-y-1 before:-left-3 before:right-0 before:cursor-ew-resize before:content-[''] " +
+  // A finger is about forty pixels across, so twelve is under the floor for
+  // one. Reaching further in — and a little past the border, where there is
+  // nothing but canvas — is the difference between a grip and a rumour.
+  'coarse:before:-left-6 coarse:before:-right-2';
 
 /**
  * What the strip looks like, so that it can be found without being told.
@@ -60,7 +64,10 @@ const RESIZE_EDGE =
 const RESIZE_MARK =
   'after:pointer-events-none after:absolute after:inset-y-1 after:right-0 after:w-1 ' +
   'after:-translate-x-full after:rounded-full after:bg-accent after:transition-opacity ' +
-  "after:content-[''] hover:after:!opacity-100";
+  "after:content-[''] hover:after:!opacity-100 " +
+  // A touch screen never hovers, so on one the mark is shown by selection
+  // instead. Revealed by a gesture the device cannot make is not revealed.
+  'coarse:after:w-1.5';
 
 
 interface Size {
@@ -92,9 +99,22 @@ function WidthHandle({
       minWidth={CARD.minWidth}
       maxWidth={CARD.maxWidth}
       onResizeEnd={(_, size) => onResize(id, size)}
-      // Faint on the node being worked on, solid under the pointer, absent
-      // otherwise: a drawing should not be fringed with controls.
-      className={cn(RESIZE_EDGE, RESIZE_MARK, selected ? 'after:opacity-40' : 'after:opacity-0')}
+      /*
+       * Faint on the node being worked on, solid under the pointer, absent
+       * otherwise: a drawing should not be fringed with controls.
+       *
+       * Except where there is no pointer. A touch screen never fires hover, so
+       * the grip was invisible on the one device where the target also has to
+       * be bigger — and `touch-action: none` above is what stops the browser
+       * claiming the gesture for a pan once the finger has travelled, which is
+       * why widening a card on a phone moved one grid step and then stopped.
+       */
+      className={cn(
+        RESIZE_EDGE,
+        RESIZE_MARK,
+        selected ? 'after:opacity-40' : 'after:opacity-0',
+        selected && 'coarse:after:!opacity-100',
+      )}
     />
   );
 }

@@ -1843,6 +1843,39 @@ try {
       const kept = await storedSize('widthy');
       check('which survives a reopen', kept !== null && kept.width > 300, JSON.stringify(kept));
 
+      /*
+       * And with a finger. A touch screen never hovers, so the grip was
+       * invisible; twelve pixels is under the floor for a finger anyway; and
+       * the browser claimed the gesture for a pan once it had travelled, so a
+       * card widened by one grid step and then stopped while the canvas moved.
+       */
+      await call(`/plans/${fixture.id}/ops`, {
+        method: 'POST',
+        body: { ops: [{ op: 'upsert_node', node: { slug: 'widthy', size: null } }] },
+      });
+      await reopen();
+
+      const byFinger = await rectOf('widthy');
+      if (byFinger !== null) {
+        await page.touchscreen.tap(byFinger.x + byFinger.width / 2, byFinger.y + byFinger.height / 2);
+        await wait(700);
+        const grip = { x: byFinger.x + byFinger.width - 4, y: byFinger.y + byFinger.height * 0.3 };
+        await page.touchscreen.touchStart(grip.x, grip.y);
+        await page.touchscreen.touchMove(grip.x + 90, grip.y);
+        await page.touchscreen.touchMove(grip.x + 180, grip.y);
+        await page.touchscreen.touchMove(grip.x + 260, grip.y);
+        await page.touchscreen.touchEnd();
+        await wait(1200);
+        const byTouch = await storedSize('widthy');
+        check(
+          'a finger can widen a card, and keep hold of it',
+          byTouch !== null && byTouch.width > 380,
+          JSON.stringify(byTouch),
+        );
+      } else {
+        check('a finger can widen a card, and keep hold of it', false, 'the card was not drawn');
+      }
+
       await call(`/plans/${fixture.id}/layout`, { method: 'POST', body: { scope: 'unpinned' } });
       await wait(1500);
       check(
