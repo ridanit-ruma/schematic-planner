@@ -53,7 +53,7 @@ import { PlanComments } from './PlanComments';
 import { PlanNodeCard } from './PlanNodeCard';
 import type { PlanConnection } from './use-plan-document';
 import type { PlanFlowEdge, PlanFlowNode } from './types';
-import { COARSE_MULTIPLE, GRID_STEPS, type GridStep, snapTo } from './snap';
+import { COARSE_MULTIPLE, GRID_ANCHORS, GRID_STEPS, type GridAnchor, type GridStep, snapTo } from './snap';
 import { useGrid } from './use-grid';
 import type { Undo } from './use-undo';
 
@@ -318,7 +318,9 @@ export function PlanCanvas({
       // group that layout left off the grid would otherwise land on a lattice of
       // its own. Snapped before the drop is resolved, so that a node moved clear
       // of something it landed on is moved from a position already on the grid.
-      const snapped = grid.on ? { ...dropped, ...snapTo(dropped, grid.step) } : dropped;
+      const snapped = grid.on
+        ? { ...dropped, ...snapTo(dropped, grid.step, grid.anchor, dropped.height) }
+        : dropped;
 
       // A group cannot be dropped into itself or into anything it holds.
       const forbidden = new Set<string>([node.id]);
@@ -523,7 +525,12 @@ export function PlanCanvas({
     onApplyOps([{ op: 'delete_edge', kind: 'contains', from: holderOfUnder, to: under.id }]);
     if (box === undefined || size === undefined || at === undefined) return;
     const below = { x: at.x, y: box.y + boxOf(bounds, size).height + 40 };
-    commitNodePosition(doc, under.id, grid.on ? snapTo(below, grid.step) : below, ORIGIN_LOCAL);
+    commitNodePosition(
+      doc,
+      under.id,
+      grid.on ? snapTo(below, grid.step, grid.anchor, boxOf(bounds, size).height) : below,
+      ORIGIN_LOCAL,
+    );
   };
 
   const removeUnder = (): void => {
@@ -603,16 +610,31 @@ export function PlanCanvas({
         {grid.on ? 'Stop snapping to the grid' : 'Snap to the grid'}
       </ContextAction>
       {!grid.on ? null : (
-        <ContextSub label="Grid spacing">
-          <ContextChoice
-            value={String(grid.step)}
-            onChoose={(value) => grid.choose(Number(value) as GridStep)}
-            options={GRID_STEPS.map((step) => ({
-              value: String(step),
-              label: `${step} px`,
-            }))}
-          />
-        </ContextSub>
+        <>
+          <ContextSub label="Grid spacing">
+            <ContextChoice
+              value={String(grid.step)}
+              onChoose={(value) => grid.choose(Number(value) as GridStep)}
+              options={GRID_STEPS.map((step) => ({
+                value: String(step),
+                label: `${step} px`,
+              }))}
+            />
+          </ContextSub>
+          {/* Line the wires up, or line the boxes up. A terminal sits at the
+              middle of a node's side and nodes are not all the same height, so
+              a grid that holds corners leaves every run with a kink in it. */}
+          <ContextSub label="Snap by">
+            <ContextChoice
+              value={grid.anchor}
+              onChoose={(value) => grid.chooseAnchor(value as GridAnchor)}
+              options={GRID_ANCHORS.map((anchor) => ({
+                value: anchor,
+                label: anchor === 'terminal' ? 'Terminals' : 'Outer edge',
+              }))}
+            />
+          </ContextSub>
+        </>
       )}
       {settled === 0 ? null : (
         <ContextAction onSelect={() => setResolvedShown((shown) => !shown)}>
@@ -659,7 +681,15 @@ export function PlanCanvas({
         // almost all of them — it agrees exactly with the absolute snap at the
         // drop, and for one inside an off-grid group the drop corrects it by
         // less than half a step.
-        snapToGrid={grid.on}
+        /*
+         * React Flow quantises the live drag itself, which is what makes a node
+         * feel magnetic rather than merely end up tidy — but it does it on the
+         * node's corner and cannot be taught otherwise. Under the terminal
+         * anchor the drop does the snapping instead, so the drag stops feeling
+         * magnetic and the line between two snapped nodes runs straight. That
+         * is the trade, and it is the one the setting exists to offer.
+         */
+        snapToGrid={grid.on && grid.anchor === 'edge'}
         snapGrid={[grid.step, grid.step]}
         onNodeDrag={readOnly ? undefined : handleDrag}
         onNodeDragStop={readOnly ? undefined : handleDragStop}

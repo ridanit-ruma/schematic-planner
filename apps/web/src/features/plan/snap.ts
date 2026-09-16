@@ -19,14 +19,55 @@ export const DEFAULT_STEP: GridStep = 20;
 export const COARSE_MULTIPLE = 5;
 
 /**
+ * What the grid holds on to.
+ *
+ * A terminal sits at the vertical middle of a node, and nodes are not all the
+ * same height — 76 for a bare card, 104 for one with a line, 420 for a full
+ * one. Snapping the top-left corner therefore leaves two snapped nodes with
+ * their terminals at different offsets, and the line between them has a kink in
+ * it that no amount of snapping takes out.
+ *
+ * A preference and not a defect, so it is offered rather than decided: line the
+ * boxes up, or line the wires up. Only the vertical anchor moves; horizontally
+ * both snap the left edge, because that is where a node starts either way.
+ */
+export const GRID_ANCHORS = ['terminal', 'edge'] as const;
+
+export type GridAnchor = (typeof GRID_ANCHORS)[number];
+
+export const DEFAULT_ANCHOR: GridAnchor = 'terminal';
+
+/**
+ * A stored preference, believed only if it is one of the offered anchors.
+ *
+ * Same bargain as `asStep`: what comes back from `localStorage` is whatever was
+ * last written there, by this version or an older one or by hand.
+ */
+export function asAnchor(value: unknown): GridAnchor {
+  return GRID_ANCHORS.find((allowed) => allowed === value) ?? DEFAULT_ANCHOR;
+}
+
+/**
  * The nearest intersection.
  *
  * Rounds rather than floors, so a node settles on whichever line it is closer to
  * and never drifts consistently up and to the left. Negative coordinates are
  * ordinary here — the origin is wherever the first card was laid, not a corner.
+ *
+ * Under `terminal` it is the node's vertical middle that lands on a line, not
+ * its corner: snap the middle and take the half-height off again. Two nodes of
+ * different heights then have their terminals at the same offset, which is the
+ * whole of what makes the run between them straight.
  */
-export function snapTo(position: Position, step: number): Position {
-  return { x: snapValue(position.x, step), y: snapValue(position.y, step) };
+export function snapTo(
+  position: Position,
+  step: number,
+  anchor: GridAnchor = 'edge',
+  height = 0,
+): Position {
+  const x = snapValue(position.x, step);
+  if (anchor === 'edge' || height <= 0) return { x, y: snapValue(position.y, step) };
+  return { x, y: snapValue(position.y + height / 2, step) - height / 2 };
 }
 
 /**

@@ -1,16 +1,20 @@
 import { useCallback, useMemo, useState } from 'react';
 
-import { type GridStep, asStep } from './snap';
+import { type GridAnchor, type GridStep, asAnchor, asStep } from './snap';
 
 const ON_KEY = 'plan-grid';
 const STEP_KEY = 'plan-grid-step';
+const ANCHOR_KEY = 'plan-grid-anchor';
 
 export interface GridPreference {
   /** Whether the grid is drawn and dragging lands on it. */
   readonly on: boolean;
   readonly step: GridStep;
+  /** What lands on a line: a node's corner, or the terminals on its sides. */
+  readonly anchor: GridAnchor;
   readonly toggle: () => void;
   readonly choose: (step: GridStep) => void;
+  readonly chooseAnchor: (anchor: GridAnchor) => void;
 }
 
 /**
@@ -30,6 +34,7 @@ export interface GridPreference {
 export function useGrid(): GridPreference {
   const [on, setOn] = useState(readOn);
   const [step, setStep] = useState(readStep);
+  const [anchor, setAnchor] = useState(readAnchor);
 
   const toggle = useCallback(() => {
     setOn((current) => {
@@ -44,9 +49,17 @@ export function useGrid(): GridPreference {
     remember(STEP_KEY, String(next));
   }, []);
 
+  const chooseAnchor = useCallback((next: GridAnchor) => {
+    setAnchor(next);
+    remember(ANCHOR_KEY, next);
+  }, []);
+
   // One object, kept: the canvas hangs its drag handler off this, and a fresh
   // literal every render would rebuild that handler on every render.
-  return useMemo(() => ({ on, step, toggle, choose }), [on, step, toggle, choose]);
+  return useMemo(
+    () => ({ on, step, anchor, toggle, choose, chooseAnchor }),
+    [on, step, anchor, toggle, choose, chooseAnchor],
+  );
 }
 
 /**
@@ -57,8 +70,8 @@ export function useGrid(): GridPreference {
  * has just dropped. `localStorage` is the source of truth for it, so reading it
  * there cannot go stale the way a second copy in React state would.
  */
-export function readGrid(): { on: boolean; step: GridStep } {
-  return { on: readOn(), step: readStep() };
+export function readGrid(): { on: boolean; step: GridStep; anchor: GridAnchor } {
+  return { on: readOn(), step: readStep(), anchor: readAnchor() };
 }
 
 function remember(key: string, value: string): void {
@@ -82,5 +95,13 @@ function readStep(): GridStep {
     return asStep(window.localStorage.getItem(STEP_KEY));
   } catch {
     return asStep(null);
+  }
+}
+
+function readAnchor(): GridAnchor {
+  try {
+    return asAnchor(window.localStorage.getItem(ANCHOR_KEY));
+  } catch {
+    return asAnchor(null);
   }
 }
