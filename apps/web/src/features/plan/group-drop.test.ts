@@ -124,3 +124,46 @@ describe('landing clear of what is already in the box', () => {
     expect(drop.position).toEqual({ x: 300, y: 140 });
   });
 });
+
+/*
+ * Growing a box and leaving one cannot both be a drag.
+ *
+ * A box is the bounding box of what it holds, so the way to make one bigger is
+ * to drag a child outward — and with a threshold the child left the box at
+ * exactly the moment it would have stretched it. A box was therefore grown in
+ * small steps, each one careful to stay under the threshold, which is the
+ * opposite of direct manipulation. The menu is the way out.
+ */
+describe('a node that is already in a box', () => {
+  it('stays in it, however far it is dragged', () => {
+    const far = { x: 5000, y: 5000, ...card };
+    expect(resolveDrop(far, [group], none, new Map(), 'group').parent).toBe('group');
+  });
+
+  it('stays in it even when it lands squarely inside another', () => {
+    const other: DropTarget = {
+      slug: 'other',
+      rect: { x: 2000, y: 2000, width: 600, height: 400 },
+      depth: 0,
+    };
+    const inside = { x: 2100, y: 2100, ...card };
+    expect(resolveDrop(inside, [group, other], none, new Map(), 'group').parent).toBe('group');
+  });
+
+  it('is not moved clear of its siblings when it was only being dragged about', () => {
+    const sitting = { x: 140, y: 140, width: 260, height: 76 };
+    const drop = resolveDrop({ x: 150, y: 150, ...card }, [group], none, new Map([['group', [sitting]]]), 'group');
+    // It still gets out of the way of what is already there, as any drop does.
+    expect(drop.position.y).toBeGreaterThan(150);
+  });
+});
+
+describe('a node on the open canvas', () => {
+  it('still joins a box it is dropped into', () => {
+    expect(resolveDrop({ x: 150, y: 150, ...card }, [group], none, new Map(), null).parent).toBe('group');
+  });
+
+  it('still stays out of one it barely touches', () => {
+    expect(resolveDrop({ x: -160, y: 200, ...card }, [group], none, new Map(), null).parent).toBeNull();
+  });
+});

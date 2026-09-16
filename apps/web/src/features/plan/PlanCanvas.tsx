@@ -363,7 +363,9 @@ export function PlanCanvas({
         occupants.set(holder, list);
       }
 
-      const drop = resolveDrop(snapped, targets, forbidden, occupants);
+      // The box it was already in, which a drag may not change. A node on the
+      // open canvas passes null and joins whatever it was dropped into.
+      const drop = resolveDrop(snapped, targets, forbidden, occupants, parentOf[node.id] ?? null);
       disarm();
       const was = parentOf[node.id] ?? null;
 

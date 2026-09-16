@@ -36,10 +36,18 @@ const BELONGS = 0.5;
 /**
  * Where a dropped node belongs, and where it ends up.
  *
- * The box that holds it is whichever one it has most in common with, among
- * those it has at least half of the smaller of them in common with. Nothing is
- * clamped: a box is drawn around what it holds, so a node dropped past an edge
- * takes the edge with it rather than being pushed back inside one.
+ * **A drag never takes a node out of a box.** Growing a box and leaving one
+ * cannot both be a drag: a box is the bounding box of what it holds, so the way
+ * to make one bigger is to drag a child outward — and under a threshold the
+ * child left the box at exactly the moment it would have stretched it. A box
+ * was grown in small steps, each careful to stay under a number nobody could
+ * see, which is the opposite of direct manipulation. **Take out of <box>** in
+ * the node's own menu is the way out.
+ *
+ * For a node on the open canvas the rule is unchanged, because there is no box
+ * to stretch and so nothing to trade against: it joins the box it has at least
+ * half of the smaller of the two in common with, most in common first. Nothing
+ * is clamped either way — a node dropped past an edge takes the edge with it.
  */
 export function resolveDrop(
   moved: Rect,
@@ -47,7 +55,15 @@ export function resolveDrop(
   forbidden: ReadonlySet<string>,
   /** What is already in each box, so a drop does not land on top of one. */
   occupants: ReadonlyMap<string, readonly Rect[]> = new Map(),
+  /** The box the node was in before the drag, or null for the open canvas. */
+  held: string | null = null,
 ): DropResolution {
+  // Already in one: it stays there, and the box follows it. The share is not
+  // consulted, because there is no answer it could give that would be right.
+  if (held !== null) {
+    return { parent: held, position: clearOf(moved, occupants.get(held) ?? []) };
+  }
+
   const inside = targets
     .filter((target) => !forbidden.has(target.slug))
     .map((target) => ({ target, share: mutualShare(moved, target.rect) }))
