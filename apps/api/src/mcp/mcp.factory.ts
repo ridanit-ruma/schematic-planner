@@ -22,6 +22,7 @@ import { agentAuthor, signComments } from './authorship.js';
 import {
   matchingLine,
   renderFound,
+  renderNext,
   renderHistory,
   renderNodes,
   renderPlan,
@@ -45,6 +46,7 @@ import {
   listPlansShape,
   listProjectsShape,
   movePlanShape,
+  nextTaskShape,
   planHistoryShape,
   readNodesShape,
   renameFolderShape,
@@ -395,6 +397,29 @@ export class McpFactory {
           }
 
           return text(renderFound(found, query, (id) => this.planUrl(id), searched));
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'next_task',
+      {
+        title: 'Where the plan has got to, and what to do next',
+        description:
+          'The state of a plan and the tasks that can be started now, each with its body — so ' +
+          'the next move is in hand rather than worked out. A task is ready when everything ' +
+          'that flows into it, and everything it depends on, is done. Prefer this over reading ' +
+          'the whole plan and deciding for yourself: on a long outline that decision is where ' +
+          'a task already finished gets done twice, or one waiting on unfinished work gets ' +
+          'started. Call it again after each task rather than working from what you remember.',
+        inputSchema: nextTaskShape,
+      },
+      async ({ planId, limit }) => {
+        try {
+          const doc = await this.plans.read(identity.userId, planId);
+          return text(renderNext(doc, limit));
         } catch (error) {
           return failure(reason(error));
         }

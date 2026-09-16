@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { planDocSchema } from '@schematic/schema';
 
-import { matchingLine, renderFound, renderHistory, renderNodes, renderPlan } from './render.js';
+import {
+  matchingLine,
+  progressLine,
+  renderFound,
+  renderHistory,
+  renderNext,
+  renderNodes,
+  renderPlan,
+} from './render.js';
 
 const doc = planDocSchema.parse({
   id: 'p1',
@@ -378,5 +386,135 @@ describe('matchingLine', () => {
   it('trims a line too long to quote', () => {
     const long = `x${'y'.repeat(400)} session`;
     expect(matchingLine(long, ['session'])?.length).toBeLessThan(200);
+  });
+});
+
+describe('where a plan has got to', () => {
+  const chain = (statuses: Record<string, string>) =>
+    planDocSchema.parse({
+      id: 'p10',
+      title: 'Chain',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [
+        { slug: 'first', kind: 'task', title: 'First', body: 'Do this one first.', status: statuses['first'] ?? 'planned' },
+        { slug: 'second', kind: 'task', title: 'Second', body: 'Then this.', status: statuses['second'] ?? 'planned' },
+        { slug: 'aside', kind: 'note', title: 'A remark', status: 'idea' },
+        { slug: 'box', kind: 'group', title: 'A box', status: 'idea' },
+      ],
+      edges: [{ id: 'f1', kind: 'flows_to', from: 'first', to: 'second' }],
+    });
+
+  it('counts only the nodes somebody works on', () => {
+    // The note and the box are neither done nor to do.
+    expect(progressLine(chain({}))).toBe('0 of 2 done');
+    expect(progressLine(chain({ first: 'done' }))).toBe('1 of 2 done');
+  });
+
+  it('says what is in progress and what is blocked', () => {
+    expect(progressLine(chain({ first: 'in_progress' }))).toContain('1 in progress');
+    expect(progressLine(chain({ first: 'blocked' }))).toContain('1 blocked');
+  });
+
+  it('offers the first of a chain and not the one waiting on it', () => {
+    const said = renderNext(chain({}), 3);
+    expect(said).toContain('Ready now');
+    expect(said).toContain('first');
+    expect(said).toContain('Do this one first.');
+    expect(said).toContain('Waiting on unfinished work');
+    expect(said).toContain('second — needs first');
+  });
+
+  it('offers the second once the first is done', () => {
+    const said = renderNext(chain({ first: 'done' }), 3);
+    expect(said).toContain('Then this.');
+    expect(said).not.toContain('Waiting on unfinished work');
+  });
+
+  it('says what has been started, with its body', () => {
+    const said = renderNext(chain({ first: 'in_progress' }), 3);
+    expect(said).toContain('Already started');
+    expect(said).toContain('Do this one first.');
+  });
+
+  it('says so when there is nothing left', () => {
+    expect(renderNext(chain({ first: 'done', second: 'dropped' }), 3)).toContain('Nothing is left');
+  });
+
+  it('brings the note a blocked task is waiting on', () => {
+    const blocked = planDocSchema.parse({
+      id: 'p11',
+      title: 'Stuck',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [{ slug: 'one', kind: 'task', title: 'One', status: 'blocked' }],
+      comments: [
+        {
+          id: 'blocked-one',
+          author: 'agent',
+          anchor: 'one',
+          body: 'The migration needs somebody to say yes.',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+
+    const said = renderNext(blocked, 3);
+    expect(said).toContain('Blocked, and waiting on a person');
+    expect(said).toContain('The migration needs somebody to say yes.');
+    expect(said).toContain('Nothing is ready');
+  });
+
+  it('prints the bodies of the first few and names the rest', () => {
+    const many = planDocSchema.parse({
+      id: 'p12',
+      title: 'Many',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: Array.from({ length: 5 }, (_, at) => ({
+        slug: `task-${at}`,
+        kind: 'task',
+        title: `Task ${at}`,
+        body: `The body of ${at}.`,
+        status: 'planned',
+      })),
+    });
+
+    const said = renderNext(many, 2);
+    expect(said).toContain('The body of 0.');
+    expect(said).toContain('The body of 1.');
+    expect(said).not.toContain('The body of 4.');
+    expect(said).toContain('task-4');
+  });
+
+  it('is plain about a plan with nothing to work on', () => {
+    const drawing = planDocSchema.parse({
+      id: 'p13',
+      title: 'Drawing',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [{ slug: 'box', kind: 'group', title: 'A box' }],
+    });
+    expect(renderNext(drawing, 3)).toContain('nothing to work on');
+  });
+});
+
+describe('a read that always ends with something to do', () => {
+  const held = planDocSchema.parse({
+    id: 'p14',
+    title: 'Held',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    nodes: [
+      { slug: 'running', kind: 'task', title: 'Running', status: 'in_progress' },
+      { slug: 'after', kind: 'task', title: 'After', status: 'planned' },
+    ],
+    edges: [{ id: 'f1', kind: 'flows_to', from: 'running', to: 'after' }],
+  });
+
+  /*
+   * The one shape that used to answer with nothing: something started, nothing
+   * ready, so neither branch said a word and the reader was back to working it
+   * out — which is the whole thing this replaces.
+   */
+  it('says to finish what is started when nothing else is ready', () => {
+    const said = renderNext(held, 3);
+    expect(said).toContain('Already started');
+    expect(said).toContain('Nothing else is ready');
   });
 });

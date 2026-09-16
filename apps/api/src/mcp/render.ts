@@ -157,16 +157,7 @@ function outline(doc: PlanDoc, options: { bodies?: boolean } = {}): string {
    * first. Here the order follows what flows into what, with the alphabet only
    * breaking ties and anything caught in a cycle coming last.
    */
-  const reaching = new Map<string, string[]>();
-  for (const edge of doc.edges) {
-    if (edge.kind === 'contains' || edge.kind === 'relates_to') continue;
-    // A depends_on points at what must exist first, so it reads the other way
-    // round from a flow and still means "that one comes before this one".
-    const [after, first] = edge.kind === 'depends_on' ? [edge.from, edge.to] : [edge.to, edge.from];
-    const list = reaching.get(after) ?? [];
-    list.push(first);
-    reaching.set(after, list);
-  }
+  const reaching = precedence(doc);
 
   const walk = (siblings: readonly string[], depth: number): void => {
     for (const slug of topologicalOrder(siblings, reaching).order) {
@@ -190,6 +181,12 @@ function outline(doc: PlanDoc, options: { bodies?: boolean } = {}): string {
   if (options.bodies !== true && doc.nodes.some((node) => node.body.trim() !== '')) {
     lines.push('', 'A node marked * has a body. read_nodes prints them.');
   }
+
+  // Where it has got to, on every read. A plan is a thing being approached,
+  // and a reader — a person or an agent — who cannot see it getting closer is
+  // reading a list.
+  const progress = progressLine(doc);
+  if (progress !== '') lines.push('', progress, 'next_task says what to do next.');
 
   if (doc.nodes.length === 0) lines.push('_empty plan_');
 
@@ -472,4 +469,161 @@ export function matchingLine(body: string, needles: readonly string[]): string |
     }
   }
   return null;
+}
+
+/**
+ * What has to come before what, for ordering and for readiness.
+ *
+ * A flow says the thing it leaves comes first. A `depends_on` points the other
+ * way round — at what must exist already — and means the same thing. `contains`
+ * is nesting and `relates_to` carries no structure, so neither says anything
+ * about order.
+ */
+function precedence(doc: PlanDoc): Map<string, string[]> {
+  const before = new Map<string, string[]>();
+  for (const edge of doc.edges) {
+    if (edge.kind === 'contains' || edge.kind === 'relates_to') continue;
+    const [after, first] = edge.kind === 'depends_on' ? [edge.from, edge.to] : [edge.to, edge.from];
+    const list = before.get(after) ?? [];
+    list.push(first);
+    before.set(after, list);
+  }
+  return before;
+}
+
+/** A node nobody works on: the boxes that hold things, and the remarks beside them. */
+function isWork(node: { kind: string }): boolean {
+  return node.kind !== 'group' && node.kind !== 'note';
+}
+
+const SETTLED = new Set(['done', 'dropped']);
+
+/** Where a plan has got to, in one line. */
+export function progressLine(doc: PlanDoc): string {
+  const work = doc.nodes.filter(isWork);
+  if (work.length === 0) return '';
+
+  const count = (status: string) => work.filter((node) => node.status === status).length;
+  const settled = work.filter((node) => SETTLED.has(node.status)).length;
+  const parts = [`${settled} of ${work.length} done`];
+  if (count('in_progress') > 0) parts.push(`${count('in_progress')} in progress`);
+  if (count('blocked') > 0) parts.push(`${count('blocked')} blocked`);
+  return parts.join(' · ');
+}
+
+/**
+ * Where the plan has got to, and what can be done next — with the words.
+ *
+ * The question an agent carrying out a plan has every single turn, and the one
+ * reading that did not exist. Answering it meant pulling the whole outline,
+ * reading `[kind/status]` and the `depends_on` lines by eye, working out which
+ * task's prerequisites were all settled, and then a second call for the body of
+ * the one it chose. Four steps, of which the third is the one a model gets
+ * wrong: on a forty-line outline it picks something already done, or something
+ * waiting on work that has not happened.
+ *
+ * So the body of what to do next comes back with the answer. One call, and the
+ * next move is in hand.
+ */
+export function renderNext(doc: PlanDoc, limit: number): string {
+  const before = precedence(doc);
+  const status = new Map(doc.nodes.map((node) => [node.slug, node.status]));
+  const work = doc.nodes.filter(isWork);
+
+  if (work.length === 0) {
+    return (
+      `${doc.title} has nothing to work on.\n` +
+      'Every node in it is a box or a note. Tasks are drawn with apply_ops.'
+    );
+  }
+
+  const settledBy = (slug: string): boolean => SETTLED.has(status.get(slug) ?? 'idea');
+  const waitingOn = (slug: string): string[] =>
+    (before.get(slug) ?? []).filter((one) => status.has(one) && !settledBy(one));
+
+  const ordered = topologicalOrder(
+    work.map((node) => node.slug),
+    before,
+  ).order;
+  const bySlug = new Map(work.map((node) => [node.slug, node]));
+
+  const running: typeof work = [];
+  const ready: typeof work = [];
+  const waiting: typeof work = [];
+  const stuck: typeof work = [];
+
+  for (const slug of ordered) {
+    const node = bySlug.get(slug);
+    if (node === undefined || SETTLED.has(node.status)) continue;
+    if (node.status === 'in_progress') running.push(node);
+    else if (node.status === 'blocked') stuck.push(node);
+    else if (waitingOn(slug).length === 0) ready.push(node);
+    else waiting.push(node);
+  }
+
+  const lines = [`${doc.title}`, progressLine(doc), ''];
+
+  const withBody = (node: (typeof work)[number]): void => {
+    lines.push(`  ${node.slug} [${node.kind}/${node.status}] ${node.title}`);
+    const said = node.body.trim();
+    if (said === '') {
+      lines.push('    | nothing written here yet');
+      return;
+    }
+    // Long enough for a task and short enough not to be the document. A body
+    // past this is one read_nodes was made for.
+    const shown = said.length > 4000 ? `${said.slice(0, 4000)}\n… read_nodes for the rest` : said;
+    for (const line of shown.split('\n')) lines.push(`    | ${line}`);
+  };
+
+  if (running.length > 0) {
+    lines.push('Already started:');
+    for (const node of running) withBody(node);
+    lines.push('');
+  }
+
+  if (stuck.length > 0) {
+    lines.push('Blocked, and waiting on a person:');
+    for (const node of stuck) {
+      lines.push(`  ${node.slug} — ${node.title}`);
+      for (const comment of doc.comments) {
+        if (comment.anchor !== node.slug || comment.resolved) continue;
+        lines.push(`      ${comment.id}: ${oneLine(comment.body)}`);
+      }
+    }
+    lines.push('');
+  }
+
+  if (ready.length === 0) {
+    // Every read of this has to end with something to do, or the reader is
+    // back to working it out — which is the whole thing this replaces.
+    lines.push(
+      running.length > 0
+        ? 'Nothing else is ready. Finish what is already started.'
+        : waiting.length === 0 && stuck.length === 0
+          ? 'Nothing is left. Every task is done or dropped.'
+          : 'Nothing is ready. Everything left is blocked, or waiting on something unfinished.',
+    );
+    lines.push('');
+  } else {
+    lines.push(
+      ready.length === 1
+        ? 'Ready now:'
+        : `Ready now, ${ready.length} of them, in the order the flows run:`,
+    );
+    for (const node of ready.slice(0, limit)) withBody(node);
+    for (const node of ready.slice(limit)) {
+      lines.push(`  ${node.slug} [${node.kind}/${node.status}] ${node.title}`);
+    }
+    lines.push('');
+  }
+
+  if (waiting.length > 0) {
+    lines.push('Waiting on unfinished work:');
+    for (const node of waiting) {
+      lines.push(`  ${node.slug} — needs ${waitingOn(node.slug).join(', ')}`);
+    }
+  }
+
+  return lines.join('\n').trimEnd();
 }
