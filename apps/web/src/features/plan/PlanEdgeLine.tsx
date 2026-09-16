@@ -125,14 +125,26 @@ function Line({
    * Their notes would otherwise land on the same point: three flows out of one
    * node share a corridor and share its middle. Ordered by edge id so that two
    * people looking at the same plan put them in the same places.
+   *
+   * Two selectors, each returning a number. One returning `{ of, index }` is a
+   * fresh object every call, and zustand compares with `Object.is` — so the
+   * component re-rendered for ever and the canvas drew nothing at all. The
+   * gate's first section said so: `nodes render  0 nodes`.
    */
-  const corridor = usePlanStore((state) => {
-    const pair = state.edges.filter(
-      (other) => other.source === edgeData?.from && other.target === edgeData?.to,
-    );
-    const order = pair.map((other) => other.id).sort();
-    return { of: Math.max(1, order.length), index: Math.max(0, order.indexOf(id)) };
-  });
+  const alongside = usePlanStore(
+    (state) =>
+      state.edges.filter(
+        (other) => other.source === edgeData?.from && other.target === edgeData?.to,
+      ).length,
+  );
+  const amongThem = usePlanStore((state) =>
+    state.edges
+      .filter((other) => other.source === edgeData?.from && other.target === edgeData?.to)
+      .map((other) => other.id)
+      .sort()
+      .indexOf(id),
+  );
+  const corridor = { of: Math.max(1, alongside), index: Math.max(0, amongThem) };
 
   const selectEdge = usePlanStore((state) => state.selectEdge);
   const editable = usePlanStore((state) => state.editable);
