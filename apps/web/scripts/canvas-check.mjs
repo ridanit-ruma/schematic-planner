@@ -1943,6 +1943,13 @@ try {
     strange.text.replace(/\s+/g, ' ').slice(0, 70),
   );
   check('and does not name it as forbidden', !/forbidden|permission|not allowed/i.test(strange.text));
+  // The trail is read out of the address, which is right while every address
+  // leads somewhere: this one came out as "Demo's workspace > Projects" over a
+  // page saying there is nothing here.
+  check(
+    'and the trail does not describe an address that leads nowhere',
+    await page.evaluate(() => (document.querySelector('header')?.textContent ?? '').includes('Projects') === false),
+  );
 
   // A plan id of the right shape that this account cannot open. The canvas
   // used to sit at "connecting" over an empty document and draw it as a plan.

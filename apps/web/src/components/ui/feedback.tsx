@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 
+import { useLost } from '@/lib/use-crumb';
+
 import { cn } from '@/lib/utils';
 
 export function Spinner({ className }: { className?: string }) {
@@ -62,6 +64,8 @@ export function Problem({ error }: { error: unknown }) {
  * is a drawing of something that is not there.
  */
 export function NotFound({ subject = 'page' }: { subject?: string }) {
+  useLost();
+
   return (
     <div className="grid min-h-dvh place-items-center px-6">
       <div className="max-w-md text-center">

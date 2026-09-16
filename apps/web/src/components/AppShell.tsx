@@ -31,7 +31,7 @@ import {
 import { Tooltip } from './ui/tooltip';
 import { canAdminister, workspaces } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
-import { CrumbProvider, useTrailingCrumb } from '@/lib/use-crumb';
+import { CrumbProvider, useIsLost, useTrailingCrumb } from '@/lib/use-crumb';
 import { useWorkspaces } from '@/features/workspaces/workspace-context';
 import { cn } from '@/lib/utils';
 
@@ -250,6 +250,7 @@ function TopBar({ current }: { current: Workspace | undefined }) {
   const { projectSlug } = useParams();
   const { pathname } = useLocation();
   const trailing = useTrailingCrumb();
+  const lost = useIsLost();
 
   // A plan is addressed on its own, so its settings screen is not under a
   // workspace path even though the plan is in one.
@@ -283,7 +284,9 @@ function TopBar({ current }: { current: Workspace | undefined }) {
 
   // A screen that knows its own name — a folder, whose address is an id — hands
   // it over rather than making the bar go and look it up.
-  const trail = trailing === null ? crumbs : [...crumbs, { label: trailing }];
+  // An address that leads nowhere is not described. The switcher below stays,
+  // because it is the way out of here.
+  const trail = lost ? [] : trailing === null ? crumbs : [...crumbs, { label: trailing }];
 
   return (
     <header className="flex h-11 shrink-0 items-center gap-1 border-b border-rule bg-surface px-2 sm:px-3">
