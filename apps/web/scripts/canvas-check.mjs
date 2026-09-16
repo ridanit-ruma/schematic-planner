@@ -1914,18 +1914,35 @@ try {
     });
   };
 
-  const unknown = await notFoundAt(`/nowhere-${Date.now()}`);
-  check('an address that is not a route says so', unknown.text.includes('404'), unknown.text.slice(0, 60));
-  check('and leaves you at the address you typed', unknown.at.startsWith('/nowhere-'), unknown.at);
+  /*
+   * Under a path the application owns. A bare `/nowhere` is answered by the
+   * marketing site at the proxy before it ever reaches this app, and a check
+   * written against that was reading Next's 404 page and calling it ours.
+   */
+  const unknown = await notFoundAt(`/recent/nowhere-${Date.now()}`);
+  check(
+    'an address that is not a route says so',
+    unknown.text.includes('There is no page here'),
+    unknown.text.replace(/\s+/g, ' ').slice(0, 70),
+  );
+  check('and leaves you at the address you typed', unknown.at.includes('/nowhere-'), unknown.at);
 
   const strange = await notFoundAt(`/workspace/not-yours-${Date.now()}`);
-  check('a workspace that is not yours says so', strange.text.includes('404'), strange.text.slice(0, 60));
+  check(
+    'a workspace that is not yours says so',
+    strange.text.includes('There is no workspace here'),
+    strange.text.replace(/\s+/g, ' ').slice(0, 70),
+  );
   check('and does not name it as forbidden', !/forbidden|permission|not allowed/i.test(strange.text));
 
   // A plan id of the right shape that this account cannot open. The canvas
   // used to sit at "connecting" over an empty document and draw it as a plan.
   const hidden = await notFoundAt('/plan/cmxxxxxxxxxxxxxxxxxxxxxxxx');
-  check('a plan that is not yours says so rather than drawing an empty one', hidden.text.includes('404'), hidden.text.slice(0, 60));
+  check(
+    'a plan that is not yours says so rather than drawing an empty one',
+    hidden.text.includes('There is no plan here'),
+    hidden.text.replace(/\s+/g, ' ').slice(0, 70),
+  );
   check('and draws no canvas at all', !hidden.text.includes('Untitled plan'));
 
   await reopen();
