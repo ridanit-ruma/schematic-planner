@@ -237,3 +237,92 @@ describe('renderHistory', () => {
     expect(renderHistory([])).toContain('Nothing has changed');
   });
 });
+
+describe('the order the outline is read in', () => {
+  /*
+   * The graph sorts siblings by slug, which the export needs and a reader does
+   * not: a chain of steps came back alphabetically scrambled, and the one thing
+   * the reader wanted to know was which came first.
+   */
+  const chain = planDocSchema.parse({
+    id: 'p6',
+    title: 'Chain',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    nodes: [
+      { slug: 'zebra', title: 'First' },
+      { slug: 'alpha', title: 'Second' },
+      { slug: 'middle', title: 'Third' },
+    ],
+    edges: [
+      { id: 'f1', kind: 'flows_to', from: 'zebra', to: 'alpha' },
+      { id: 'f2', kind: 'flows_to', from: 'alpha', to: 'middle' },
+    ],
+  });
+
+  const order = (rendered: string) =>
+    rendered
+      .split('\n')
+      .filter((line) => line.trimStart().startsWith('- '))
+      .map((line) => line.trim().split(' ')[1]);
+
+  it('follows the flows rather than the alphabet', () => {
+    expect(order(renderPlan(chain, 'outline'))).toEqual(['zebra', 'alpha', 'middle']);
+  });
+
+  it('reads a depends_on as saying which one comes first', () => {
+    const needed = planDocSchema.parse({
+      id: 'p7',
+      title: 'Needed',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [
+        { slug: 'alpha', title: 'Needs the other' },
+        { slug: 'zebra', title: 'Comes first' },
+      ],
+      edges: [{ id: 'd1', kind: 'depends_on', from: 'alpha', to: 'zebra' }],
+    });
+
+    expect(order(renderPlan(needed, 'outline'))).toEqual(['zebra', 'alpha']);
+  });
+
+  it('still lists everything when the flows go round in a circle', () => {
+    const loop = planDocSchema.parse({
+      id: 'p8',
+      title: 'Loop',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [
+        { slug: 'one', title: 'One' },
+        { slug: 'two', title: 'Two' },
+      ],
+      edges: [
+        { id: 'f1', kind: 'flows_to', from: 'one', to: 'two' },
+        { id: 'f2', kind: 'flows_to', from: 'two', to: 'one' },
+      ],
+    });
+
+    expect(order(renderPlan(loop, 'outline')).sort()).toEqual(['one', 'two']);
+  });
+});
+
+describe('a note asking a question', () => {
+  const asked = planDocSchema.parse({
+    id: 'p9',
+    title: 'Asked',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    nodes: [{ slug: 'store', title: 'Store' }],
+    comments: [
+      {
+        id: 'which-store',
+        author: 'agent',
+        anchor: 'store',
+        body: `Which one, and why?\n\nThis is a long enough preamble that flattening the note onto a single line and cutting it at two hundred and forty characters would reach the end of it before ever reaching the answers underneath, which is exactly what used to happen.\n\n- [ ] Postgres\n- [x] Redis`,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ],
+  });
+
+  it('keeps the answers, which are the point of asking', () => {
+    const outline = renderPlan(asked, 'outline');
+    expect(outline).toContain('- [ ] Postgres');
+    expect(outline).toContain('- [x] Redis');
+  });
+});

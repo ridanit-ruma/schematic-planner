@@ -1,5 +1,5 @@
 import { exportPlan } from '@schematic/exporter';
-import { buildPlanGraph, type PlanDoc, type TraceResult } from '@schematic/schema';
+import { buildPlanGraph, topologicalOrder, type PlanDoc, type TraceResult } from '@schematic/schema';
 import type { NamedFolder } from './workspace-scope.js';
 
 export type PlanView = 'outline' | 'detail' | 'graph' | 'markdown';
@@ -147,8 +147,29 @@ function outline(doc: PlanDoc, options: { bodies?: boolean } = {}): string {
     flows.set(edge.from, list);
   }
 
-  const walk = (slugs: readonly string[], depth: number): void => {
-    for (const slug of slugs) {
+  /*
+   * Down the flows, not down the alphabet.
+   *
+   * The graph sorts siblings by slug, which is what the export wants — the same
+   * plan has to produce the same filenames every time. Read back as a drawing
+   * it is the least useful order there is: a chain of eight steps came out
+   * scrambled, and the one thing the reader wanted to know was which came
+   * first. Here the order follows what flows into what, with the alphabet only
+   * breaking ties and anything caught in a cycle coming last.
+   */
+  const reaching = new Map<string, string[]>();
+  for (const edge of doc.edges) {
+    if (edge.kind === 'contains' || edge.kind === 'relates_to') continue;
+    // A depends_on points at what must exist first, so it reads the other way
+    // round from a flow and still means "that one comes before this one".
+    const [after, first] = edge.kind === 'depends_on' ? [edge.from, edge.to] : [edge.to, edge.from];
+    const list = reaching.get(after) ?? [];
+    list.push(first);
+    reaching.set(after, list);
+  }
+
+  const walk = (siblings: readonly string[], depth: number): void => {
+    for (const slug of topologicalOrder(siblings, reaching).order) {
       const node = graph.nodes.get(slug);
       if (node === undefined) continue;
 
@@ -178,10 +199,20 @@ function outline(doc: PlanDoc, options: { bodies?: boolean } = {}): string {
   const open = doc.comments.filter((comment) => !comment.resolved);
   if (open.length > 0) {
     lines.push('', '## Notes left on this plan', '');
+    /*
+     * In full, not flattened to a line.
+     *
+     * A note is how an agent asks a question rather than guessing, and the way
+     * it asks is a task list the person ticks one box of. Squeezed onto one
+     * line and cut at 240 characters, the answers were the part that got cut —
+     * so the mechanism worked, and reading the result back did not.
+     */
     for (const comment of open) {
       const about = comment.anchor === null ? '' : ` on ${comment.anchor}`;
       const who = comment.author === '' ? 'Someone' : comment.author;
-      lines.push(`- ${comment.id}${about} — ${who}: ${oneLine(comment.body)}`);
+      lines.push(`- ${comment.id}${about} — ${who}:`);
+      for (const line of comment.body.trim().split('\n')) lines.push(`    ${line}`);
+      lines.push('');
     }
   }
 

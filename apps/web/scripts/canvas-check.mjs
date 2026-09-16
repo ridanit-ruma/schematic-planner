@@ -1677,10 +1677,16 @@ try {
 
     // The one gesture a card offers, on a node nothing else has touched.
     const toWiden = await rectOf('widthy');
-    check(
-      'the grip is there before anything is selected',
-      (await page.$('.react-flow__node[data-id="widthy"] .react-flow__resize-control')).length === 1,
-    );
+    // A single dollar hands back one element, whose `.length` is undefined, so
+    // this could only ever fail. Two dollars, and a moment for the canvas to
+    // finish drawing itself after the reopen above.
+    let grips = 0;
+    for (let attempt = 0; attempt < 8 && grips !== 1; attempt += 1) {
+      await wait(300);
+      grips = (await page.$$('.react-flow__node[data-id="widthy"] .react-flow__resize-control'))
+        .length;
+    }
+    check('the grip is there before anything is selected', grips === 1, `${grips} found`);
     await page.mouse.click(toWiden.x + toWiden.width / 2, toWiden.y + toWiden.height / 2);
     await wait(600);
     const handles = await page
