@@ -6,7 +6,7 @@ import {
   type NodeProps,
 } from '@xyflow/react';
 import { CARD, isGroup } from '@schematic/schema';
-import { memo } from 'react';
+import { memo, useEffect, useRef } from 'react';
 
 import { STATUS_COLOR } from '@/components/ui/status';
 import { Markdown } from '@/components/ui/markdown';
@@ -212,6 +212,41 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
    */
   const hasBody = node.body.trim() !== '';
 
+  /*
+   * A wheel over a body that can still scroll is the body's, and the canvas's
+   * again at either end.
+   *
+   * React Flow zooms on wheel and nothing over the card said otherwise, so a
+   * card too tall to fit could be scrolled only by catching its scrollbar —
+   * which on a trackpad is most of the width of a hair, and the canvas moved
+   * under you while you tried.
+   *
+   * A native listener and not React's `onWheel`. React attaches its synthetic
+   * handlers at the root of the application, which is *above* the pane, while
+   * d3-zoom attaches to the pane itself — so the zoom had already happened by
+   * the time a React handler on the card could ask for the event. On the
+   * element, it is heard first.
+   *
+   * Only while there is somewhere to go in the direction of the wheel: stopping
+   * every one would make a card a permanent hole in the zoom surface, and this
+   * hands the wheel back the moment the text runs out. No `preventDefault` —
+   * the browser scrolls the div by itself once the event is not the canvas's.
+   */
+  const scroller = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const box = scroller.current;
+    if (box === null) return;
+    const onWheel = (event: WheelEvent): void => {
+      const room =
+        event.deltaY < 0
+          ? box.scrollTop > 0
+          : box.scrollTop + box.clientHeight < box.scrollHeight - 1;
+      if (room) event.stopPropagation();
+    };
+    box.addEventListener('wheel', onWheel, { passive: false });
+    return () => box.removeEventListener('wheel', onWheel);
+  }, [hasBody]);
+
   return (
     /*
      * Everything that takes a pointer is drawn beside the card, after it, in
@@ -247,30 +282,8 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
           /* A long body is scrolled, not dragged — the note next door already
              settled that, and a second answer to it would be a second answer. */
           <div
+            ref={scroller}
             onPointerDown={(event) => event.stopPropagation()}
-            /*
-             * A wheel over a body that can still scroll is the body's, and the
-             * canvas's again at either end.
-             *
-             * React Flow zooms on wheel, and nothing over the card said
-             * otherwise — so a card too tall to fit could be scrolled only by
-             * catching its scrollbar, which on a trackpad is most of the width
-             * of a hair. Stopping every wheel would make a card a permanent
-             * hole in the zoom surface; stopping it only while the body has
-             * somewhere to go means the canvas keeps zooming over a card that
-             * fits, and takes the wheel back the moment the text runs out.
-             *
-             * No preventDefault: React attaches this passively, and once the
-             * event is not the canvas's the browser scrolls the div itself.
-             */
-            onWheel={(event) => {
-              const box = event.currentTarget;
-              const room =
-                event.deltaY < 0
-                  ? box.scrollTop > 0
-                  : box.scrollTop + box.clientHeight < box.scrollHeight - 1;
-              if (room) event.stopPropagation();
-            }}
             className="nodrag mt-1.5 min-h-0 flex-1 overflow-y-auto text-xs leading-snug text-ink-muted"
           >
             <Markdown body={node.body} />
