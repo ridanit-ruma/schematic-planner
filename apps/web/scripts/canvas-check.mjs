@@ -1851,6 +1851,15 @@ try {
      * the body, so the browser scrolled what the pointer was directly over and
      * a wheel three pixels higher zoomed the canvas instead.
      */
+    // Back to the top first. This body overflows by thirty-six pixels in total
+    // and the check above has just used all of them, so without this the wheel
+    // is correctly handed back to the canvas and the check reads that as the
+    // defect it was written to catch.
+    await page.evaluate(() => {
+      const box = document.querySelector('.react-flow__node[data-id="wordy"] .nodrag');
+      if (box !== null) box.scrollTop = 0;
+    });
+    await wait(200);
     const overTitle = { x: tall.x + tall.width / 2, y: tall.y + 12 };
     const beforeTitle = await scrolledBy();
     const zoomBeforeTitle = await zoomNow();
