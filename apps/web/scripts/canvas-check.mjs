@@ -1845,6 +1845,29 @@ try {
       `${zoomWas} -> ${await zoomNow()}`,
     );
 
+    /*
+     * And over the title, which is the part of a card a pointer is most likely
+     * to be over and the part that does not scroll. The handler used to sit on
+     * the body, so the browser scrolled what the pointer was directly over and
+     * a wheel three pixels higher zoomed the canvas instead.
+     */
+    const overTitle = { x: tall.x + tall.width / 2, y: tall.y + 12 };
+    const beforeTitle = await scrolledBy();
+    const zoomBeforeTitle = await zoomNow();
+    await page.mouse.move(overTitle.x, overTitle.y);
+    await page.mouse.wheel({ deltaY: 220 });
+    await wait(500);
+    check(
+      'and a wheel over its title scrolls the body just the same',
+      (await scrolledBy()) > beforeTitle,
+      `${beforeTitle} -> ${await scrolledBy()}`,
+    );
+    check(
+      'and still did not zoom',
+      Math.abs((await zoomNow()) - zoomBeforeTitle) < 0.001,
+      `${zoomBeforeTitle} -> ${await zoomNow()}`,
+    );
+
     // And gives it back at the end, so a card is not a hole in the zoom.
     await page.evaluate(() => {
       const box = document.querySelector('.react-flow__node[data-id="wordy"] .nodrag');

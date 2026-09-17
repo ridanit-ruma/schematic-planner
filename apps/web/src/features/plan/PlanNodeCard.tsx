@@ -28,6 +28,15 @@ import type { PlanFlowNode } from './types';
  * it takes the pointer: twenty-four across, which is a target a hand can hit,
  * while the picture is unchanged.
  */
+/**
+ * What a wheel's "one line" is worth in pixels.
+ *
+ * A guess, and unavoidably one: `deltaMode` says the number is in lines and
+ * the browser never says how tall a line is. The body is set in text-xs with
+ * leading-snug, which comes to sixteen.
+ */
+const LINE_PX = 16;
+
 const HANDLE =
   '!size-2 !rounded-none !border !border-rule-strong !bg-surface-2 ' +
   "before:absolute before:-inset-2 before:content-['']";
@@ -79,10 +88,12 @@ interface Size {
 function WidthHandle({
   id,
   selected,
+  onSize,
   onResize,
 }: {
   id: string;
   selected: boolean;
+  onSize: (id: string, size: Size) => void;
   onResize: (id: string, size: Size) => void;
 }) {
   return (
@@ -91,6 +102,15 @@ function WidthHandle({
       variant={ResizeControlVariant.Line}
       minWidth={CARD.minWidth}
       maxWidth={CARD.maxWidth}
+      /*
+       * Throughout the drag, not only at the end of it. React Flow widens the
+       * card on every frame; a box around it is worked out from what it holds,
+       * which is read from the document, which a resize does not reach until
+       * the grip is let go — so the card grew out through the edge of its box
+       * and the box caught up in one jump on release. This is heard by the
+       * store and kept out of the document until then.
+       */
+      onResize={(_, size) => onSize(id, size)}
       onResizeEnd={(_, size) => onResize(id, size)}
       /*
        * Faint on the node being worked on, solid under the pointer, absent
@@ -133,6 +153,7 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
   const armed = usePlanStore((state) => state.armed === id);
   const editable = usePlanStore((state) => state.editable);
   const resizeNode = usePlanStore((state) => state.resizeNode);
+  const sizeNode = usePlanStore((state) => state.sizeNode);
   const attention = cn(arrivedAt !== undefined && 'plan-arrive', dimmed && 'plan-dim');
   // Its place in the sweep. The animation fills backwards, so a card waiting
   // its turn is already invisible rather than flashing on and starting over.
@@ -202,8 +223,8 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
   const hasBody = node.body.trim() !== '';
 
   /*
-   * A wheel over a body that can still scroll is the body's, and the canvas's
-   * again at either end.
+   * A wheel anywhere over a card whose body can still scroll is the body's, and
+   * the canvas's again at either end.
    *
    * React Flow zooms on wheel and nothing over the card said otherwise, so a
    * card too tall to fit could be scrolled only by catching its scrollbar —
@@ -218,22 +239,43 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
    *
    * Only while there is somewhere to go in the direction of the wheel: stopping
    * every one would make a card a permanent hole in the zoom surface, and this
-   * hands the wheel back the moment the text runs out. No `preventDefault` —
-   * the browser scrolls the div by itself once the event is not the canvas's.
+   * hands the wheel back the moment the text runs out.
+   *
+   * On the card and not on the body, because a card is capped at 420 and the
+   * part of it a pointer is most likely to be over — the title, the slug, the
+   * tags — is not the part that scrolls. The body is then scrolled by hand:
+   * the browser will only scroll what the pointer is directly over.
    */
   const scroller = useRef<HTMLDivElement | null>(null);
+  const card = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    const box = scroller.current;
-    if (box === null) return;
+    const surface = card.current;
+    if (surface === null) return;
     const onWheel = (event: WheelEvent): void => {
-      const room =
-        event.deltaY < 0
-          ? box.scrollTop > 0
-          : box.scrollTop + box.clientHeight < box.scrollHeight - 1;
-      if (room) event.stopPropagation();
+      const box = scroller.current;
+      if (box === null) return;
+      // Lines and pages, because a wheel does not always report pixels: Firefox
+      // sends whole lines for a notch, and a page per notch is a setting people
+      // have. Taking deltaY as pixels regardless moved a body three pixels for
+      // a gesture that should have moved fifty.
+      const by =
+        event.deltaMode === 1
+          ? event.deltaY * LINE_PX
+          : event.deltaMode === 2
+            ? event.deltaY * box.clientHeight
+            : event.deltaY;
+      const room = by < 0 ? box.scrollTop > 0 : box.scrollTop + box.clientHeight < box.scrollHeight - 1;
+      if (!room) return;
+      // Scrolled here rather than left to the browser. The wheel is taken
+      // anywhere over the card, including over the title and the tags, and the
+      // browser only scrolls what the pointer is actually over — so on every
+      // part of the card except the body itself nothing would happen at all.
+      event.stopPropagation();
+      event.preventDefault();
+      box.scrollTop += by;
     };
-    box.addEventListener('wheel', onWheel, { passive: false });
-    return () => box.removeEventListener('wheel', onWheel);
+    surface.addEventListener('wheel', onWheel, { passive: false });
+    return () => surface.removeEventListener('wheel', onWheel);
   }, [hasBody]);
 
   return (
@@ -251,6 +293,7 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
      */
     <>
     <div
+      ref={card}
       className={cn(
         'relative flex h-full w-full overflow-hidden rounded-md bg-surface-2',
         KIND_BORDER[node.kind] ?? KIND_BORDER['task'],
@@ -285,7 +328,12 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
 
     </div>
       {editable ? (
-        <WidthHandle id={id} selected={selected === true} onResize={resizeNode} />
+        <WidthHandle
+          id={id}
+          selected={selected === true}
+          onSize={sizeNode}
+          onResize={resizeNode}
+        />
       ) : null}
       {/* Square terminals rather than dots: this is a drawing, not a flowchart. */}
       <Handle

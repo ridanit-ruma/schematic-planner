@@ -1,5 +1,5 @@
 import { CARD, GROUP_PADDING, cardHeight, planDocSchema, planOpsSchema } from '@schematic/schema';
-import { applyOps, initializePlan } from '@schematic/ydoc';
+import { applyOps, initializePlan, readPlanDoc } from '@schematic/ydoc';
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
 
@@ -285,6 +285,48 @@ describe('a box around what it holds', () => {
     );
     return made;
   };
+
+  /*
+   * The defect this pair was written for, measured on the running instance
+   * before it was fixed: a card inside a box was dragged from 260 wide to 460
+   * and grew straight out through the box's edge, which stayed at 300 for the
+   * whole gesture and jumped to 500 only when the grip was let go.
+   */
+  it('keeps up with a card while its width is still being dragged', () => {
+    const { bound } = held();
+    bound.store.getState().setEditable(true);
+    const was = Number(byId(bound.store.getState().nodes, 'box')?.style?.width);
+
+    bound.store.getState().sizeNode('db', { width: CARD.width + 200, height: 0 });
+
+    const card = byId(bound.store.getState().nodes, 'db')?.style;
+    const box = byId(bound.store.getState().nodes, 'box')?.style;
+    expect(Number(card?.width)).toBe(CARD.width + 200);
+    expect(Number(box?.width)).toBe(was + 200);
+    // And nothing was written down: a drag in progress is not a decision.
+    expect(readPlanDoc(bound.doc).doc.nodes.find((node) => node.slug === 'db')?.size).toBeNull();
+  });
+
+  it('lets go of the dragged width once the grip is released', () => {
+    const { bound } = held();
+    bound.store.getState().setEditable(true);
+    bound.store.getState().sizeNode('db', { width: CARD.width + 200, height: 0 });
+    bound.store.getState().resizeNode('db', { width: CARD.width + 200, height: 0 });
+
+    expect(bound.store.getState().sizing).toEqual({});
+    // Same answer as before, now because the document says so rather than
+    // because a drag does.
+    expect(Number(byId(bound.store.getState().nodes, 'db')?.style?.width)).toBe(CARD.width + 200);
+  });
+
+  it('refuses a width for a box, and keeps none behind', () => {
+    const { bound } = held();
+    bound.store.getState().setEditable(true);
+    bound.store.getState().sizeNode('box', { width: 900, height: 0 });
+    expect(bound.store.getState().sizing).toEqual({});
+    bound.store.getState().resizeNode('box', { width: 900, height: 0 });
+    expect(bound.store.getState().sizing).toEqual({});
+  });
 
   it('is exactly what it holds, plus the room a box keeps', () => {
     const { bound } = held();

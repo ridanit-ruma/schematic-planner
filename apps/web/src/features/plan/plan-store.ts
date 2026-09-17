@@ -80,6 +80,16 @@ export interface PlanState {
    */
   bounds: Record<string, Box>;
   /**
+   * The width a card is being dragged to, while the drag is still happening.
+   *
+   * Not in the document, and gone the moment the grip is let go. A box is the
+   * bounding box of what it holds and what it holds is read from the document,
+   * so until the drag committed the box stayed the size it was while the card
+   * grew straight out through its edge. This is what the box is worked out
+   * from instead, for as long as there is a drag to work it out from.
+   */
+  sizing: Record<string, Box>;
+  /**
    * The card a dragged node has been held over long enough to turn into a box,
    * or null.
    *
@@ -148,6 +158,7 @@ export interface PlanState {
   arm: (slug: string | null) => void;
   /** Bounds a person has dragged a group's corner to. */
   resizeNode: (slug: string, size: { width: number; height: number }) => void;
+  sizeNode: (slug: string, size: { width: number; height: number }) => void;
   selectEdge: (id: string | null) => void;
   selectComment: (id: string | null) => void;
 }
@@ -212,6 +223,22 @@ function toFlowEdge(edge: PlanEdge, from: PlanNode | undefined): PlanFlowEdge {
   return { id: edge.id, source, target, type: 'plan', data: { edge, stopped } };
 }
 
+/**
+ * What a dragged width comes to for one node, or nothing at all.
+ *
+ * Only a card has a width to give. A box is what it holds, and writing a size
+ * for one would be a second answer that the next drag contradicts. The height
+ * is not a person's to choose: it is what the body comes to at that width, and
+ * it is worked out here so that the drag and the commit cannot disagree about
+ * it.
+ */
+function sizeOfCard(state: PlanState, slug: string, width: number): Box | null {
+  if (!state.editable) return null;
+  const node = state.nodes.find((candidate) => candidate.id === slug)?.data;
+  if (node === undefined || isGroup(node.node, node.childCount)) return null;
+  return { width, height: cardHeight(node.node.body, width) };
+}
+
 export function createPlanStore(doc: Y.Doc) {
   const store = createStore<PlanState>((set, get) => ({
     editable: false,
@@ -229,6 +256,7 @@ export function createPlanStore(doc: Y.Doc) {
     absolute: {},
     parentOf: {},
     bounds: {},
+    sizing: {},
     arrivals: new Map<string, number>(),
     related: null,
     relatedTo: null,
@@ -288,17 +316,43 @@ export function createPlanStore(doc: Y.Doc) {
     arm: (armed) => {
       if (get().armed !== armed) set({ armed });
     },
+    /**
+     * The card's own width, held here for as long as the grip is down.
+     *
+     * A box is worked out from what it holds, and what it holds was read from
+     * the document — which a resize does not reach until it is over. So the
+     * card grew straight out through the edge of the box it was in and the box
+     * only caught up on release, in one jump. Written here instead, the same
+     * walk that draws the card draws the box around it, on every frame of the
+     * drag.
+     *
+     * Nothing is committed from here. This is a drag in progress; the document
+     * hears about it once.
+     */
+    sizeNode: (slug, size) => {
+      const stored = sizeOfCard(get(), slug, size.width);
+      if (stored === null) return;
+      const current = get().sizing[slug];
+      if (current?.width === stored.width && current?.height === stored.height) return;
+      set({ sizing: { ...get().sizing, [slug]: stored } });
+      refresh();
+    },
     resizeNode: (slug, size) => {
-      if (!get().editable) return;
-      const node = get().nodes.find((candidate) => candidate.id === slug)?.data;
-      // Only a card has a width to give. A box is what it holds, and writing a
-      // size for one would be a second answer that the next drag contradicts.
-      if (node === undefined || isGroup(node.node, node.childCount)) return;
       // A card is dragged by one edge and only its width is a person's to
       // choose; the height that width comes to is written beside it so that
       // anything reading the document raw sees a coherent box. Nothing in this
       // repository reads that height back — it is measured again each time.
-      const stored = { width: size.width, height: cardHeight(node.node.body, size.width) };
+      const stored = sizeOfCard(get(), slug, size.width);
+      // Dropped whatever happens next. Left behind on a resize that is refused
+      // — a box's, or one made while the plan is read-only — it would hold the
+      // canvas at a size the document never agreed to.
+      const { [slug]: gone, ...rest } = get().sizing;
+      void gone;
+      set({ sizing: rest });
+      if (stored === null) {
+        refresh();
+        return;
+      }
       commitLayout(doc, new Map(), ORIGIN_LOCAL, new Map([[slug, stored]]));
     },
     routeEdge: (id, corners, labelPosition) => {
@@ -385,6 +439,7 @@ export function createPlanStore(doc: Y.Doc) {
    */
   const refresh = (touched?: ReadonlySet<string>): void => {
     const plan = project();
+    const sizing = store.getState().sizing;
     const graph = buildPlanGraph(plan);
     const previous = get_nodes();
 
@@ -437,7 +492,9 @@ export function createPlanStore(doc: Y.Doc) {
     for (const node of [...ordered].reverse()) {
       const children = graph.childrenOf.get(node.slug) ?? [];
       if (!isGroup(node, children.length)) {
-        bounds[node.slug] = cardBounds(node);
+        // A width being dragged right now outranks the one on record, which is
+        // the whole of how a box keeps up with a card growing inside it.
+        bounds[node.slug] = sizing[node.slug] ?? cardBounds(node);
         continue;
       }
 
