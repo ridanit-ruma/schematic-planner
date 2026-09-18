@@ -4,7 +4,7 @@ import type { Position } from '@schematic/schema';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Y from 'yjs';
 
-import { currentAccessToken } from '@/lib/api';
+import { auth, currentAccessToken } from '@/lib/api';
 import { config } from '@/lib/config';
 import { createPlanStore, type PlanStore } from './plan-store';
 
@@ -60,6 +60,24 @@ export function usePlanDocument(
     setStatus('connecting');
     setDenied(false);
 
+    /*
+     * One retry with a fresh token, and then the answer is believed.
+     *
+     * An access token lasts fifteen minutes. A plan left open makes no requests
+     * of its own, so nothing renewed it, and the moment the socket reconnected
+     * it presented an expired one — which the server refuses exactly as it
+     * refuses a plan belonging to somebody else. The page could not tell the
+     * two apart and drew "there is no plan here" over a plan the person owns,
+     * after quarter of an hour of doing nothing. Reported as #6.
+     *
+     * So the first refusal is treated as a stale token: renew, reconnect, and
+     * find out. A second one is the server saying the same thing about a
+     * credential it has just seen afresh, which is an answer that will not
+     * change however many times it is asked.
+     */
+    let retried = false;
+    let gone = false;
+
     const doc = new Y.Doc();
     const provider = new HocuspocusProvider({
       // The plan id is in the path because the server binds one document per
@@ -67,17 +85,41 @@ export function usePlanDocument(
       url: `${config.collabUrl}/${planId}`,
       name: planId,
       document: doc,
+      // Asked for on every attempt, so the retry below carries the new one
+      // without anything having to hand it over.
       token: () => currentAccessToken() ?? '',
       onStatus: ({ status: next }) => {
         setStatus(next === 'connected' ? 'connected' : 'connecting');
       },
-      onSynced: () => setSynced(true),
+      onSynced: () => {
+        setSynced(true);
+        // Whatever went wrong before this is over. A socket that drops an hour
+        // from now gets its own retry rather than inheriting a spent one.
+        retried = false;
+      },
       onDisconnect: () => setStatus('disconnected'),
       // The provider retries a dropped socket for ever, which is right for a
       // network that came back and wrong for an answer that will not change.
       onAuthenticationFailed: () => {
-        setDenied(true);
         provider.disconnect();
+        if (retried) {
+          setDenied(true);
+          return;
+        }
+        retried = true;
+        setStatus('connecting');
+        void auth.refresh().then((renewed) => {
+          // The page has moved on, or there is no session left to renew with —
+          // and being unable to prove who you are is not the same as this plan
+          // not being here, so the sign-in the refresh already triggered is the
+          // right answer rather than a second one drawn over it.
+          if (gone) return;
+          if (!renewed) {
+            setDenied(true);
+            return;
+          }
+          provider.connect();
+        });
       },
     });
 
@@ -155,6 +197,7 @@ export function usePlanDocument(
     setConnection({ doc, bound, publishDrag, publishCursor });
 
     return () => {
+      gone = true;
       if (frame.current !== null) cancelAnimationFrame(frame.current);
       if (cursorFrame.current !== null) cancelAnimationFrame(cursorFrame.current);
       awareness?.off('change', readPeers);
