@@ -101,7 +101,11 @@ const browser = await puppeteer.launch({
   defaultViewport: { width: 1600, height: 1000 },
 });
 const page = await browser.newPage();
-page.on('pageerror', (error) => console.log(`  [page error] ${error.message}`.slice(0, 160)));
+const pageErrors = [];
+page.on('pageerror', (error) => {
+  pageErrors.push(error.message);
+  console.log(`  [page error] ${error.message}`.slice(0, 160));
+});
 
 try {
   console.log('\nsign in');
@@ -631,6 +635,69 @@ try {
         ops: [
           { op: 'delete_node', slug: 'far-one' },
           { op: 'delete_node', slug: 'farbox' },
+        ],
+      },
+    });
+    await reopen();
+
+    /*
+     * A card that gains a child becomes a box where it stands.
+     *
+     * Every node on this canvas is one component — `nodeTypes` names `plan`
+     * and nothing else — so becoming a box is a different branch of the same
+     * instance, not a new one. A hook called only down the card branch changes
+     * the component's hook count as it crosses over, and React throws rather
+     * than guessing which hook was which. Done live, without a reopen, because
+     * a reopen would mount it fresh and that is the case that never failed.
+     */
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          {
+            op: 'upsert_node',
+            node: { slug: 'flipper', title: 'Flipper', position: { x: -2600, y: 900 }, pinned: true },
+          },
+          {
+            op: 'upsert_node',
+            node: { slug: 'flipped', title: 'Flipped', position: { x: -2560, y: 980 }, pinned: true },
+          },
+        ],
+      },
+    });
+    await reopen();
+    const drawnAsBox = () =>
+      page.evaluate(
+        () =>
+          document.querySelector('.react-flow__node[data-id="flipper"] .bg-group') !== null,
+      );
+    check('a node with nothing in it is drawn as a card', (await drawnAsBox()) === false);
+
+    const errorsBefore = pageErrors.length;
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: { ops: [{ op: 'upsert_edge', edge: { kind: 'contains', from: 'flipper', to: 'flipped' } }] },
+    });
+    await wait(1200);
+    check('and becomes a box when something is put in it', (await drawnAsBox()) === true);
+    check(
+      'without the canvas throwing as it crosses over',
+      pageErrors.length === errorsBefore,
+      pageErrors.slice(errorsBefore).join(' | ').slice(0, 120),
+    );
+    // And the drawing is still there afterwards: a React tree that threw is
+    // unmounted, and every check above this one would pass on an empty canvas.
+    check(
+      'and the rest of the drawing is still drawn',
+      (await page.evaluate(() => document.querySelectorAll('.react-flow__node').length)) > 1,
+    );
+
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          { op: 'delete_node', slug: 'flipped' },
+          { op: 'delete_node', slug: 'flipper' },
         ],
       },
     });

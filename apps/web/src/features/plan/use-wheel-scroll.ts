@@ -66,12 +66,11 @@ export function takesTheWheel(
  * the browser will only scroll what the pointer is directly over.
  */
 export function useWheelScroll(
-  surface: RefObject<HTMLElement | null>,
+  surface: HTMLElement | null,
   scroller: RefObject<HTMLElement | null>,
 ): void {
   useEffect(() => {
-    const listening = surface.current;
-    if (listening === null) return;
+    if (surface === null) return;
 
     const onWheel = (event: WheelEvent): void => {
       const box = scroller.current;
@@ -87,9 +86,12 @@ export function useWheelScroll(
       box.scrollTop += by;
     };
 
-    listening.addEventListener('wheel', onWheel, { passive: false });
-    return () => listening.removeEventListener('wheel', onWheel);
-    // Both refs are read when the wheel arrives, so a body that mounts later —
-    // or is replaced by an editor — needs no second subscription.
+    surface.addEventListener('wheel', onWheel, { passive: false });
+    return () => surface.removeEventListener('wheel', onWheel);
+    // The surface is an element and not a ref, so a card that was drawn as a
+    // box until a moment ago subscribes the moment its own element appears.
+    // The scroller stays a ref because it is read when the wheel arrives: a
+    // body that mounts later, or an editor that replaces it, needs no second
+    // subscription.
   }, [surface, scroller]);
 }

@@ -196,7 +196,7 @@ function Note({
    * One ref for the scrolling part, because only one of the two is ever
    * mounted — the rendered Markdown, or the editor that replaces it.
    */
-  const note = useRef<HTMLDivElement | null>(null);
+  const [note, setNote] = useState<HTMLDivElement | null>(null);
   const scroller = useRef<HTMLElement | null>(null);
   useWheelScroll(note, scroller);
   useEffect(() => {
@@ -329,7 +329,7 @@ function Note({
       )}
 
       <div
-        ref={note}
+        ref={setNote}
         // `nopan` and `nodrag` keep React Flow's own gestures off the note.
         className={cn(
           // The portal this is drawn in takes no pointer events, and
