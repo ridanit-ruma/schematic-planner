@@ -1106,6 +1106,68 @@ try {
       );
     }
 
+    /*
+     * A wheel over a note that overflows is the note's.
+     *
+     * Reported as issue #7 along with the card: a note scrolls, nothing over it
+     * stopped the pane, and so reading one with the wheel changed the scale of
+     * the drawing instead. Written after the corner has been pulled, so the
+     * note has a height of its own and a long body genuinely overflows it.
+     */
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          {
+            op: 'upsert_comment',
+            comment: {
+              id: 'check-note',
+              body: 'Left by the browser check.\n\nAnd then said at length, so that the note has more to show than it has room for, twice over and then some more.\n'.repeat(6),
+            },
+          },
+        ],
+      },
+    });
+    await wait(600);
+    const noteMiddle = await page.evaluate(() => {
+      const note = [...document.querySelectorAll('.nopan')].find((el) =>
+        (el.textContent ?? '').includes('Left by the browser check.'),
+      );
+      if (note === undefined) return null;
+      const rect = note.getBoundingClientRect();
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    });
+    if (noteMiddle === null) {
+      check('a wheel over a note that overflows scrolls it', false, 'the note was not found');
+    } else {
+      const noteScrolledBy = () =>
+        page.evaluate(() => {
+          const note = [...document.querySelectorAll('.nopan')].find((el) =>
+            (el.textContent ?? '').includes('Left by the browser check.'),
+          );
+          const box = [...(note?.querySelectorAll('div') ?? [])].find(
+            (el) => el.scrollHeight - el.clientHeight > 1,
+          );
+          return box === undefined ? -1 : box.scrollTop;
+        });
+      const noteWasAt = await noteScrolledBy();
+      const zoomBeforeNote = await zoomNow();
+      await page.mouse.move(noteMiddle.x, noteMiddle.y);
+      await page.mouse.wheel({ deltaY: 220 });
+      await wait(500);
+      check(
+        'a wheel over a note that overflows scrolls it',
+        noteWasAt >= 0 && (await noteScrolledBy()) > noteWasAt,
+        `${noteWasAt} -> ${await noteScrolledBy()}`,
+      );
+      check(
+        'and the canvas did not zoom while it did',
+        Math.abs((await zoomNow()) - zoomBeforeNote) < 0.001,
+        `${zoomBeforeNote} -> ${await zoomNow()}`,
+      );
+      await page.mouse.move(5, 5);
+    }
+
     console.log('\nwho is here');
     // Alone, the roster still shows you: a collaborative canvas that shows
     // nobody until somebody arrives gives no way to tell "only me" from "not

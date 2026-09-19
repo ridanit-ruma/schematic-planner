@@ -17,6 +17,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { cn, formatWhen } from '@/lib/utils';
 import { snapTo } from './snap';
 import type { PlanStore } from './plan-store';
+import { useWheelScroll } from './use-wheel-scroll';
 import { useYText } from './use-y-text';
 
 /** Wide enough for a sentence, narrow enough not to cover what it is about. */
@@ -183,6 +184,21 @@ function Note({
    * height fills it, and a person's answer outranks a measurement.
    */
   const editor = useRef<HTMLTextAreaElement | null>(null);
+  /*
+   * A wheel over a note that overflows is the note's, not the canvas's.
+   *
+   * A note took no wheel at all: it scrolls with `overflow-y-auto`, nothing
+   * over it stopped the pane, and React Flow zooms on wheel — so reading a long
+   * note with the wheel changed the scale of the drawing instead. The same hook
+   * a card uses, for the same reason and with the same limit: a note with
+   * nothing to scroll claims nothing.
+   *
+   * One ref for the scrolling part, because only one of the two is ever
+   * mounted — the rendered Markdown, or the editor that replaces it.
+   */
+  const note = useRef<HTMLDivElement | null>(null);
+  const scroller = useRef<HTMLElement | null>(null);
+  useWheelScroll(note, scroller);
   useEffect(() => {
     const box = editor.current;
     if (box === null || (size !== null && size !== undefined)) return;
@@ -313,6 +329,7 @@ function Note({
       )}
 
       <div
+        ref={note}
         // `nopan` and `nodrag` keep React Flow's own gestures off the note.
         className={cn(
           // The portal this is drawn in takes no pointer events, and
@@ -354,7 +371,10 @@ function Note({
 
         {open && !readOnly ? (
           <textarea
-            ref={editor}
+            ref={(element) => {
+              editor.current = element;
+              scroller.current = element;
+            }}
             autoFocus
             value={body}
             onChange={(event) => write(event.target.value)}
@@ -373,6 +393,9 @@ function Note({
           // keyboard affordance is kept by hand, the way the writing on a line
           // already does it.
           <div
+            ref={(element) => {
+              scroller.current = element;
+            }}
             role="button"
             tabIndex={0}
             onClick={() => onSelect(comment.id)}
