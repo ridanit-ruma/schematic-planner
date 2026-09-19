@@ -6,7 +6,7 @@ import {
   type NodeProps,
 } from '@xyflow/react';
 import { CARD, isGroup } from '@schematic/schema';
-import { memo, useRef } from 'react';
+import { memo, useRef, useState } from 'react';
 
 import { STATUS_COLOR } from '@/components/ui/status';
 import { Markdown } from '@/components/ui/markdown';
@@ -151,6 +151,26 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
   // its turn is already invisible rather than flashing on and starting over.
   const entrance = arrivedAt === undefined ? undefined : { animationDelay: `${arrivedAt}ms` };
 
+  /*
+   * A wheel over the card is the body's while the body can scroll.
+   *
+   * On the card and not on the body, because a card is capped at 420 and the
+   * part of it a pointer is most likely to be over — the title, the slug, the
+   * tags — is not the part that scrolls. The hook says why it is a native
+   * listener and what it does with the event.
+   *
+   * Called here, above the boundary branch, because every node is this one
+   * component: `nodeTypes` names `plan` and nothing else. A node drawn as a
+   * box that gains — or loses — a child becomes a card in the same instance,
+   * and a hook called only down the card path would change this component's
+   * hook count mid-life, which React refuses outright. The element arrives
+   * through state rather than a ref so that the listener can attach on the
+   * render that first draws a card, and not only at mount.
+   */
+  const scroller = useRef<HTMLDivElement | null>(null);
+  const [card, setCard] = useState<HTMLDivElement | null>(null);
+  useWheelScroll(card, scroller);
+
   // A node that holds others is drawn as the boundary around them, labelled at
   // the top edge where nothing else sits. Drawn as a card it would land on top
   // of its own first child.
@@ -214,18 +234,6 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
    */
   const hasBody = node.body.trim() !== '';
 
-  /*
-   * A wheel over the card is the body's while the body can scroll.
-   *
-   * On the card and not on the body, because a card is capped at 420 and the
-   * part of it a pointer is most likely to be over — the title, the slug, the
-   * tags — is not the part that scrolls. The hook says why it is a native
-   * listener and what it does with the event.
-   */
-  const scroller = useRef<HTMLDivElement | null>(null);
-  const card = useRef<HTMLDivElement | null>(null);
-  useWheelScroll(card, scroller);
-
   return (
     /*
      * Everything that takes a pointer is drawn beside the card, after it, in
@@ -241,7 +249,7 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
      */
     <>
     <div
-      ref={card}
+      ref={setCard}
       className={cn(
         'relative flex h-full w-full overflow-hidden rounded-md bg-surface-2',
         KIND_BORDER[node.kind] ?? KIND_BORDER['task'],
