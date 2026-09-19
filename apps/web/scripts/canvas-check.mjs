@@ -2120,6 +2120,82 @@ try {
     );
     check('and it comes back when the pointer leaves', after === 0, String(after));
 
+    /*
+     * And a box lights what it holds.
+     *
+     * Reported as issue #8: pointing at a boundary dimmed every card inside
+     * it, which is the one place where stepping the rest of the drawing back
+     * stepped back the thing being pointed at. A box drawn empty around cards
+     * you are looking straight at.
+     */
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          {
+            op: 'upsert_node',
+            node: {
+              slug: 'litbox',
+              kind: 'group',
+              title: 'Litbox',
+              position: { x: -2200, y: 900 },
+              pinned: true,
+            },
+          },
+          {
+            op: 'upsert_node',
+            node: { slug: 'lit-one', title: 'One', position: { x: -2180, y: 960 }, pinned: true },
+          },
+          {
+            op: 'upsert_node',
+            node: { slug: 'lit-two', title: 'Two', position: { x: -2180, y: 1100 }, pinned: true },
+          },
+          { op: 'upsert_edge', edge: { kind: 'contains', from: 'litbox', to: 'lit-one' } },
+          { op: 'upsert_edge', edge: { kind: 'contains', from: 'litbox', to: 'lit-two' } },
+        ],
+      },
+    });
+    await reopen();
+    const litBox = await rectOf('litbox');
+    if (litBox === null) {
+      check('pointing at a box keeps what it holds lit', false, 'the fixture was not drawn');
+    } else {
+      // By its label band, which is the one part of a box no child is under.
+      await page.mouse.move(litBox.x + litBox.width / 2, litBox.y + 8);
+      await wait(500);
+      const box = await page.evaluate(() => {
+        const dimmed = (id) =>
+          document
+            .querySelector(`.react-flow__node[data-id="${id}"]`)
+            ?.querySelector('.plan-dim') !== null;
+        return {
+          held: ['lit-one', 'lit-two'].filter((id) => dimmed(id)).length,
+          elsewhere: [...document.querySelectorAll('.react-flow__node')].filter(
+            (node) => node.querySelector('.plan-dim') !== null,
+          ).length,
+        };
+      });
+      check('pointing at a box keeps what it holds lit', box.held === 0, `${box.held} dimmed`);
+      // And the lighting was on at all while that was true, or the check above
+      // passes on a canvas where nothing is dimmed anywhere.
+      check(
+        'while the rest of the drawing steps back all the same',
+        box.elsewhere > 0,
+        `${box.elsewhere} dimmed elsewhere`,
+      );
+    }
+    await page.mouse.move(5, 5);
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          { op: 'delete_node', slug: 'litbox' },
+          { op: 'delete_node', slug: 'lit-one' },
+          { op: 'delete_node', slug: 'lit-two' },
+        ],
+      },
+    });
+
   console.log('\nsomething appearing from elsewhere');
   // A plan's contents come over a socket, but the lists around it are plain
   // reads. Coming back to the window is when a person looks, so it is when the

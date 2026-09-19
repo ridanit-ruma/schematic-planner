@@ -382,3 +382,82 @@ describe('a box around what it holds', () => {
     expect(box?.y).toBe((card?.y ?? 0) - GROUP_PADDING.top);
   });
 });
+
+/**
+ * Pointing at a box is pointing at what is in it.
+ *
+ * The lighting took the node under the pointer, the boxes above it and its
+ * neighbours along the flows. A box has all of those and none of them are its
+ * contents, so arriving on a box lit the boundary and greyed out every card
+ * inside it — a box drawn empty around cards that are plainly in it.
+ */
+describe('lighting a box', () => {
+  const boxed = () => {
+    const made = seeded();
+    applyOps(
+      made.doc,
+      ops([
+        { op: 'upsert_node', node: { slug: 'box', kind: 'group', title: 'Box' } },
+        { op: 'upsert_node', node: { slug: 'leaf', title: 'Leaf' } },
+        { op: 'upsert_edge', edge: { kind: 'contains', from: 'box', to: 'db' } },
+        { op: 'upsert_edge', edge: { kind: 'contains', from: 'box', to: 'auth' } },
+        { op: 'upsert_edge', edge: { kind: 'contains', from: 'box', to: 'leaf' } },
+      ]),
+    );
+    return made;
+  };
+
+  const innerFlow = (bound: ReturnType<typeof createPlanStore>): string | undefined =>
+    bound.store.getState().edges.find((edge) => edge.source === 'db' && edge.target === 'auth')?.id;
+
+  it('lights what a box holds when the pointer is on the box', () => {
+    const { bound } = boxed();
+    bound.store.getState().highlight('box');
+    const { related } = bound.store.getState();
+
+    expect(related?.has('box')).toBe(true);
+    expect(related?.has('db')).toBe(true);
+    expect(related?.has('auth')).toBe(true);
+    // Held and wired to nothing: it is in the box, which is the whole reason
+    // it stays lit.
+    expect(related?.has('leaf')).toBe(true);
+    // And the flow drawn between two things it holds, which is as much a part
+    // of the inside of the box as the cards are.
+    expect(related?.has(innerFlow(bound) ?? '')).toBe(true);
+    // Not the card that is somewhere else.
+    expect(related?.has('ui')).toBe(false);
+  });
+
+  it('lights a card, its box and its neighbours, and not its siblings', () => {
+    const { bound } = boxed();
+    bound.store.getState().highlight('db');
+    const { related } = bound.store.getState();
+
+    expect(related?.has('db')).toBe(true);
+    // The box it sits in: a bright card inside a dimmed box reads as a mistake.
+    expect(related?.has('box')).toBe(true);
+    // Along the flow, which is the question the lighting answers.
+    expect(related?.has('auth')).toBe(true);
+    // Sharing a box is not being connected to it.
+    expect(related?.has('leaf')).toBe(false);
+  });
+
+  it('lights a box nested inside a box, all the way down', () => {
+    const { doc, bound } = boxed();
+    applyOps(
+      doc,
+      ops([
+        { op: 'upsert_node', node: { slug: 'inner', kind: 'group', title: 'Inner' } },
+        { op: 'upsert_node', node: { slug: 'deep', title: 'Deep' } },
+        { op: 'upsert_edge', edge: { kind: 'contains', from: 'box', to: 'inner' } },
+        { op: 'upsert_edge', edge: { kind: 'contains', from: 'inner', to: 'deep' } },
+      ]),
+    );
+
+    bound.store.getState().highlight('box');
+    const { related } = bound.store.getState();
+
+    expect(related?.has('inner')).toBe(true);
+    expect(related?.has('deep')).toBe(true);
+  });
+});
