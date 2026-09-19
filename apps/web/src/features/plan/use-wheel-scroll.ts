@@ -29,15 +29,21 @@ export function wheelPixels(
 /**
  * Whether this box takes the wheel rather than leaving it to the canvas.
  *
- * Only while there is somewhere to go in the direction of the wheel: stopping
- * every one would make a card a permanent hole in the zoom surface, and this
- * hands the wheel back the moment the text runs out.
+ * Where there is a scroll there is no zoom. It used to ask whether there was
+ * room in the direction of the wheel, which handed the wheel back at the top
+ * and the bottom — and reported as issue #7, that is a canvas that jumps scale
+ * under somebody in the middle of reading, for no gesture they made. A scroll
+ * that has run out simply stops.
+ *
+ * A box that does not overflow claims nothing, so the canvas is not left with
+ * a dead patch wherever a card happens to be.
+ *
+ * Sub-pixel overflow is rounding, not something to scroll.
  */
 export function takesTheWheel(
-  box: Pick<HTMLElement, 'scrollTop' | 'scrollHeight' | 'clientHeight'>,
-  by: number,
+  box: Pick<HTMLElement, 'scrollHeight' | 'clientHeight'>,
 ): boolean {
-  return by < 0 ? box.scrollTop > 0 : box.scrollTop + box.clientHeight < box.scrollHeight - 1;
+  return box.scrollHeight - box.clientHeight > 1;
 }
 
 /**
@@ -71,7 +77,7 @@ export function useWheelScroll(
       const box = scroller.current;
       if (box === null) return;
       const by = wheelPixels(event, box);
-      if (!takesTheWheel(box, by)) return;
+      if (!takesTheWheel(box)) return;
       // Scrolled here rather than left to the browser. The wheel is taken
       // anywhere over the surface, including over the title and the tags, and
       // the browser only scrolls what the pointer is actually over — so on

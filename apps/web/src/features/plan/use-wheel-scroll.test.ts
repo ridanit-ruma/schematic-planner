@@ -10,26 +10,29 @@ import { LINE_PX, takesTheWheel, wheelPixels } from './use-wheel-scroll';
  * is kept here, where it can be read and changed on purpose.
  */
 describe('takesTheWheel', () => {
-  const overflowing = { scrollTop: 0, scrollHeight: 460, clientHeight: 420 };
-
   it('leaves the wheel alone when there is nothing to scroll', () => {
-    expect(takesTheWheel({ scrollTop: 0, scrollHeight: 420, clientHeight: 420 }, 120)).toBe(false);
+    expect(takesTheWheel({ scrollHeight: 420, clientHeight: 420 })).toBe(false);
   });
 
-  it('takes the wheel from a body that overflows', () => {
-    expect(takesTheWheel(overflowing, 120)).toBe(true);
+  /*
+   * Issue #7, and the whole of the change: the rule asks one thing, whether
+   * this box overflows, and nothing about where it is resting or which way the
+   * wheel is going. It used to ask for room in the direction of the wheel, so a
+   * body at either end handed the wheel back and the canvas zoomed under
+   * somebody in the middle of reading. A scroll that has run out simply stops.
+   *
+   * That the ends now hold is a fact about a real wheel in a real browser, and
+   * it is the gate that checks it: `and keeps the wheel at the bottom, where
+   * the canvas used to take over`.
+   */
+  it('takes the wheel from a body that overflows, whatever the wheel is doing', () => {
+    expect(takesTheWheel({ scrollHeight: 460, clientHeight: 420 })).toBe(true);
   });
 
-  it('takes it upward once the body has been scrolled', () => {
-    expect(takesTheWheel({ ...overflowing, scrollTop: 40 }, -120)).toBe(true);
-  });
-
-  it('hands it back at the bottom', () => {
-    expect(takesTheWheel({ ...overflowing, scrollTop: 40 }, 120)).toBe(false);
-  });
-
-  it('and at the top', () => {
-    expect(takesTheWheel(overflowing, -120)).toBe(false);
+  // A sub-pixel difference is rounding and not a scroll: a card overflowing by
+  // half a pixel would otherwise be a hole in the zoom surface.
+  it('ignores an overflow of less than a pixel', () => {
+    expect(takesTheWheel({ scrollHeight: 420.4, clientHeight: 420 })).toBe(false);
   });
 });
 

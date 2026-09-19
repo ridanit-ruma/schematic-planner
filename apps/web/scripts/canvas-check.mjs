@@ -1877,7 +1877,16 @@ try {
       `${zoomBeforeTitle} -> ${await zoomNow()}`,
     );
 
-    // And gives it back at the end, so a card is not a hole in the zoom.
+    /*
+     * And keeps it at the end, rather than handing it back.
+     *
+     * This check used to assert the opposite, and was right about the cost:
+     * a card that never lets go is a patch of canvas that will not zoom. It is
+     * the smaller cost. Reported as issue #7 — a wheel that turns into a zoom
+     * the moment a body runs out is a change of scale nobody asked for,
+     * delivered to somebody in the middle of reading, and a patch that will not
+     * zoom is one you can see and move away from.
+     */
     await page.evaluate(() => {
       const box = document.querySelector('.react-flow__node[data-id="wordy"] .nodrag');
       if (box !== null) box.scrollTop = box.scrollHeight;
@@ -1887,8 +1896,8 @@ try {
     await page.mouse.wheel({ deltaY: 220 });
     await wait(500);
     check(
-      'and hands the wheel back once there is nowhere left to go',
-      Math.abs((await zoomNow()) - zoomBeforeEnd) > 0.001,
+      'and keeps the wheel at the bottom, where the canvas used to take over',
+      Math.abs((await zoomNow()) - zoomBeforeEnd) < 0.001,
       `${zoomBeforeEnd} -> ${await zoomNow()}`,
     );
     await page.mouse.move(5, 5);
