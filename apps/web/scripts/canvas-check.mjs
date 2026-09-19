@@ -1106,6 +1106,68 @@ try {
       );
     }
 
+    /*
+     * A wheel over a note that overflows is the note's.
+     *
+     * Reported as issue #7 along with the card: a note scrolls, nothing over it
+     * stopped the pane, and so reading one with the wheel changed the scale of
+     * the drawing instead. Written after the corner has been pulled, so the
+     * note has a height of its own and a long body genuinely overflows it.
+     */
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          {
+            op: 'upsert_comment',
+            comment: {
+              id: 'check-note',
+              body: 'Left by the browser check.\n\nAnd then said at length, so that the note has more to show than it has room for, twice over and then some more.\n'.repeat(6),
+            },
+          },
+        ],
+      },
+    });
+    await wait(600);
+    const noteMiddle = await page.evaluate(() => {
+      const note = [...document.querySelectorAll('.nopan')].find((el) =>
+        (el.textContent ?? '').includes('Left by the browser check.'),
+      );
+      if (note === undefined) return null;
+      const rect = note.getBoundingClientRect();
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    });
+    if (noteMiddle === null) {
+      check('a wheel over a note that overflows scrolls it', false, 'the note was not found');
+    } else {
+      const noteScrolledBy = () =>
+        page.evaluate(() => {
+          const note = [...document.querySelectorAll('.nopan')].find((el) =>
+            (el.textContent ?? '').includes('Left by the browser check.'),
+          );
+          const box = [...(note?.querySelectorAll('div') ?? [])].find(
+            (el) => el.scrollHeight - el.clientHeight > 1,
+          );
+          return box === undefined ? -1 : box.scrollTop;
+        });
+      const noteWasAt = await noteScrolledBy();
+      const zoomBeforeNote = await zoomNow();
+      await page.mouse.move(noteMiddle.x, noteMiddle.y);
+      await page.mouse.wheel({ deltaY: 220 });
+      await wait(500);
+      check(
+        'a wheel over a note that overflows scrolls it',
+        noteWasAt >= 0 && (await noteScrolledBy()) > noteWasAt,
+        `${noteWasAt} -> ${await noteScrolledBy()}`,
+      );
+      check(
+        'and the canvas did not zoom while it did',
+        Math.abs((await zoomNow()) - zoomBeforeNote) < 0.001,
+        `${zoomBeforeNote} -> ${await zoomNow()}`,
+      );
+      await page.mouse.move(5, 5);
+    }
+
     console.log('\nwho is here');
     // Alone, the roster still shows you: a collaborative canvas that shows
     // nobody until somebody arrives gives no way to tell "only me" from "not
@@ -1877,7 +1939,16 @@ try {
       `${zoomBeforeTitle} -> ${await zoomNow()}`,
     );
 
-    // And gives it back at the end, so a card is not a hole in the zoom.
+    /*
+     * And keeps it at the end, rather than handing it back.
+     *
+     * This check used to assert the opposite, and was right about the cost:
+     * a card that never lets go is a patch of canvas that will not zoom. It is
+     * the smaller cost. Reported as issue #7 — a wheel that turns into a zoom
+     * the moment a body runs out is a change of scale nobody asked for,
+     * delivered to somebody in the middle of reading, and a patch that will not
+     * zoom is one you can see and move away from.
+     */
     await page.evaluate(() => {
       const box = document.querySelector('.react-flow__node[data-id="wordy"] .nodrag');
       if (box !== null) box.scrollTop = box.scrollHeight;
@@ -1887,8 +1958,8 @@ try {
     await page.mouse.wheel({ deltaY: 220 });
     await wait(500);
     check(
-      'and hands the wheel back once there is nowhere left to go',
-      Math.abs((await zoomNow()) - zoomBeforeEnd) > 0.001,
+      'and keeps the wheel at the bottom, where the canvas used to take over',
+      Math.abs((await zoomNow()) - zoomBeforeEnd) < 0.001,
       `${zoomBeforeEnd} -> ${await zoomNow()}`,
     );
     await page.mouse.move(5, 5);
@@ -2119,6 +2190,82 @@ try {
       `${during.dimmed} of ${during.total}`,
     );
     check('and it comes back when the pointer leaves', after === 0, String(after));
+
+    /*
+     * And a box lights what it holds.
+     *
+     * Reported as issue #8: pointing at a boundary dimmed every card inside
+     * it, which is the one place where stepping the rest of the drawing back
+     * stepped back the thing being pointed at. A box drawn empty around cards
+     * you are looking straight at.
+     */
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          {
+            op: 'upsert_node',
+            node: {
+              slug: 'litbox',
+              kind: 'group',
+              title: 'Litbox',
+              position: { x: -2200, y: 900 },
+              pinned: true,
+            },
+          },
+          {
+            op: 'upsert_node',
+            node: { slug: 'lit-one', title: 'One', position: { x: -2180, y: 960 }, pinned: true },
+          },
+          {
+            op: 'upsert_node',
+            node: { slug: 'lit-two', title: 'Two', position: { x: -2180, y: 1100 }, pinned: true },
+          },
+          { op: 'upsert_edge', edge: { kind: 'contains', from: 'litbox', to: 'lit-one' } },
+          { op: 'upsert_edge', edge: { kind: 'contains', from: 'litbox', to: 'lit-two' } },
+        ],
+      },
+    });
+    await reopen();
+    const litBox = await rectOf('litbox');
+    if (litBox === null) {
+      check('pointing at a box keeps what it holds lit', false, 'the fixture was not drawn');
+    } else {
+      // By its label band, which is the one part of a box no child is under.
+      await page.mouse.move(litBox.x + litBox.width / 2, litBox.y + 8);
+      await wait(500);
+      const box = await page.evaluate(() => {
+        const dimmed = (id) =>
+          document
+            .querySelector(`.react-flow__node[data-id="${id}"]`)
+            ?.querySelector('.plan-dim') !== null;
+        return {
+          held: ['lit-one', 'lit-two'].filter((id) => dimmed(id)).length,
+          elsewhere: [...document.querySelectorAll('.react-flow__node')].filter(
+            (node) => node.querySelector('.plan-dim') !== null,
+          ).length,
+        };
+      });
+      check('pointing at a box keeps what it holds lit', box.held === 0, `${box.held} dimmed`);
+      // And the lighting was on at all while that was true, or the check above
+      // passes on a canvas where nothing is dimmed anywhere.
+      check(
+        'while the rest of the drawing steps back all the same',
+        box.elsewhere > 0,
+        `${box.elsewhere} dimmed elsewhere`,
+      );
+    }
+    await page.mouse.move(5, 5);
+    await call(`/plans/${fixture.id}/ops`, {
+      method: 'POST',
+      body: {
+        ops: [
+          { op: 'delete_node', slug: 'litbox' },
+          { op: 'delete_node', slug: 'lit-one' },
+          { op: 'delete_node', slug: 'lit-two' },
+        ],
+      },
+    });
 
   console.log('\nsomething appearing from elsewhere');
   // A plan's contents come over a socket, but the lists around it are plain

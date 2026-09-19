@@ -6,12 +6,13 @@ import {
   type NodeProps,
 } from '@xyflow/react';
 import { CARD, isGroup } from '@schematic/schema';
-import { memo, useEffect, useRef } from 'react';
+import { memo, useRef } from 'react';
 
 import { STATUS_COLOR } from '@/components/ui/status';
 import { Markdown } from '@/components/ui/markdown';
 import { cn } from '@/lib/utils';
 import { usePlanStore } from './store-context';
+import { useWheelScroll } from './use-wheel-scroll';
 import type { PlanFlowNode } from './types';
 
 /**
@@ -28,15 +29,6 @@ import type { PlanFlowNode } from './types';
  * it takes the pointer: twenty-four across, which is a target a hand can hit,
  * while the picture is unchanged.
  */
-/**
- * What a wheel's "one line" is worth in pixels.
- *
- * A guess, and unavoidably one: `deltaMode` says the number is in lines and
- * the browser never says how tall a line is. The body is set in text-xs with
- * leading-snug, which comes to sixteen.
- */
-const LINE_PX = 16;
-
 const HANDLE =
   '!size-2 !rounded-none !border !border-rule-strong !bg-surface-2 ' +
   "before:absolute before:-inset-2 before:content-['']";
@@ -223,60 +215,16 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
   const hasBody = node.body.trim() !== '';
 
   /*
-   * A wheel anywhere over a card whose body can still scroll is the body's, and
-   * the canvas's again at either end.
-   *
-   * React Flow zooms on wheel and nothing over the card said otherwise, so a
-   * card too tall to fit could be scrolled only by catching its scrollbar —
-   * which on a trackpad is most of the width of a hair, and the canvas moved
-   * under you while you tried.
-   *
-   * A native listener and not React's `onWheel`. React attaches its synthetic
-   * handlers at the root of the application, which is *above* the pane, while
-   * d3-zoom attaches to the pane itself — so the zoom had already happened by
-   * the time a React handler on the card could ask for the event. On the
-   * element, it is heard first.
-   *
-   * Only while there is somewhere to go in the direction of the wheel: stopping
-   * every one would make a card a permanent hole in the zoom surface, and this
-   * hands the wheel back the moment the text runs out.
+   * A wheel over the card is the body's while the body can scroll.
    *
    * On the card and not on the body, because a card is capped at 420 and the
    * part of it a pointer is most likely to be over — the title, the slug, the
-   * tags — is not the part that scrolls. The body is then scrolled by hand:
-   * the browser will only scroll what the pointer is directly over.
+   * tags — is not the part that scrolls. The hook says why it is a native
+   * listener and what it does with the event.
    */
   const scroller = useRef<HTMLDivElement | null>(null);
   const card = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const surface = card.current;
-    if (surface === null) return;
-    const onWheel = (event: WheelEvent): void => {
-      const box = scroller.current;
-      if (box === null) return;
-      // Lines and pages, because a wheel does not always report pixels: Firefox
-      // sends whole lines for a notch, and a page per notch is a setting people
-      // have. Taking deltaY as pixels regardless moved a body three pixels for
-      // a gesture that should have moved fifty.
-      const by =
-        event.deltaMode === 1
-          ? event.deltaY * LINE_PX
-          : event.deltaMode === 2
-            ? event.deltaY * box.clientHeight
-            : event.deltaY;
-      const room = by < 0 ? box.scrollTop > 0 : box.scrollTop + box.clientHeight < box.scrollHeight - 1;
-      if (!room) return;
-      // Scrolled here rather than left to the browser. The wheel is taken
-      // anywhere over the card, including over the title and the tags, and the
-      // browser only scrolls what the pointer is actually over — so on every
-      // part of the card except the body itself nothing would happen at all.
-      event.stopPropagation();
-      event.preventDefault();
-      box.scrollTop += by;
-    };
-    surface.addEventListener('wheel', onWheel, { passive: false });
-    return () => surface.removeEventListener('wheel', onWheel);
-  }, [hasBody]);
+  useWheelScroll(card, scroller);
 
   return (
     /*

@@ -71,6 +71,14 @@ export interface PlanState {
   /** The group each node belongs to, where that group is drawn as a boundary. */
   parentOf: Record<string, string>;
   /**
+   * What each box holds, under the same rule `parentOf` is built by.
+   *
+   * The inverse of `parentOf`, built in the same pass so that the two cannot
+   * disagree about what a box is. The lighting reads it: pointing at a box is
+   * a walk down from it, and there was no way down before this.
+   */
+  childrenOf: Record<string, string[]>;
+  /**
    * The box every node is drawn at.
    *
    * A card's height is not stored anywhere: what it has to say decides it, so
@@ -255,6 +263,7 @@ export function createPlanStore(doc: Y.Doc) {
     remoteDrag: {},
     absolute: {},
     parentOf: {},
+    childrenOf: {},
     bounds: {},
     sizing: {},
     arrivals: new Map<string, number>(),
@@ -281,7 +290,7 @@ export function createPlanStore(doc: Y.Doc) {
         if (get().related !== null) set({ related: null, relatedTo: null });
         return;
       }
-      const { edges, parentOf } = get();
+      const { edges, parentOf, childrenOf } = get();
       const related = new Set<string>([id]);
 
       // The groups a node sits in stay lit with it: a bright card inside a
@@ -295,8 +304,26 @@ export function createPlanStore(doc: Y.Doc) {
         }
       };
 
+      // And what a box holds stays lit with the box, for the same reason read
+      // the other way round: a boundary drawn around cards that have all gone
+      // grey is a box reported empty while you are looking straight at what is
+      // in it. A card holds nothing, so this is a walk of no steps for one.
+      const held = new Set<string>();
+      const withContents = (slug: string): void => {
+        for (const child of childrenOf[slug] ?? []) {
+          if (held.has(child)) continue;
+          held.add(child);
+          related.add(child);
+          withContents(child);
+        }
+      };
+
       if (kind === 'node') {
         withAncestors(id);
+        // Only the box under the pointer walks down. Lighting the contents of
+        // every box that happens to be lit would light a card's siblings the
+        // moment its own box lit with it, which is the question nobody asked.
+        withContents(id);
         for (const edge of edges) {
           if (edge.source !== id && edge.target !== id) continue;
           related.add(edge.id);
@@ -309,6 +336,13 @@ export function createPlanStore(doc: Y.Doc) {
           withAncestors(edge.target);
         }
       }
+      // The flows drawn between two things the box holds are as much the
+      // inside of it as the cards are, and a lit card either end of a dimmed
+      // line is the same mistake one step along.
+      for (const edge of edges) {
+        if (held.has(edge.source) && held.has(edge.target)) related.add(edge.id);
+      }
+
       set({ related, relatedTo: id });
     },
     selectEdge: (selectedEdge) => set({ selectedEdge, selected: null, selectedComment: null }),
@@ -455,10 +489,13 @@ export function createPlanStore(doc: Y.Doc) {
     const byslug = new Map(plan.nodes.map((node) => [node.slug, node]));
     const absolute: Record<string, Position> = {};
     const parentOf: Record<string, string> = {};
+    const childrenOf: Record<string, string[]> = {};
     for (const node of plan.nodes) {
       absolute[node.slug] = node.position ?? { x: 0, y: 0 };
       const parent = graph.parentOf.get(node.slug);
-      if (parent !== undefined && drawnAsBoundary.has(parent)) parentOf[node.slug] = parent;
+      if (parent === undefined || !drawnAsBoundary.has(parent)) continue;
+      parentOf[node.slug] = parent;
+      (childrenOf[parent] ??= []).push(node.slug);
     }
 
     // React Flow needs a parent before its children, so the list is walked down
@@ -585,6 +622,7 @@ export function createPlanStore(doc: Y.Doc) {
       description: plan.description,
       absolute,
       parentOf,
+      childrenOf,
       bounds,
       // Nobody is pointing at something that is no longer in the plan. Without
       // this, removing the node under the pointer leaves the whole drawing
