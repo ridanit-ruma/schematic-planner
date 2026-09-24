@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "schematic-planner": {
+      "type": "http",
+      "url": "https://schematic-planner.com/api/mcp",
+      "headers": {
+        "Authorization": "Bearer ${SCHEMATIC_PLANNER_API_KEY}"
+      }
+    }
+  }
+}

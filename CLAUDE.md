@@ -32,6 +32,19 @@ Commit subjects follow the history: `fix(canvas): <what is now true, as a senten
 branches `fix/<short-phrase>`, and a PR body in three parts — what was wrong, what
 changed, how it is proved.
 
+## The live instance and testing it
+
+- **https://schematic-planner.com** runs `deploy/compose.yaml` behind a Cloudflare
+  tunnel on the maintainer's server. Deploying happens from the maintainer's machine,
+  not from a session: after a merge, say that a deploy is due rather than trying to
+  reach the server.
+- `.mcp.json` connects the `schematic-planner` MCP server to the live instance. It
+  reads the key from `SCHEMATIC_PLANNER_API_KEY`; the key itself is never committed.
+  Keys are issued per account at `/settings/agents`.
+- Test the product through MCP **only inside the `claude-test` project** (create it
+  with `create_project` if it is missing). Other projects hold the maintainer's own
+  plans — read them if asked, never write to them.
+
 ## Running locally on NixOS
 
 - **Postgres:** no Docker, so run nixpkgs' `postgresql_17` directly
