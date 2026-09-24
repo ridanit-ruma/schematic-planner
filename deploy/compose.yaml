@@ -26,6 +26,11 @@ x-api-env: &api-env
   JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:?generate one with openssl rand -base64 48}"
   JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:?generate one with openssl rand -base64 48}"
   ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+  # Blank means anyone may sign up. On an address the internet can reach, set it
+  # before the first person arrives: the first account on an empty instance
+  # becomes its owner.
+  REGISTRATION_CODE: ${REGISTRATION_CODE:-}
+  UPLOAD_DIR: /data/uploads
   RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
   RATE_LIMIT_AUTH_MAX: ${RATE_LIMIT_AUTH_MAX:-10}
 
@@ -64,6 +69,9 @@ services:
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     environment: *api-env
+    # Avatars. Outside the container, or every rebuild throws them away.
+    volumes:
+      - uploads:/data/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,3 +99,4 @@ services:
 
 volumes:
   postgres-data:
+  uploads:
