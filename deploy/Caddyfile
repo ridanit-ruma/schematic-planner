@@ -11,6 +11,21 @@
 {
 	admin off
 	auto_https {$AUTO_HTTPS:off}
+
+	# Who is asking, when something sits in front of this — a tunnel, an ingress,
+	# a load balancer. Without it every request arrives from that one address and
+	# the API's rate limit is shared by everybody at once: ten sign-in attempts a
+	# minute for the whole world.
+	#
+	# Only a peer on a private network is believed, so a request reaching this
+	# directly from the internet cannot name its own address. Cloudflare's header
+	# first, because Cloudflare sets it; X-Forwarded-For otherwise, read from the
+	# right so that a client cannot put a value in front of the proxy's.
+	servers {
+		trusted_proxies static private_ranges
+		trusted_proxies_strict
+		client_ip_headers Cf-Connecting-Ip X-Forwarded-For
+	}
 }
 
 {$SITE_ADDRESS::8080} {
@@ -20,7 +35,11 @@
 	# own paths — /auth/login, /mcp, /collab/:planId — and the browser reaches
 	# them under one origin.
 	handle_path /api/* {
-		reverse_proxy {$UPSTREAM_API:api:3001}
+		reverse_proxy {$UPSTREAM_API:api:3001} {
+			# The address worked out above, and only that. Caddy's own header
+			# would name the proxy in front of it.
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	# The application's own assets. Named explicitly so they cannot be confused
@@ -62,7 +81,11 @@
 	}
 	handle @unfurl {
 		uri path_regexp ^/share/([^/]+)/?$ /share/$1/preview
-		reverse_proxy {$UPSTREAM_API:api:3001}
+		reverse_proxy {$UPSTREAM_API:api:3001} {
+			# The address worked out above, and only that. Caddy's own header
+			# would name the proxy in front of it.
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	# Every application route. A single-page app owns these paths and resolves
