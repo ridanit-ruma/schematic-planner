@@ -34,6 +34,10 @@ RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
 FROM node:24-alpine AS runtime
 RUN corepack enable && addgroup -S app && adduser -S app -G app
+# Owned by the process that writes to it. A fresh named volume mounted here takes
+# its ownership from this directory; without it the volume is root's and an
+# avatar upload fails.
+RUN mkdir -p /data/uploads && chown app:app /data/uploads
 WORKDIR /repo
 ENV NODE_ENV=production
 
