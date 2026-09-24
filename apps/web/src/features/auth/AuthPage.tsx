@@ -4,7 +4,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { Wordmark } from '@/components/Mark';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
-import { Problem } from '@/components/ui/feedback';
+import { Problem, Spinner } from '@/components/ui/feedback';
 import { auth as authApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { useDocumentTitle } from '@/lib/use-document-title';
@@ -60,6 +60,15 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   }, [mode]);
 
   if (status === 'signed-in') return <Navigate to="/recent" replace />;
+  // Until the session has been asked about, this may be somebody who is about
+  // to be sent straight past the form. Showing it now would flash it at them.
+  if (status === 'loading') {
+    return (
+      <div className="grid min-h-dvh place-items-center">
+        <Spinner />
+      </div>
+    );
+  }
 
   const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
