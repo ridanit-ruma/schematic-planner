@@ -4,10 +4,13 @@ import {
   ControlButton,
   Controls,
   ReactFlow,
+  ViewportPortal,
   type Connection,
   type EdgeTypes,
+  type NodeChange,
   type NodeTypes,
   useReactFlow,
+  useStore as useFlowStore,
 } from '@xyflow/react';
 import {
   CARD,
@@ -42,6 +45,7 @@ import {
   ContextSub,
 } from '@/components/ui/context-menu';
 import { plural } from '@/lib/utils';
+import { place, type Guide } from './align';
 import { resolveDrop, type DropTarget, type Rect } from './group-drop';
 import { groupOps } from './make-group';
 import type { PlanStore } from './plan-store';
@@ -82,6 +86,9 @@ const nodeTypes: NodeTypes = { plan: PlanNodeCard };
  */
 const ARM_MS = 500;
 const STILL_PX = 3;
+
+/** How close, in screen pixels, a dragged node's edge or middle has to come to a neighbour's to line up with it. */
+const GUIDE_PX = 6;
 
 /** Where the hand is, whether it is a mouse or a finger. */
 function pointerOf(event: MouseEvent | TouchEvent): Position | null {
@@ -215,7 +222,78 @@ export function PlanCanvas({
     setEditable(!readOnly);
   }, [readOnly, setEditable]);
 
-  const { fitView, screenToFlowPosition } = useReactFlow();
+  const { fitView, getZoom, screenToFlowPosition } = useReactFlow();
+
+  /**
+   * Where a dragged node goes, the same answer while it moves and when it
+   * lands. Its neighbours are everything that is not moving with it.
+   */
+  const placeDragged = useCallback(
+    (node: PlanFlowNode, raw: Position, moving: ReadonlySet<string>) => {
+      const others: Rect[] = [];
+      for (const candidate of nodes) {
+        if (moving.has(candidate.id)) continue;
+        const at = absolute[candidate.id];
+        if (at !== undefined) others.push({ ...at, ...boxOf(bounds, candidate) });
+      }
+      return place(
+        { x: raw.x, y: raw.y, ...boxOf(bounds, node) },
+        others,
+        grid.on ? { step: grid.step, anchor: grid.anchor } : null,
+        GUIDE_PX / getZoom(),
+        anchorHeight(node),
+      );
+    },
+    [absolute, anchorHeight, bounds, getZoom, grid, nodes],
+  );
+
+  /*
+   * The node being dragged, and the lines it has found to sit on.
+   *
+   * React Flow reports a drag as position changes, and they are placed here on
+   * their way into the store, so the node is drawn where it will land rather
+   * than corrected after it is let go. Every node moving with it is shifted by
+   * the same amount, so a dragged selection keeps its shape.
+   */
+  const lead = useRef<string | null>(null);
+  const [guides, setGuides] = useState<Guide[]>([]);
+  const handleNodesChange = useCallback(
+    (changes: NodeChange<PlanFlowNode>[]) => {
+      const leading = changes.find(
+        (change) => change.type === 'position' && change.id === lead.current,
+      );
+      const node = nodes.find((candidate) => candidate.id === lead.current);
+      if (leading?.type !== 'position' || leading.position === undefined || node === undefined) {
+        onNodesChange(changes);
+        return;
+      }
+      const moving = new Set<string>();
+      for (const change of changes) {
+        if (change.type !== 'position') continue;
+        moving.add(change.id);
+        for (const slug of descendantsOf(change.id, parentOf)) moving.add(slug);
+      }
+      const parent = node.parentId === undefined ? undefined : absolute[node.parentId];
+      const raw = {
+        x: (parent?.x ?? 0) + leading.position.x,
+        y: (parent?.y ?? 0) + leading.position.y,
+      };
+      const placed = placeDragged(node, raw, moving);
+      setGuides(placed.guides);
+      const shift = { x: placed.x - raw.x, y: placed.y - raw.y };
+      onNodesChange(
+        changes.map((change) =>
+          change.type === 'position' && change.position !== undefined
+            ? {
+                ...change,
+                position: { x: change.position.x + shift.x, y: change.position.y + shift.y },
+              }
+            : change,
+        ),
+      );
+    },
+    [absolute, nodes, onNodesChange, parentOf, placeDragged],
+  );
   // Where the menu was opened, so what it adds lands under the pointer rather
   // than wherever the viewport happens to be centred.
   const [pointer, setPointer] = useState<Position>({ x: 0, y: 0 });
@@ -331,14 +409,14 @@ export function PlanCanvas({
         ...boxOf(bounds, node),
       };
 
-      // Snapped in absolute coordinates rather than left to React Flow, which
-      // quantises the position relative to whatever a node sits in: a child of a
-      // group that layout left off the grid would otherwise land on a lattice of
-      // its own. Snapped before the drop is resolved, so that a node moved clear
-      // of something it landed on is moved from a position already on the grid.
-      const snapped = grid.on
-        ? { ...dropped, ...snapTo(dropped, grid.step, grid.anchor, anchorHeight(node)) }
-        : dropped;
+      // Placed in absolute coordinates, by the same rule the drag was drawn
+      // with, so it lands where it was shown. Placed before the drop is
+      // resolved, so that a node moved clear of something it landed on is moved
+      // from a position already on the grid.
+      const placed = placeDragged(node, dropped, new Set([node.id, ...descendantsOf(node.id, parentOf)]));
+      const snapped = { ...dropped, x: placed.x, y: placed.y };
+      lead.current = null;
+      setGuides([]);
 
       // A group cannot be dropped into itself or into anything it holds.
       const forbidden = new Set<string>([node.id]);
@@ -427,7 +505,7 @@ export function PlanCanvas({
       }
       if (moved.size > 0) commitLayout(doc, moved, ORIGIN_LOCAL);
     },
-    [absolute, anchorHeight, bounds, connection, disarm, doc, grid, nodes, onApplyOps, parentOf],
+    [absolute, bounds, connection, disarm, doc, nodes, onApplyOps, parentOf, placeDragged],
   );
 
   /**
@@ -690,30 +768,17 @@ export function PlanCanvas({
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        onNodesChange={onNodesChange}
+        onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
         onNodesDelete={readOnly ? undefined : removeNodes}
         onEdgesDelete={readOnly ? undefined : removeEdges}
-        // React Flow quantises the drag itself, which is what makes a node feel
-        // magnetic rather than merely end up tidy. It works on the position
-        // relative to whatever a node sits in, so for a node at the top level —
-        // almost all of them — it agrees exactly with the absolute snap at the
-        // drop, and for one inside an off-grid group the drop corrects it by
-        // less than half a step.
         /*
-         * React Flow quantises the live drag itself, which is what makes a node
-         * feel magnetic rather than merely end up tidy. It does it on the node's
-         * corner and cannot be taught another anchor — so under the terminal
-         * anchor the drop corrects it afterwards, by less than half a step.
-         *
-         * Switching this off under that anchor was tried and is what the gate
-         * refused: a drag that is not quantised at all lands a few pixels from
-         * where every check that measures one expects it, and three unrelated
-         * gestures started failing. Correcting a snapped position is a smaller
-         * change than not snapping.
+         * No `snapToGrid`. React Flow can only snap a node's corner, relative to
+         * whatever it sits in, so under the terminal anchor it showed one place
+         * and the drop put the node 2px from it. The drag is still quantised —
+         * by `handleNodesChange`, with the rule the drop uses, which is what
+         * keeps it magnetic and lets it land where it was shown.
          */
-        snapToGrid={grid.on}
-        snapGrid={[grid.step, grid.step]}
         onNodeDrag={readOnly ? undefined : handleDrag}
         onNodeDragStop={readOnly ? undefined : handleDragStop}
         onConnect={readOnly ? undefined : handleConnect}
@@ -748,8 +813,9 @@ export function PlanCanvas({
         onMoveStart={(event) => {
           if (event !== null) taken.current = true;
         }}
-        onNodeDragStart={() => {
+        onNodeDragStart={(_, node) => {
           taken.current = true;
+          lead.current = node.id;
         }}
         onPaneContextMenu={(event) => {
           setUnder(null);
@@ -793,6 +859,7 @@ export function PlanCanvas({
           onSelect={selectComment}
         />
         <PeerCursors store={store} />
+        <AlignGuides guides={guides} />
         <Controls
           showInteractive={false}
           className="!border !border-rule !bg-surface !shadow-none [&_button]:!border-rule [&_button]:!bg-surface [&_button]:!fill-ink-muted hover:[&_button]:!bg-surface-2"
@@ -851,5 +918,32 @@ function ReadingBanner({ store }: { store: PlanStore['store'] }) {
         {reading.by} is reading from {reading.from}
       </span>
     </div>
+  );
+}
+
+/** The lines a dragged node has lined up on, drawn across what it lined up with. */
+function AlignGuides({ guides }: { guides: readonly Guide[] }) {
+  const zoom = useFlowStore((state) => state.transform[2]);
+  if (guides.length === 0) return null;
+  return (
+    <ViewportPortal>
+      <svg
+        className="pointer-events-none absolute top-0 left-0 overflow-visible"
+        style={{ width: 1, height: 1, zIndex: 1001 }}
+        aria-hidden
+      >
+        {guides.map((guide) => (
+          <line
+            key={guide.axis}
+            x1={guide.axis === 'x' ? guide.at : guide.from}
+            x2={guide.axis === 'x' ? guide.at : guide.to}
+            y1={guide.axis === 'y' ? guide.at : guide.from}
+            y2={guide.axis === 'y' ? guide.at : guide.to}
+            stroke="var(--accent)"
+            strokeWidth={1 / zoom}
+          />
+        ))}
+      </svg>
+    </ViewportPortal>
   );
 }

@@ -59,7 +59,11 @@ function Rendered({
   return (
     <div
       className={cn(
-        'space-y-1.5 text-xs leading-relaxed text-ink',
+        // A pasted URL or any run with no space in it is still broken at the
+        // edge. `anywhere` rather than `break-word`: a task item is a flex row,
+        // and only `anywhere` lets the words inside one shrink below their
+        // longest run.
+        'space-y-1.5 text-xs leading-relaxed text-ink wrap-anywhere',
         '[&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0.5',
         '[&_code]:rounded [&_code]:bg-surface-4 [&_code]:px-1 [&_code]:py-px [&_code]:text-2xs',
         '[&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-surface-4 [&_pre]:p-2',
