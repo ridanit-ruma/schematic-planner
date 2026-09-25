@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../common/prisma.service.js';
 import {
@@ -6,6 +6,7 @@ import {
   hiddenFolderIds,
   lockFolderTrees,
   pathOf,
+  siblingNamed,
   subtreeOf,
 } from '../folders/folder-tree.js';
 import type { Prisma } from '../generated/prisma/client.js';
@@ -283,7 +284,13 @@ export class TrashService {
   }
 }
 
-/** A folder and every folder above it. */
+/**
+ * A folder and every folder above it.
+ *
+ * Refuses when one of them would come back beside a sibling that has taken its
+ * name since, with the clash `create` and a rename refuse: two siblings of one
+ * name would leave a path free to reach either.
+ */
 async function chain(
   tx: Prisma.TransactionClient,
   projectId: string,
@@ -291,7 +298,18 @@ async function chain(
 ): Promise<string[]> {
   const folders = await tx.folder.findMany({
     where: { projectId },
-    select: { id: true, parentId: true },
+    select: { id: true, parentId: true, name: true, deletedAt: true },
   });
+  const line = [
+    ...folders.filter((folder) => folder.id === folderId),
+    ...ancestorsOf(folders, folderId),
+  ];
+  for (const folder of line) {
+    if (folder.deletedAt === null) continue;
+    const clash = siblingNamed(folders, folder.parentId, folder.name, folder.id);
+    if (clash !== undefined) {
+      throw new ConflictException(`There is already a folder called "${clash.name}" there`);
+    }
+  }
   return [folderId, ...ancestorsOf(folders, folderId).map((folder) => folder.id)];
 }

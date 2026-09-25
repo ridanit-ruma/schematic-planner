@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 
 import type { PrismaService } from '../common/prisma.service.js';
@@ -18,7 +19,10 @@ const tree = [
   { id: 'drafts', parentId: 'billing', name: 'Drafts', plans: [{ id: 'b' }, { id: 'c' }] },
 ];
 
-function service(): { trash: TrashService; writes: { model: string; where: unknown }[] } {
+function service(folders: readonly object[] = tree): {
+  trash: TrashService;
+  writes: { model: string; where: unknown }[];
+} {
   const writes: { model: string; where: unknown }[] = [];
   const record =
     (model: string) =>
@@ -42,7 +46,7 @@ function service(): { trash: TrashService; writes: { model: string; where: unkno
             },
           ];
         }
-        return tree;
+        return folders;
       },
       updateMany: record('folder'),
     },
@@ -109,6 +113,19 @@ describe('the trash with nested folders', () => {
     await trash.restorePlan('u', 'p9');
     const folders = writes.find((write) => write.model === 'folder');
     expect(folders?.where).toMatchObject({ id: { in: ['drafts', 'billing', 'specs'] } });
+  });
+
+  /* Two siblings of one name, and a path would reach either. */
+  it('refuses to bring back a folder whose name a sibling has taken since', async () => {
+    const { trash, writes } = service([
+      { id: 'old', parentId: null, name: 'Specs', deletedAt: at },
+      { id: 'new', parentId: null, name: 'specs', deletedAt: null },
+      { id: 'drafts', parentId: 'old', name: 'Drafts', deletedAt: null },
+    ]);
+    await expect(trash.restoreFolder('u', 'old')).rejects.toBeInstanceOf(ConflictException);
+    // A plan filed below it would bring it back too.
+    await expect(trash.restorePlan('u', 'p9')).rejects.toBeInstanceOf(ConflictException);
+    expect(writes).toEqual([]);
   });
 });
 
