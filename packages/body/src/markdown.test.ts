@@ -1,3 +1,4 @@
+import type { JSONContent } from '@tiptap/core';
 import { describe, expect, it } from 'vitest';
 
 import { markdownToDoc, markdownToJSON } from './parse.js';
@@ -188,6 +189,25 @@ describe('document shape', () => {
         ],
       }),
     ).toBe('a\n\nb');
+  });
+
+  it('keeps an empty to-do as a to-do', () => {
+    const item = (checked: boolean, text?: string): JSONContent => ({
+      type: 'taskItem',
+      attrs: { checked },
+      content: [
+        text === undefined
+          ? { type: 'paragraph' }
+          : { type: 'paragraph', content: [{ type: 'text', text }] },
+      ],
+    });
+    const doc = {
+      type: 'doc',
+      content: [{ type: 'taskList', content: [item(false, 'a'), item(false), item(true)] }],
+    };
+    const markdown = jsonToMarkdown(doc);
+    expect(markdown).toBe('- [ ] a\n- [ ]\n- [x]');
+    expect(markdownToJSON(markdown)).toEqual(doc);
   });
 
   it('escapes what would otherwise become syntax', () => {

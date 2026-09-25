@@ -118,12 +118,20 @@ function blockOut(node: JSONContent): M.BlockContent | null {
         ordered,
         ...(ordered && { start: Number.isFinite(start) ? start : 1 }),
         spread: false,
-        children: content.map((item) => ({
-          type: 'listItem',
-          spread: false,
-          checked: task ? item.attrs?.['checked'] === true : null,
-          children: flow(item.content ?? []),
-        })),
+        children: content.map((item): M.ListItem => {
+          const checked = item.attrs?.['checked'] === true;
+          const children = flow(item.content ?? []);
+          if (!task || children[0]?.type === 'paragraph') {
+            return { type: 'listItem', spread: false, checked: task ? checked : null, children };
+          }
+          // GFM only sees a box with words after it, so a to-do with none is
+          // written as a bare `[ ]` that parse reads back as its box.
+          const box: M.Paragraph = {
+            type: 'paragraph',
+            children: [{ type: 'html', value: checked ? '[x]' : '[ ]' }],
+          };
+          return { type: 'listItem', spread: false, checked: null, children: [box, ...children] };
+        }),
       };
     }
     case 'codeBlock': {

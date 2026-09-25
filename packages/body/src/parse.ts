@@ -166,7 +166,8 @@ function withContent(node: JSONContent, content: JSONContent[]): JSONContent {
 }
 
 function list(node: M.List, context: Context): JSONContent {
-  const checks = node.children.map((item) => item.checked);
+  const children = node.children.map((item) => boxed(item, node, context));
+  const checks = children.map((item) => item.checked);
   const task = checks.some((checked) => typeof checked === 'boolean');
   // A task list is a bullet list whose every item has a box. A numbered one, or
   // one where only some items have a box, has no block to go in.
@@ -174,7 +175,7 @@ function list(node: M.List, context: Context): JSONContent {
     throw new Unsupported('mixed task list');
   }
 
-  const items = node.children.map((item) => ({
+  const items = children.map((item) => ({
     type: task ? 'taskItem' : 'listItem',
     ...(task && { attrs: { checked: item.checked === true } }),
     content: nonEmpty(flow(item.children, context)),
@@ -185,6 +186,22 @@ function list(node: M.List, context: Context): JSONContent {
     return { type: 'orderedList', attrs: { start: node.start ?? 1 }, content: items };
   }
   return { type: 'bulletList', content: items };
+}
+
+const BOX = /^\[([ xX])\]$/;
+
+/**
+ * `- [ ]` with nothing after the box is an empty to-do, which is how serialize
+ * writes one; GFM reads that box as text. An escaped `\[ ]` stays text.
+ */
+function boxed(item: M.ListItem, list: M.List, context: Context): M.ListItem {
+  const head = item.children[0];
+  if (list.ordered === true || typeof item.checked === 'boolean' || head?.type !== 'paragraph') {
+    return item;
+  }
+  const box = BOX.exec(slice(context.source, head));
+  if (box === null) return item;
+  return { ...item, checked: box[1] !== ' ', children: item.children.slice(1) };
 }
 
 function table(node: M.Table): JSONContent {
