@@ -4,6 +4,8 @@ export const canvas: Messages['canvas'] = {
   canvas: {
     menu: {
       addNode: '在此添加节点',
+      tidyUp: '整理间距',
+      duplicate: '创建副本',
       noteOnNode: '评论此节点',
       noteHere: '在此添加评论',
       groupNodes: (count: number) => `将 ${count} 个节点编为分组`,
@@ -28,6 +30,13 @@ export const canvas: Messages['canvas'] = {
       stopSnapping: '停止吸附到网格',
       snappingTo: (step: number) => `正在吸附到 ${step}px 网格`,
       notSnapping: '未吸附到网格',
+    },
+    card: {
+      untitled: '未命名',
+      title: '节点标题',
+    },
+    spacing: {
+      handle: '拖动以调整间距',
     },
     readingFrom: (by: string, from: string) => `${by} 正在从“${from}”开始阅读`,
   },

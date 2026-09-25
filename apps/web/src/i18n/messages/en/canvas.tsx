@@ -2,6 +2,8 @@ export const canvas = {
   canvas: {
     menu: {
       addNode: 'Add node here',
+      tidyUp: 'Tidy up',
+      duplicate: 'Duplicate',
       noteOnNode: 'Leave a note on this node',
       noteHere: 'Leave a note here',
       groupNodes: (count: number) => (count === 1 ? 'Group 1 node' : `Group ${count} nodes`),
@@ -28,6 +30,13 @@ export const canvas = {
       stopSnapping: 'Stop snapping to the grid',
       snappingTo: (step: number) => `Snapping to a ${step}px grid`,
       notSnapping: 'Not snapping to the grid',
+    },
+    card: {
+      untitled: 'Untitled',
+      title: 'Node title',
+    },
+    spacing: {
+      handle: 'Drag to change the spacing',
     },
     readingFrom: (by: string, from: string) => `${by} is reading from ${from}`,
   },

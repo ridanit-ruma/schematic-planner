@@ -5,6 +5,8 @@ export const canvas: Messages['canvas'] = {
   canvas: {
     menu: {
       addNode: '여기에 노드 추가',
+      tidyUp: '간격 고르게 맞추기',
+      duplicate: '복제',
       noteOnNode: '이 노드에 댓글 달기',
       noteHere: '여기에 댓글 달기',
       groupNodes: (count: number) => `노드 ${count}개를 그룹으로 묶기`,
@@ -29,6 +31,13 @@ export const canvas: Messages['canvas'] = {
       stopSnapping: '격자에 맞추지 않기',
       snappingTo: (step: number) => `${step}px 격자에 맞추는 중`,
       notSnapping: '격자에 맞추지 않음',
+    },
+    card: {
+      untitled: '제목 없음',
+      title: '노드 제목',
+    },
+    spacing: {
+      handle: '끌어서 간격 조정',
     },
     readingFrom: (by: string, from: string) =>
       `${josa(by, '이')} ${quoted(from)}부터 읽고 있습니다`,

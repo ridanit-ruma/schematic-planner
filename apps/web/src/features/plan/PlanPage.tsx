@@ -1,12 +1,12 @@
 import { uniqueSlug, type PlanOp, type Position } from '@schematic/schema';
 import { ORIGIN_LAYOUT, ORIGIN_LOCAL, applyOps, commitLayout, readPlanDoc } from '@schematic/ydoc';
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { useStore } from 'zustand';
 
 import { Button } from '@/components/ui/button';
-import { Field, Input } from '@/components/ui/field';
+import { Input } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
 import { NotFound, Problem, Spinner } from '@/components/ui/feedback';
 import { useT } from '@/i18n';
@@ -17,7 +17,7 @@ import { usePlanVocabulary } from '@/lib/vocabulary';
 import { EdgeInspector } from './EdgeInspector';
 import { HistoryPanel } from './HistoryPanel';
 import { Inspector } from './Inspector';
-import { PlanCanvas } from './PlanCanvas';
+import { PlanCanvas, type PlanCanvasHandle } from './PlanCanvas';
 import { PlanSidebar } from './PlanSidebar';
 import { TitleBlock } from './TitleBlock';
 import { usePlanDocument } from './use-plan-document';
@@ -83,14 +83,11 @@ function PlanWorkspace({
   const setVocabulary = connection.bound.setVocabulary;
   useEffect(() => setVocabulary(words.vocabulary), [setVocabulary, words.vocabulary]);
 
-  const { screenToFlowPosition, setCenter } = useReactFlow();
+  const { setCenter } = useReactFlow();
   const undo = usePlanUndo(doc);
   useUndoKeys(undo);
-  const [adding, setAdding] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  // Where a node asked for from the canvas should land. Null when the request
-  // came from the row, which has no place of its own to mean.
-  const [placing, setPlacing] = useState<Position | null>(null);
+  // Adding a node happens on the canvas: it is made there and named on the card.
+  const canvas = useRef<PlanCanvasHandle | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   // One panel at a time on the right: opening the history puts down whatever
   // was selected, and selecting something puts the history away.
@@ -152,41 +149,6 @@ function PlanWorkspace({
     selectComment(id);
   };
 
-  const addNode = (): void => {
-    const trimmed = newTitle.trim();
-    if (trimmed === '') return;
-    const slug = uniqueSlug(
-      trimmed,
-      nodes.map((node) => node.id),
-    );
-
-    // Where it was asked for, if it was asked for somewhere; otherwise where
-    // the person is looking rather than at the origin, where it would land
-    // under whatever is already there. Left unpinned, so Arrange is still free
-    // to tidy it into the graph.
-    const centre =
-      placing ??
-      screenToFlowPosition({
-        x: window.innerWidth / 2,
-        y: window.innerHeight / 2,
-      });
-
-    apply([
-      {
-        op: 'upsert_node',
-        node: {
-          slug,
-          title: trimmed,
-          position: { x: Math.round(centre.x - 130), y: Math.round(centre.y - 70) },
-        },
-      },
-    ]);
-    setNewTitle('');
-    setAdding(false);
-    setPlacing(null);
-    select(slug);
-  };
-
   const arrange = async (): Promise<void> => {
     // ELK is a large dependency and only the arrange button needs it, so it is
     // fetched on first use rather than shipped in the initial bundle.
@@ -234,10 +196,7 @@ function PlanWorkspace({
         }}
         status={status}
         readOnly={false}
-        onAddNode={() => {
-          setPlacing(null);
-          setAdding(true);
-        }}
+        onAddNode={() => canvas.current?.addNode()}
         onArrange={() => void arrange()}
         onExport={() => void exportZip()}
         onShare={() => void share()}
@@ -262,11 +221,8 @@ function PlanWorkspace({
             readOnly={false}
             onApplyOps={apply}
             undo={undo}
-            onAddNode={(at) => {
-              setPlacing(at);
-              setAdding(true);
-            }}
             onAddComment={addComment}
+            handle={canvas}
           />
         </div>
         {selectedNode !== null ? (
@@ -297,36 +253,6 @@ function PlanWorkspace({
           />
         ) : null}
       </div>
-
-      <Modal open={adding} onOpenChange={setAdding} title={t.plan.page.addNode}>
-        <form
-          className="space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            addNode();
-          }}
-        >
-          <Field label={t.plan.page.title} hint={t.plan.page.titleHint}>
-            {(id) => (
-              <Input
-                id={id}
-                autoFocus
-                value={newTitle}
-                onChange={(event) => setNewTitle(event.target.value)}
-                placeholder={t.plan.page.titlePlaceholder}
-              />
-            )}
-          </Field>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => setAdding(false)}>
-              {t.common.cancel}
-            </Button>
-            <Button type="submit" variant="primary">
-              {t.plan.page.addNode}
-            </Button>
-          </div>
-        </form>
-      </Modal>
 
       <Modal
         open={shareUrl !== null}
