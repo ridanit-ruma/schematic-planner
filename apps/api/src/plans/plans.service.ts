@@ -10,7 +10,7 @@ import {
   applyPlanOps,
   emptyPlanDoc,
   normalizeEdge,
-  planDocSchema,
+  planDocFromSnapshot,
   planEdgeInputSchema,
   type PlanDoc,
   type PlanOp,
@@ -40,6 +40,7 @@ import { PrismaService } from '../common/prisma.service.js';
 import { CollabService } from '../collab/collab.service.js';
 import { hiddenFolderIds, outsideFolders } from '../folders/folder-tree.js';
 import { AccessService } from '../workspaces/access.service.js';
+import { VocabularyService } from '../projects/vocabulary.service.js';
 import type { Role } from '../workspaces/roles.js';
 import { PlanDocumentsService, type ChangeActor } from './plan-documents.service.js';
 import type { CreatePlanInput, LayoutInput, ShareInput, UpdatePlanInput } from './plans.dto.js';
@@ -131,6 +132,7 @@ export class PlansService {
     private readonly access: AccessService,
     private readonly collab: CollabService,
     private readonly documents: PlanDocumentsService,
+    private readonly vocabulary: VocabularyService,
   ) {}
 
   async list(userId: string, projectId: string): Promise<PlanSummary[]> {
@@ -145,7 +147,11 @@ export class PlansService {
       id: plan.id,
       title: plan.title,
       description: plan.description,
-      nodeCount: planDocSchema.safeParse(plan.snapshot).data?.nodes.length ?? 0,
+      nodeCount: planDocFromSnapshot(plan.snapshot, {
+        id: plan.id,
+        title: plan.title,
+        description: plan.description,
+      }).nodes.length,
       updatedAt: plan.updatedAt,
       folderId: plan.folderId,
     }));
@@ -632,13 +638,16 @@ export class PlansService {
 
   async exportBundle(userId: string, planId: string): Promise<ExportBundle> {
     await this.access.requirePlan(userId, planId, 'VIEWER');
-    return exportPlan(await this.current(planId));
+    return exportPlan(await this.current(planId), {
+      vocabulary: await this.vocabulary.ofPlan(planId),
+    });
   }
 
   async exportZip(userId: string, planId: string): Promise<{ doc: PlanDoc; zip: Uint8Array }> {
     await this.access.requirePlan(userId, planId, 'VIEWER');
     const doc = await this.current(planId);
-    return { doc, zip: await exportPlanToZip(doc) };
+    const vocabulary = await this.vocabulary.ofPlan(planId);
+    return { doc, zip: await exportPlanToZip(doc, { vocabulary }) };
   }
 
   async share(userId: string, planId: string, input: ShareInput) {
@@ -718,11 +727,14 @@ export class PlansService {
     const plan = await this.prisma.plan.findUnique({ where: { id: planId } });
     if (plan === null) throw new NotFoundException('Plan not found');
 
-    const parsed = planDocSchema.safeParse(plan.snapshot);
-    if (parsed.success)
-      return { ...parsed.data, id: plan.id, updatedAt: plan.updatedAt.toISOString() };
-
-    return { ...emptyPlanDoc(plan.id, plan.title), description: plan.description };
+    // Repaired rather than replaced when it does not parse: one bad node used
+    // to make the whole plan read as empty.
+    const doc = planDocFromSnapshot(plan.snapshot, {
+        id: plan.id,
+        title: plan.title,
+        description: plan.description,
+      });
+    return { ...doc, id: plan.id, updatedAt: plan.updatedAt.toISOString() };
   }
 
   /** Builds the first version of a plan, laying out anything the caller left unplaced. */

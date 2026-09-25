@@ -1,3 +1,10 @@
+import {
+  DEFAULT_VOCABULARY,
+  isDefaultName,
+  kindOf,
+  statusOf,
+  type Vocabulary,
+} from '@schematic/schema';
 import { ChevronRight, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -16,14 +23,19 @@ import { SIDE_PANEL } from './side-panel';
  * the document, so this covers edits made in the canvas, over the API and by an
  * agent alike.
  */
-function sentence(change: PlanChangeRecord): string {
+function sentence(change: PlanChangeRecord, vocabulary: Vocabulary): string {
   const { history } = t().plan;
   const say = history.change;
   const name = change.label === '' ? history.thisPlan : change.label;
-  // The value a status or kind change ended on, as the words for it.
-  const became = (words: Record<string, string>): string | null => {
+  // The value a status or kind change ended on, as the words for it: the
+  // project's own name once it has renamed or added one, and otherwise the
+  // history's word for the built-in value.
+  const became = (words: Record<string, string>, list: 'statuses' | 'kinds'): string | null => {
     const to = (change.detail ?? '').split('→').pop()?.trim();
-    return to === undefined ? null : (words[to] ?? to);
+    if (to === undefined) return null;
+    const entry = list === 'statuses' ? statusOf(vocabulary, to) : kindOf(vocabulary, to);
+    if (entry !== undefined && !isDefaultName(entry, list)) return entry.name;
+    return words[to] ?? to;
   };
   switch (change.kind) {
     case 'plan.created':
@@ -43,9 +55,9 @@ function sentence(change: PlanChangeRecord): string {
     case 'node.renamed':
       return say.nodeRenamed(change.detail, name);
     case 'node.status':
-      return say.nodeStatus(name, became(history.statusWord));
+      return say.nodeStatus(name, became(history.statusWord, 'statuses'));
     case 'node.kind':
-      return say.nodeKind(name, became(history.kindWord));
+      return say.nodeKind(name, became(history.kindWord, 'kinds'));
     case 'node.body':
       return say.nodeBody(name);
     case 'node.tags':
@@ -169,7 +181,16 @@ function when(iso: string): string {
   });
 }
 
-export function HistoryPanel({ planId, onClose }: { planId: string; onClose: () => void }) {
+export function HistoryPanel({
+  planId,
+  onClose,
+  vocabulary = DEFAULT_VOCABULARY,
+}: {
+  planId: string;
+  onClose: () => void;
+  /** The project's words, so a status change reads with the name people see. */
+  vocabulary?: Vocabulary;
+}) {
   const messages = useT();
   const [changes, setChanges] = useState<PlanChangeRecord[] | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -227,7 +248,7 @@ export function HistoryPanel({ planId, onClose }: { planId: string; onClose: () 
             {grouped.map((batch) =>
               batch.changes.length < FOLD_AT ? (
                 batch.changes.map((change) => (
-                  <Entry key={change.id} change={change} line={sentence(change)} />
+                  <Entry key={change.id} change={change} line={sentence(change, vocabulary)} />
                 ))
               ) : (
                 <Entry
@@ -241,7 +262,7 @@ export function HistoryPanel({ planId, onClose }: { planId: string; onClose: () 
                     <ol className="mt-1.5 border-l border-rule pl-2">
                       {batch.changes.map((change) => (
                         <li key={change.id} className="py-0.5 text-2xs leading-snug text-ink-muted">
-                          {sentence(change)}
+                          {sentence(change, vocabulary)}
                         </li>
                       ))}
                     </ol>

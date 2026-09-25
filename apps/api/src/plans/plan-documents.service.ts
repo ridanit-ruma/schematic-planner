@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { initializePlan, readPlanDoc } from '@schematic/ydoc';
-import { diffPlans, emptyPlanDoc, planDocSchema, type PlanDoc } from '@schematic/schema';
+import { diffPlans, planDocFromSnapshot, type PlanDoc } from '@schematic/schema';
 import * as Y from 'yjs';
 
 import { PrismaService } from '../common/prisma.service.js';
@@ -55,10 +55,7 @@ export class PlanDocumentsService {
 
     // First open: seed the document from the snapshot so a plan created through
     // the REST API or MCP is immediately editable.
-    const parsed = planDocSchema.safeParse(plan.snapshot);
-    const seed: PlanDoc = parsed.success
-      ? parsed.data
-      : { ...emptyPlanDoc(plan.id, plan.title), description: plan.description };
+    const seed: PlanDoc = planDocFromSnapshot(plan.snapshot, plan);
     initializePlan(document, seed);
   }
 

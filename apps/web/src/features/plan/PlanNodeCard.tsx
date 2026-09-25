@@ -5,11 +5,11 @@ import {
   ResizeControlVariant,
   type NodeProps,
 } from '@xyflow/react';
-import { CARD, isGroup } from '@schematic/schema';
+import { CARD, isGroup, kindOf } from '@schematic/schema';
 import { memo, useRef, useState } from 'react';
 
-import { STATUS_COLOR } from '@/components/ui/status';
 import { Markdown } from '@/components/ui/markdown';
+import { LOOK_BORDER, statusColor, tagColor, tint } from '@/components/ui/vocabulary';
 import { cn } from '@/lib/utils';
 import { usePlanStore } from './store-context';
 import { useWheelScroll } from './use-wheel-scroll';
@@ -120,13 +120,12 @@ function WidthHandle({
   );
 }
 
-const KIND_BORDER: Record<string, string> = {
-  feature: 'border border-rule-strong',
-  task: 'border border-rule',
-  decision: 'border border-rule-strong [clip-path:polygon(0_0,calc(100%-10px)_0,100%_10px,100%_100%,0_100%)]',
-  note: 'border border-dashed border-rule',
-  group: 'border border-rule-strong bg-surface-3/70',
-};
+/*
+ * The outline comes from the kind's look in the project's vocabulary. A kind
+ * the project does not define is drawn plain, the way a task is: present,
+ * readable, and claiming nothing.
+ */
+const UNKNOWN_BORDER = LOOK_BORDER.solid;
 
 /*
  * A card does not read the zoom and does not change with it. It is drawn once,
@@ -145,6 +144,10 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
   const armed = usePlanStore((state) => state.armed === id);
   const editable = usePlanStore((state) => state.editable);
   const resizeNode = usePlanStore((state) => state.resizeNode);
+  const vocabulary = usePlanStore((state) => state.vocabulary);
+  const rail = statusColor(vocabulary, node.status);
+  const kind = kindOf(vocabulary, node.kind);
+  const border = kind === undefined ? UNKNOWN_BORDER : LOOK_BORDER[kind.look];
   const sizeNode = usePlanStore((state) => state.sizeNode);
   const attention = cn(arrivedAt !== undefined && 'plan-arrive', dimmed && 'plan-dim');
   // Its place in the sweep. The animation fills backwards, so a card waiting
@@ -199,7 +202,7 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
           <span
             aria-hidden
             className="h-3.5 w-1 shrink-0"
-            style={{ background: STATUS_COLOR[node.status] }}
+            style={{ background: rail }}
           />
           <span className="truncate text-xs font-medium text-ink">{node.title}</span>
           <span className="slug truncate text-ink-faint">{node.slug}</span>
@@ -252,7 +255,7 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
       ref={setCard}
       className={cn(
         'relative flex h-full w-full overflow-hidden rounded-md bg-surface-2',
-        KIND_BORDER[node.kind] ?? KIND_BORDER['task'],
+        border,
         selected === true && 'border-accent ring-1 ring-accent',
         // Held over long enough that letting go would put the dragged node
         // inside this one. Drawn as the box it is about to become.
@@ -261,7 +264,7 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
       )}
       style={entrance}
     >
-      <span aria-hidden className="w-1 shrink-0" style={{ background: STATUS_COLOR[node.status] }} />
+      <span aria-hidden className="w-1 shrink-0" style={{ background: rail }} />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col px-3 py-2">
         <p className="truncate text-sm leading-snug font-medium text-ink">{node.title}</p>
@@ -278,7 +281,19 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
           </div>
         ) : null}
         {node.tags.length > 0 ? (
-          <p className="mt-1.5 truncate text-2xs text-ink-faint">{node.tags.join('  ')}</p>
+          /* One row, clipped rather than wrapped: the card's height is measured
+             without the tags, the same way on the server and here. */
+          <p className="mt-1.5 flex min-w-0 gap-1 overflow-hidden">
+            {node.tags.map((tag) => (
+              <span
+                key={tag}
+                className="shrink-0 rounded-sm border px-1 text-2xs leading-4"
+                style={tint(tagColor(vocabulary, tag))}
+              >
+                {tag}
+              </span>
+            ))}
+          </p>
         ) : null}
       </div>
 

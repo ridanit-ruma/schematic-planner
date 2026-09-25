@@ -1,4 +1,4 @@
-import { planEdgeKinds, planNodeKinds, planNodeStatuses, slugSchema } from '@schematic/schema';
+import { planEdgeKinds, slugSchema, vocabularyValueSchema } from '@schematic/schema';
 import { z } from 'zod';
 
 /**
@@ -216,10 +216,22 @@ export const planHistoryShape = {
 /** Every field but the slug is optional: an upsert merges into what is there. */
 const agentNodePatchSchema = z.object({
   slug: slugSchema,
-  kind: z.enum(planNodeKinds).optional(),
+  // Any string, because a project defines its own. The server checks it
+  // against the project and names the valid ones when it is not there.
+  kind: vocabularyValueSchema
+    .optional()
+    .describe(
+      "A kind from the plan's project, by id: get_plan lists them. Built in: feature, task, " +
+        'decision, note (not work), group (a box around others). New nodes are task',
+    ),
   title: z.string().min(1).max(200).optional(),
   body: z.string().max(100_000).optional(),
-  status: z.enum(planNodeStatuses).optional(),
+  status: vocabularyValueSchema
+    .optional()
+    .describe(
+      "A status from the plan's project, by id: get_plan lists them. Built in: idea, planned, " +
+        'in_progress, blocked, done, dropped. New nodes are idea',
+    ),
   tags: z.array(z.string().min(1).max(40)).max(20).optional(),
   meta: z
     .record(z.string().min(1).max(64), z.string().max(500))

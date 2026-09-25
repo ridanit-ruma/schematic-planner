@@ -16,6 +16,7 @@ import { FoldersService } from '../folders/folders.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { PlansService } from '../plans/plans.service.js';
 import { ProjectsService } from '../projects/projects.service.js';
+import { VocabularyService } from '../projects/vocabulary.service.js';
 import { WorkspacesService } from '../workspaces/workspaces.service.js';
 import type { McpIdentity } from '../auth/api-key.service.js';
 import { agentAuthor, signComments } from './authorship.js';
@@ -28,8 +29,10 @@ import {
   renderPlan,
   renderPlanList,
   renderTrace,
+  renderVocabulary,
   type Found,
 } from './render.js';
+import { checkVocabulary } from './vocabulary-check.js';
 import {
   applyOpsShape,
   createFolderShape,
@@ -107,6 +110,7 @@ export class McpFactory {
     private readonly workspaces: WorkspacesService,
     private readonly collab: CollabService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly vocabulary: VocabularyService,
   ) {}
 
   /**
@@ -320,13 +324,15 @@ export class McpFactory {
       },
       async ({ planId, view }) => {
         try {
-          const [doc, revision, provenance] = await Promise.all([
+          const [doc, revision, provenance, vocabulary] = await Promise.all([
             this.plans.read(identity.userId, planId),
             this.plans.revision(planId),
             this.plans.provenance(identity.userId, planId),
+            this.vocabulary.ofPlan(planId),
           ]);
           return text(
-            `${renderPlan(doc, view)}\n\n${renderProvenance(provenance)}Revision: ${revision}`,
+            `${renderPlan(doc, view, vocabulary)}\n\n${renderVocabulary(vocabulary)}\n\n` +
+              `${renderProvenance(provenance)}Revision: ${revision}`,
           );
         } catch (error) {
           return failure(reason(error));
@@ -430,8 +436,11 @@ export class McpFactory {
       },
       async ({ planId, limit }) => {
         try {
-          const doc = await this.plans.read(identity.userId, planId);
-          return text(renderNext(doc, limit));
+          const [doc, vocabulary] = await Promise.all([
+            this.plans.read(identity.userId, planId),
+            this.vocabulary.ofPlan(planId),
+          ]);
+          return text(renderNext(doc, limit, vocabulary));
         } catch (error) {
           return failure(reason(error));
         }
@@ -548,10 +557,12 @@ export class McpFactory {
           if (sourceSpecIds !== undefined && sourceSpecIds.length > 0) {
             await this.plans.setSources(identity.userId, doc.id, sourceSpecIds);
           }
+          const vocabulary = await this.vocabulary.ofProject(projectId);
           return text(
             `Created plan ${doc.id}, empty.\n` +
               `Open it at ${this.planUrl(doc.id)}\n` +
-              `Draw into it with apply_ops and this id, a few nodes at a time.`,
+              `Draw into it with apply_ops and this id, a few nodes at a time.\n\n` +
+              renderVocabulary(vocabulary),
           );
         } catch (error) {
           return failure(reason(error));
@@ -804,17 +815,25 @@ export class McpFactory {
           // nothing an agent could put in an author field that is worth
           // trusting, and the server already knows whose key this is.
           const signed = signComments(planOpsSchema.parse(ops), agentAuthor(identity.name));
+          // Kinds and statuses are the project's words, so they are checked
+          // against the project before anything is written.
+          const [before, vocabulary] = await Promise.all([
+            this.plans.read(identity.userId, planId),
+            this.vocabulary.ofPlan(planId),
+          ]);
+          const checked = checkVocabulary(signed, before, vocabulary);
+          if (!checked.ok) return failure(checked.message);
           const doc = await this.plans.applyOps(
             identity.userId,
             planId,
-            signed,
+            checked.ops,
             { userId: identity.userId, apiKeyId: identity.keyId },
             expectedRevision,
           );
           const revision = await this.plans.revision(planId);
-          const doubled = doubledFlows(doc, signed);
+          const doubled = doubledFlows(doc, checked.ops);
           return text(
-            `Applied ${ops.length} operation(s).\n\n${doubled}${renderPlan(doc, 'outline')}` +
+            `Applied ${ops.length} operation(s).\n\n${doubled}${renderPlan(doc, 'outline', vocabulary)}` +
               `\n\nRevision: ${revision}`,
           );
         } catch (error) {

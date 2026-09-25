@@ -1,5 +1,6 @@
 import {
   PLAN_DOC_VERSION,
+  planDocSchema,
   planCommentSchema,
   planEdgeSchema,
   planNodeSchema,
@@ -122,6 +123,34 @@ export function sanitizePlanDoc(input: SanitizeInput): SanitizeResult {
   };
 
   return { doc, dropped };
+}
+
+/**
+ * A stored snapshot, read back.
+ *
+ * Strictly when it parses, and otherwise repaired rather than replaced: a
+ * snapshot one bad node away from valid used to be read as an empty plan, which
+ * a reader could not tell apart from somebody having deleted everything.
+ */
+export function planDocFromSnapshot(
+  snapshot: unknown,
+  fallback: { id: string; title: string; description: string; updatedAt?: string },
+): PlanDoc {
+  const parsed = planDocSchema.safeParse(snapshot);
+  if (parsed.success) return parsed.data;
+
+  const raw: Record<string, unknown> =
+    typeof snapshot === 'object' && snapshot !== null ? (snapshot as Record<string, unknown>) : {};
+  const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+  return sanitizePlanDoc({
+    id: fallback.id,
+    title: typeof raw['title'] === 'string' ? raw['title'] : fallback.title,
+    description: typeof raw['description'] === 'string' ? raw['description'] : fallback.description,
+    updatedAt: fallback.updatedAt,
+    nodes: list(raw['nodes']),
+    edges: list(raw['edges']),
+    comments: list(raw['comments']),
+  }).doc;
 }
 
 /** Adding parent -> child closes a cycle when parent already sits under child. */

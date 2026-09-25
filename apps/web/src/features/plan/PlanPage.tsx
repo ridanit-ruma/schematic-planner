@@ -1,7 +1,7 @@
 import { uniqueSlug, type PlanOp, type Position } from '@schematic/schema';
 import { ORIGIN_LAYOUT, ORIGIN_LOCAL, applyOps, commitLayout, readPlanDoc } from '@schematic/ydoc';
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import { useStore } from 'zustand';
 
@@ -13,6 +13,7 @@ import { useT } from '@/i18n';
 import { downloadExport, plans } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { useDocumentTitle } from '@/lib/use-document-title';
+import { usePlanVocabulary } from '@/lib/vocabulary';
 import { EdgeInspector } from './EdgeInspector';
 import { HistoryPanel } from './HistoryPanel';
 import { Inspector } from './Inspector';
@@ -75,6 +76,12 @@ function PlanWorkspace({
   const edges = useStore(store, (state) => state.edges);
   const comments = useStore(store, (state) => state.comments);
   const selectComment = useStore(store, (state) => state.selectComment);
+
+  // The project's statuses, kinds and tags: the cards are drawn with them and
+  // the inspector offers them.
+  const words = usePlanVocabulary(planId);
+  const setVocabulary = connection.bound.setVocabulary;
+  useEffect(() => setVocabulary(words.vocabulary), [setVocabulary, words.vocabulary]);
 
   const { screenToFlowPosition, setCenter } = useReactFlow();
   const undo = usePlanUndo(doc);
@@ -271,6 +278,7 @@ function PlanWorkspace({
             onApplyOps={apply}
             onRenamed={select}
             onClose={() => select(null)}
+            words={words}
           />
         ) : selectedEdgeData !== null ? (
           <EdgeInspector
@@ -281,7 +289,11 @@ function PlanWorkspace({
             onClose={() => selectEdge(null)}
           />
         ) : historyOpen ? (
-          <HistoryPanel planId={planId} onClose={() => setHistoryOpen(false)} />
+          <HistoryPanel
+            planId={planId}
+            vocabulary={words.vocabulary}
+            onClose={() => setHistoryOpen(false)}
+          />
         ) : null}
       </div>
 

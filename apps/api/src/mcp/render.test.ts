@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planDocSchema } from '@schematic/schema';
+import { DEFAULT_VOCABULARY, planDocSchema, type Vocabulary } from '@schematic/schema';
 
 import {
   matchingLine,
@@ -9,6 +9,7 @@ import {
   renderNext,
   renderNodes,
   renderPlan,
+  renderVocabulary,
 } from './render.js';
 
 const doc = planDocSchema.parse({
@@ -563,5 +564,62 @@ describe('a node that holds other nodes', () => {
 
   it('is not counted in how far the plan has got', () => {
     expect(progressLine(sliced)).toBe('0 of 1 done');
+  });
+});
+
+/*
+ * A project that has its own words. Everything that used to test a fixed id —
+ * what is under way, what is stuck, what is finished, what counts as work —
+ * now asks what the status or kind means.
+ */
+describe('a project with its own statuses and kinds', () => {
+  const vocabulary: Vocabulary = {
+    ...DEFAULT_VOCABULARY,
+    statuses: [
+      ...DEFAULT_VOCABULARY.statuses,
+      { id: 'in-review', name: 'In review', color: 'purple', category: 'active', archived: false },
+      { id: 'waiting', name: 'Waiting on legal', color: 'red', category: 'blocked', archived: false },
+      { id: 'shipped', name: 'Shipped', color: 'green', category: 'done', archived: false },
+      { id: 'retired', name: 'Retired', color: 'gray', category: 'todo', archived: true },
+    ],
+    kinds: [
+      ...DEFAULT_VOCABULARY.kinds,
+      { id: 'risk', name: 'Risk', look: 'dashed', work: false, archived: false },
+    ],
+  };
+  const plan = planDocSchema.parse({
+    id: 'p30',
+    title: 'Own words',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    nodes: [
+      { slug: 'reviewing', title: 'Reviewing', status: 'in-review', body: 'Under review.' },
+      { slug: 'stuck', title: 'Stuck', status: 'waiting' },
+      { slug: 'out', title: 'Out', status: 'shipped' },
+      { slug: 'next', title: 'Next', status: 'mystery', body: 'Pick me.' },
+      { slug: 'worry', title: 'A worry', kind: 'risk', status: 'idea' },
+    ],
+    edges: [{ id: 'f1', kind: 'flows_to', from: 'out', to: 'next' }],
+  });
+
+  it('counts by category and leaves out kinds that are not work', () => {
+    expect(progressLine(plan, vocabulary)).toBe('1 of 4 done · 1 in progress · 1 blocked');
+  });
+
+  it('knows what is started, stuck and ready by category', () => {
+    const said = renderNext(plan, 3, vocabulary);
+    expect(said).toContain('Already started');
+    expect(said).toContain('Under review.');
+    expect(said).toContain('stuck — Stuck');
+    // An unknown status is neither settled nor started: it is something to do.
+    expect(said).toContain('Pick me.');
+    expect(said).not.toContain('A worry');
+  });
+
+  it('lists the words an agent may write, leaving out what is archived', () => {
+    const said = renderVocabulary(vocabulary);
+    expect(said).toContain('in-review — In review (under way)');
+    expect(said).toContain('risk — Risk (not work)');
+    expect(said).toContain('group — Group (a box around others)');
+    expect(said).not.toContain('retired');
   });
 });
