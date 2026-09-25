@@ -285,8 +285,8 @@ rewritten. Renaming changes a name and keeps the id. **Removing a status or kind
 archives it**: it leaves the pickers, and a node still carrying it goes on being
 drawn with its last name and colour until someone changes it. A save may archive
 anything but may not drop an id it was given. A value the vocabulary has never
-heard of — pasted in from another project, say — is kept and drawn neutral as
-"Unknown: …" rather than discarded. A new status or kind gets a readable id made
+heard of — written by an older client or imported, say — is kept and drawn neutral
+as "Unknown: …" rather than discarded. A new status or kind gets a readable id made
 from its first name (`in-review`), which stays when it is renamed; export writes
 these ids to front matter, so an unchanged project exports byte for byte as it did
 before.
@@ -725,9 +725,11 @@ tags, body, size and pin — not the notes on it. Copies get fresh slugs, keep t
 arrangement, become the selection, and are one undo step. The clipboard is the
 system's (`clipboard.ts`): JSON under a type of its own, and a plain list of titles
 for anything else, so a copy pastes into another plan or another tab, and lines of
-plain text pasted onto the canvas become nodes. Kinds, statuses and tags travel by
-id and name; pasted into a project without them, they show as unknown until
-somebody picks one.
+plain text pasted onto the canvas become nodes. A copy also carries what its kinds,
+statuses and tags mean where they came from: pasted into a project that lacks one,
+it is added to that project's vocabulary when the person pasting may edit it, and
+the node falls back to the default kind or status when they may not. Tags stay on
+the node by name either way.
 
 **Moving a selection** commits every dragged node's position in one transaction and
 resolves each one's box on drop as a single node's is. Snapping treats the selection
