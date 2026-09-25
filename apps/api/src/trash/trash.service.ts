@@ -1,7 +1,14 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../common/prisma.service.js';
-import { ancestorsOf, hiddenFolderIds, pathOf, subtreeOf } from '../folders/folder-tree.js';
+import {
+  ancestorsOf,
+  hiddenFolderIds,
+  lockFolderTrees,
+  pathOf,
+  subtreeOf,
+} from '../folders/folder-tree.js';
+import type { Prisma } from '../generated/prisma/client.js';
 import { AccessService } from '../workspaces/access.service.js';
 
 export interface TrashItem {
@@ -155,28 +162,32 @@ export class TrashService {
 
   async restorePlan(userId: string, planId: string): Promise<{ ok: true }> {
     const access = await this.access.requirePlan(userId, planId, 'ADMIN', { includeTrashed: true });
-    const plan = await this.prisma.plan.findUniqueOrThrow({
-      where: { id: planId },
-      select: { folderId: true },
-    });
+    // Under the tree's lock, so emptying the trash cannot delete a folder this
+    // brings back between reading the tree and writing it.
+    await this.prisma.$transaction(async (tx) => {
+      await lockFolderTrees(tx, [access.projectId]);
+      const plan = await tx.plan.findUniqueOrThrow({
+        where: { id: planId },
+        select: { folderId: true },
+      });
 
-    // Restoring into a project or folder that is itself in the trash would put
-    // the plan somewhere nobody can reach, so its containers come back with it.
-    const folders = plan.folderId === null ? [] : await this.chain(access.projectId, plan.folderId);
-    await this.prisma.$transaction([
-      this.prisma.project.updateMany({
+      // Restoring into a project or folder that is itself in the trash would put
+      // the plan somewhere nobody can reach, so its containers come back with it.
+      const folders =
+        plan.folderId === null ? [] : await chain(tx, access.projectId, plan.folderId);
+      await tx.project.updateMany({
         where: { id: access.projectId, deletedAt: { not: null } },
         data: { deletedAt: null, deletedById: null },
-      }),
-      this.prisma.folder.updateMany({
+      });
+      await tx.folder.updateMany({
         where: { id: { in: folders }, deletedAt: { not: null } },
         data: { deletedAt: null, deletedById: null },
-      }),
-      this.prisma.plan.update({
+      });
+      await tx.plan.update({
         where: { id: planId },
         data: { deletedAt: null, deletedById: null },
-      }),
-    ]);
+      });
+    });
     return { ok: true };
   }
 
@@ -189,27 +200,19 @@ export class TrashService {
     const access = await this.access.requireFolder(userId, folderId, 'ADMIN', {
       includeTrashed: true,
     });
-    const folders = await this.chain(access.projectId, folderId);
-    await this.prisma.$transaction([
-      this.prisma.project.updateMany({
+    await this.prisma.$transaction(async (tx) => {
+      await lockFolderTrees(tx, [access.projectId]);
+      const folders = await chain(tx, access.projectId, folderId);
+      await tx.project.updateMany({
         where: { id: access.projectId, deletedAt: { not: null } },
         data: { deletedAt: null, deletedById: null },
-      }),
-      this.prisma.folder.updateMany({
+      });
+      await tx.folder.updateMany({
         where: { id: { in: folders }, deletedAt: { not: null } },
         data: { deletedAt: null, deletedById: null },
-      }),
-    ]);
-    return { ok: true };
-  }
-
-  /** A folder and every folder above it. */
-  private async chain(projectId: string, folderId: string): Promise<string[]> {
-    const folders = await this.prisma.folder.findMany({
-      where: { projectId },
-      select: { id: true, parentId: true },
+      });
     });
-    return [folderId, ...ancestorsOf(folders, folderId).map((folder) => folder.id)];
+    return { ok: true };
   }
 
   async restoreProject(userId: string, projectId: string): Promise<{ ok: true }> {
@@ -247,26 +250,48 @@ export class TrashService {
   /** Everything in this workspace's trash, gone. */
   async empty(userId: string, workspaceId: string): Promise<{ removed: number }> {
     await this.access.requireWorkspace(userId, workspaceId, 'ADMIN');
-    // Everything below a discarded folder, as well as the folder itself.
-    const hidden = await hiddenFolderIds(this.prisma, { project: { workspaceId } });
+    // Read inside the transaction that deletes, under the lock a restore takes,
+    // so a folder restored first is not deleted from a stale reading.
+    const [plans, folders, projects] = await this.prisma.$transaction(async (tx) => {
+      const all = await tx.project.findMany({ where: { workspaceId }, select: { id: true } });
+      await lockFolderTrees(
+        tx,
+        all.map((project) => project.id),
+      );
+      // Everything below a discarded folder, as well as the folder itself.
+      const hidden = await hiddenFolderIds(tx, { project: { workspaceId } });
 
-    const [plans, folders, projects] = await this.prisma.$transaction([
-      // Plans filed in a discarded folder go with it: they were thrown away
-      // when it was, and only the folder carries the mark.
-      this.prisma.plan.deleteMany({
-        where: {
-          project: { workspaceId },
-          OR: [{ deletedAt: { not: null } }, { folderId: { in: hidden } }],
-        },
-      }),
-      this.prisma.folder.deleteMany({
-        where: { id: { in: hidden }, project: { workspaceId } },
-      }),
-      // After the plans, because a project takes its plans with it and the
-      // count would then be short.
-      this.prisma.project.deleteMany({ where: { workspaceId, deletedAt: { not: null } } }),
-    ]);
+      return [
+        // Plans filed in a discarded folder go with it: they were thrown away
+        // when it was, and only the folder carries the mark.
+        await tx.plan.deleteMany({
+          where: {
+            project: { workspaceId },
+            OR: [{ deletedAt: { not: null } }, { folderId: { in: hidden } }],
+          },
+        }),
+        await tx.folder.deleteMany({
+          where: { id: { in: hidden }, project: { workspaceId } },
+        }),
+        // After the plans, because a project takes its plans with it and the
+        // count would then be short.
+        await tx.project.deleteMany({ where: { workspaceId, deletedAt: { not: null } } }),
+      ];
+    });
 
     return { removed: plans.count + folders.count + projects.count };
   }
+}
+
+/** A folder and every folder above it. */
+async function chain(
+  tx: Prisma.TransactionClient,
+  projectId: string,
+  folderId: string,
+): Promise<string[]> {
+  const folders = await tx.folder.findMany({
+    where: { projectId },
+    select: { id: true, parentId: true },
+  });
+  return [folderId, ...ancestorsOf(folders, folderId).map((folder) => folder.id)];
 }

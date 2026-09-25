@@ -61,7 +61,8 @@ function service(): { trash: TrashService; writes: { model: string; where: unkno
       findUniqueOrThrow: async () => ({ folderId: 'drafts' }),
       update: record('plan'),
     },
-    $transaction: async (writes: Promise<unknown>[]) => Promise.all(writes),
+    $queryRaw: async () => [],
+    $transaction: async (work: (tx: unknown) => Promise<unknown>) => work(prisma),
   } as unknown as PrismaService;
 
   const access = {
@@ -108,5 +109,83 @@ describe('the trash with nested folders', () => {
     await trash.restorePlan('u', 'p9');
     const folders = writes.find((write) => write.model === 'folder');
     expect(folders?.where).toMatchObject({ id: { in: ['drafts', 'billing', 'specs'] } });
+  });
+});
+
+/**
+ * Every call the service makes, in order, and whether it went through the
+ * transaction. Two transactions cannot race in a fake, so what is proved is the
+ * shape that keeps them apart in Postgres: the tree is locked, then read, then
+ * written, all inside one transaction.
+ */
+function logged(): { trash: TrashService; calls: string[] } {
+  const calls: string[] = [];
+  const client = (where: string) => {
+    const call =
+      (name: string, result: unknown) =>
+      async (..._args: unknown[]) => {
+        calls.push(`${where} ${name}`);
+        return result;
+      };
+    return {
+      $queryRaw: call('lock', []),
+      project: {
+        findMany: call('project.findMany', [{ id: 'p1' }]),
+        updateMany: call('project.updateMany', { count: 0 }),
+        deleteMany: call('project.deleteMany', { count: 0 }),
+      },
+      folder: {
+        findMany: call('folder.findMany', [
+          { id: 'billing', parentId: null, name: 'Billing', deletedAt: at, projectId: 'p1' },
+        ]),
+        updateMany: call('folder.updateMany', { count: 1 }),
+        deleteMany: call('folder.deleteMany', { count: 1 }),
+      },
+      plan: {
+        findUniqueOrThrow: call('plan.findUniqueOrThrow', { folderId: 'billing' }),
+        update: call('plan.update', {}),
+        deleteMany: call('plan.deleteMany', { count: 1 }),
+      },
+    };
+  };
+  const tx = client('tx');
+  const prisma = {
+    ...client('outside'),
+    $transaction: async (work: (tx: unknown) => Promise<unknown>) => {
+      calls.push('begin');
+      const out = await work(tx);
+      calls.push('commit');
+      return out;
+    },
+  } as unknown as PrismaService;
+  const access = {
+    requireWorkspace: async () => 'ADMIN',
+    requireFolder: async () => ({ projectId: 'p1' }),
+    requirePlan: async () => ({ projectId: 'p1' }),
+  } as unknown as AccessService;
+  return { trash: new TrashService(prisma, access), calls };
+}
+
+describe('emptying the trash while something is restored', () => {
+  /* A restore landing between the read and the delete would lose the folder and its plans. */
+  it('reads what to delete inside the transaction that deletes it, after locking the trees', async () => {
+    const { trash, calls } = logged();
+    await trash.empty('u', 'w1');
+    expect(calls.filter((call) => call.startsWith('outside'))).toEqual([]);
+    expect(calls.indexOf('tx lock')).toBeGreaterThan(calls.indexOf('begin'));
+    expect(calls.indexOf('tx lock')).toBeLessThan(calls.indexOf('tx folder.findMany'));
+    expect(calls.indexOf('tx folder.deleteMany')).toBeLessThan(calls.indexOf('commit'));
+  });
+
+  it('restores under the same lock', async () => {
+    for (const restore of ['folder', 'plan'] as const) {
+      const { trash, calls } = logged();
+      if (restore === 'folder') await trash.restoreFolder('u', 'billing');
+      else await trash.restorePlan('u', 'p9');
+      expect(calls.filter((call) => call.startsWith('outside'))).toEqual([]);
+      expect(calls.indexOf('tx lock')).toBeGreaterThan(calls.indexOf('begin'));
+      expect(calls.indexOf('tx lock')).toBeLessThan(calls.indexOf('tx folder.findMany'));
+      expect(calls.indexOf('tx folder.updateMany')).toBeLessThan(calls.indexOf('commit'));
+    }
   });
 });

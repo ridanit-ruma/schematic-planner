@@ -1,4 +1,4 @@
-import type { Prisma } from '../generated/prisma/client.js';
+import { Prisma } from '../generated/prisma/client.js';
 import type { PrismaService } from '../common/prisma.service.js';
 
 /**
@@ -139,6 +139,24 @@ export function siblingNamed<T extends NamedTreeFolder & TrashableTreeFolder>(
       folder.deletedAt === null &&
       sameName(folder.name, name),
   );
+}
+
+/**
+ * Holds these projects' folder trees still until the transaction ends.
+ *
+ * Every change to a tree's shape reads the tree, checks the change against it
+ * and writes. A second change landing between that read and that write could
+ * pass a check the first is about to make false, so each takes this lock first
+ * and reads inside it. The lock is the project's own row, in id order so that
+ * two callers locking several projects cannot deadlock; `NO KEY` leaves plans
+ * and folders free to be inserted under the project meanwhile.
+ */
+export async function lockFolderTrees(
+  tx: Pick<Prisma.TransactionClient, '$queryRaw'>,
+  projectIds: readonly string[],
+): Promise<void> {
+  if (projectIds.length === 0) return;
+  await tx.$queryRaw`SELECT id FROM "Project" WHERE id IN (${Prisma.join([...projectIds])}) ORDER BY id FOR NO KEY UPDATE`;
 }
 
 /**
