@@ -126,32 +126,36 @@ PlanDoc snapshot (jsonb)            ← the READ model.
 ### Where things live
 
 ```
-Workspace            people, roles, invitations, and the API keys agents connect with
-  └─ Project         one thing being built
-       └─ Folder     optional: a drawer inside the project
-            └─ Plan  one graph
+Workspace              people, roles, invitations, and the API keys agents connect with
+  └─ Project           one thing being built, and the vocabulary its plans are drawn with
+       └─ Folder       optional: a drawer inside the project
+            └─ Folder  …which may hold drawers of its own
+                 └─ Plan  one graph
 ```
 
-Folders do not nest, and a plan does not have to be in one — `folderId` is null
-for every plan at a project's own top level, which is where they all were before
-folders existed. Two levels of grouping is what a project of a few dozen plans
-needs; each level past that multiplies the places a plan can be hiding without
-adding a way to find it.
+Folders nest: `Folder.parentId` is null at the project's top level and names the
+drawer it sits in otherwise, always in the same project. A name is unique among
+its siblings rather than across the project, so `Specs/Billing` and
+`Archive/Billing` can both exist. A folder cannot be moved into itself or anything
+below it, and moving one moves its whole subtree. A plan does not have to be in a
+folder at all — `folderId` is null for every plan at a project's own top level,
+which is where they all were before folders existed.
 
-A folder is a place in both screens that list plans. In the rail beside the
-canvas it opens and closes in line, and a plan is dragged from one drawer to
-another. On the project index it is a row like any other — its name, how many
-plans it holds, when it last changed — and clicking it goes into a screen of that
-folder's own, at `project/<slug>/folder/<id>`, which is an address that can be
-handed to somebody. A plan is filed from the row menu on either screen.
+Every signed-in screen is one screen: an **explorer** on the left and the content
+on the right. The explorer holds the workspace switcher, Recent, and the tree —
+every project, its folders as deep as they go, and their plans — with the open plan
+highlighted and its ancestors expanded. Its right edge is a grip, and double-clicking
+it puts the width back. A plan opens on the right; so do members, workspace and
+project settings, the trash, your account and your agent keys, with the tree still
+beside them. New plans, folders and projects are made from icons on the rows and at
+the foot of the tree and named in place, and a row's menu (or a right-click) holds
+the rest: rename, settings, move, share, export, move to the trash.
 
 A workspace and a project are addressed by a readable slug; a plan is not, and
 sits at the top level:
 
 ```
 /recent                            what you have worked on lately, across every workspace
-/workspace/acme                    projects
-/workspace/acme/project/billing    plans
 /workspace/acme/members  /settings  /trash
 /plan/:planId                      the canvas
 /share/:token                      read only, no session
@@ -159,15 +163,18 @@ sits at the top level:
 ```
 
 The application opens on `/recent` rather than on a workspace: people come back to a
-plan, and rarely remember which workspace it was filed under. Your account and
-your agent keys are not part of any workspace either, so they live behind the
-account row at the foot of the rail instead of in it.
+plan, and rarely remember which workspace it was filed under. The addresses of the
+list screens the explorer replaced — a workspace, a project, a folder — still
+answer, and land on Recent with that project or folder opened in the tree, so a
+link somebody saved goes somewhere sensible.
 
 A plan link is the thing people paste to each other, so it stays flat: renaming
 a workspace or a project must not break a link somebody saved. The cost is that
-the canvas cannot tell where it sits from its own address, so it asks —
-`GET /plans/:id/navigation` returns the workspace tree around a plan, names
-only, and the canvas draws it as the rail you move between plans with.
+the canvas cannot tell where it sits from its own address, so it asks.
+`GET /workspaces/:id/navigation` returns a whole workspace's tree in one request —
+projects, their folders with `parentId`, and their plans, names only — which is
+what the explorer draws; `GET /plans/:id/navigation` returns the same shape for the
+workspace around one plan, plus the project it is in.
 
 ### Deleting, and the trash
 
@@ -179,11 +186,15 @@ one flag is enough and no query has to remember a second table.
 A trashed project takes its plans with it without marking them: their own
 `deletedAt` stays clear, so restoring the project brings back exactly what was
 under it and not the plans somebody had already thrown away. A folder behaves the
-same way, so every listing has to ask about the folder as well as the plan.
+same way, and so does everything below it: trashing a folder marks that folder
+only, and the folders and plans under it are hidden by ancestry, so restoring it
+brings the whole subtree back as it was. Every listing therefore has to ask about
+the folders above a plan as well as the plan — `folder-tree.ts` answers that from
+the project's rows in memory, since a project holds a handful of folders.
 Nothing leaves the trash on its own; removing a row for good is a separate call,
 and emptying the trash is the only thing that deletes in bulk. Destroying a
-folder for good is the one case that destroys nothing else: its plans fall back
-to the project's top level rather than going with it.
+folder for good is the one case that destroys nothing else: the folders below it
+go with it, but their plans fall back to the project's top level.
 
 An invitation to a workspace can be listed and withdrawn — `GET` and `DELETE` on
 `workspaces/:id/invites`, both ADMIN. Only the ones that would still let
@@ -207,8 +218,8 @@ primitives built on them (containment tree, topological order, cycle detection),
 the repair pass that turns arbitrary CRDT state back into a valid document, and
 the pure reference implementation of the write path. A `PlanDoc` is:
 
-- **nodes** — `feature`, `task`, `decision`, `note`, `group`. Each has a human-readable
-  `slug`, a title, Markdown `body`, `status`, and an optional pinned `position`. The
+- **nodes** — each has a `kind` and a `status` from its project's vocabulary (below),
+  a human-readable `slug`, a title, a `body`, tags, and an optional pinned `position`. The
   slug is derived from the title when the node is made and can be changed after,
   through `rename_node` — which moves every edge, note anchor and containment
   pointing at it in the same transaction, since edge identity is derived from the
@@ -237,6 +248,77 @@ Edge identity is derived from its endpoints rather than generated, so submitting
 the same relationship twice collapses to one edge instead of duplicating it. That
 is what makes an agent's retry safe.
 
+### Kinds, statuses and tags belong to the project
+
+What a node can be and what state it can be in are not fixed lists. Each project
+has a **vocabulary** (`packages/schema/src/vocabulary.ts`), stored as a JSON column
+on `Project` beside a version number, read and written through
+`GET`/`PUT /projects/:id/vocabulary`. Every plan in the project shares it. A save
+names the version it was read at and is refused with 409 if somebody else saved in
+between, so two people editing it cannot overwrite each other.
+
+- **A status** is `{ id, name, color, category }`. The category — `todo`, `active`,
+  `blocked`, `done` or `cancelled` — is what the status _does_: `next_task` offers
+  `todo` and `active` work, the progress line counts `active` and `blocked`, a
+  `blocked` node turns the flows leaving it red, and `done` and `cancelled` are
+  settled. Nothing reads a status id to decide behaviour any more.
+- **A kind** is `{ id, name, look }`, where the look is the card's outline —
+  `solid`, `strong`, `dashed` or `clipped` — plus a `work` flag that says whether it
+  counts as something to do. `group` is built in, because a box around other boxes
+  is structure, and cannot be removed.
+- **A tag** is a name and a colour. Tags typed on a node are added to the project's
+  list, which is what the tag field suggests from.
+- Colours are one of ten named ones (`PALETTE`) rather than hex, so the browser
+  draws each from a `--palette-*` variable and the Obsidian Canvas export maps each
+  to a colour Obsidian knows.
+
+A project nobody has edited has `null` in that column and reads as
+`DEFAULT_VOCABULARY`, which is the old fixed lists exactly — statuses `idea`,
+`planned`, `in_progress`, `blocked`, `done`, `dropped`; kinds `feature`, `task`,
+`decision`, `note`, `group` — so every document, export and agent prompt written
+before the vocabulary existed reads the same. A default name is translated in the
+interface until somebody renames it.
+
+Nodes store the id of their kind and status, and the name of each tag, as plain
+strings, which is what lets a vocabulary change without a single document being
+rewritten. Renaming changes a name and keeps the id. **Removing a status or kind
+archives it**: it leaves the pickers, and a node still carrying it goes on being
+drawn with its last name and colour until someone changes it. A save may archive
+anything but may not drop an id it was given. A value the vocabulary has never
+heard of — pasted in from another project, say — is kept and drawn neutral as
+"Unknown: …" rather than discarded. A new status or kind gets a readable id made
+from its first name (`in-review`), which stays when it is renamed; export writes
+these ids to front matter, so an unchanged project exports byte for byte as it did
+before.
+
+### A node's body is a document several people write at once
+
+A node's body is a `Y.XmlFragment` of blocks, bound to a block editor
+(ProseMirror, through Tiptap and y-prosemirror), so two people and an agent typing
+into one body merge character by character. Headings, lists, to-dos, quotes, code,
+dividers, tables, toggles and callouts are blocks; images and raw HTML are not, and
+Markdown the schema cannot hold is kept verbatim as a raw block rather than dropped.
+
+Everything outside the editor reads a body as **Markdown**: export, the MCP tools,
+`next_task`, search, the history's diff, the card's measured height. The schema and
+both conversions live in `packages/body`: the browser's editor is built on it, and
+the API and the MCP server reach it through `packages/ydoc`, so there is one answer
+to what a body can hold. The snapshot, and so the exporter, only ever see Markdown.
+Their Markdown forms are the ones other tools read: a table is a GFM table, a toggle
+is `<details><summary>…</summary>…</details>`, and a callout is an Obsidian callout,
+`> [!note] Title`, of type note, tip, warning or danger. An agent's `body` is parsed
+and applied to the fragment as the smallest change that gets there, not a
+replacement, so a person typing in the same body keeps their place.
+
+Two details keep that honest. The serialiser writes one spelling of each construct
+(`-` bullets, `**bold**`), so `packages/ydoc` keeps the Markdown a body was last
+written as beside the fragment, under `bodySource`, and reads that back for as long
+as the fragment still says the same thing — otherwise a body an agent wrote with
+`*` bullets would come back respelled, every export would change, and the history
+would report an edit nobody made. And bodies written before the editor were
+`Y.Text`: the server converts them once, when it first loads a document and before
+any client syncs (`migrateBodies`), so nothing is converted twice.
+
 ## The MCP surface
 
 Agents are a first-class client, so the tool surface is designed around what an LLM is
@@ -258,17 +340,33 @@ at once.
 | `list_workspaces()`             | Workspaces the key can act in                                                                                                                                                                                                     |
 | `list_projects({ workspace? })` | Projects the key can reach, across the account or narrowed                                                                                                                                                                        |
 | `list_plans({ workspace? })`    | Plans, grouped by workspace, project and the folder each one is filed in                                                                                                                                                                                           |
-| `get_plan(id, { view })`        | `view`: `outline` \| `graph` \| `markdown`. Positions and styling are excluded by default to keep responses small                                                                                                                 |
-| `create_plan(spec)`             | Opens a plan, with whatever structure is already known or none at all. Takes a workspace and project slug, and a folder name to file it in at once; with one workspace reachable neither slug is needed, and with several it names them rather than guessing |
-| `apply_ops(id, ops[])`          | How a plan grows after that, and the only write door. Upsert by slug, so retries never duplicate. Each batch reaches every open canvas at once, so drawing in pieces is what a person watching actually sees. `rename_node` goes through it too, and is the one operation that is strict where the upserts are lenient: renaming a node that is not there, or onto an identifier another node answers to, fails the batch rather than being skipped. `upsert_comment` goes through the same door: an agent unsure of something leaves a note where a person will see it instead of drawing confidently around the guess. The server signs such a note `<owner>'s agent` — the surface has no author field, because nothing an agent put there would be worth trusting |
+| `search(query, { workspace?, projectSlug? })` | Words across every plan the key reaches — titles, slugs, tags and bodies — answered with the plans and folders they are in. The way to find the plan that already covers something before drawing a second one |
+| `trace(id, from, { direction, depth })` | Follows the flow from one node, hop by hop, upstream or downstream, with what sets each hop off and what it carries. The way to read a plan: it answers with the thread, not the document |
+| `get_plan(id, { view })`        | `view`: `outline` \| `graph` \| `markdown`. Positions and styling are excluded by default to keep responses small. The answer ends with the project's vocabulary — the kinds and statuses it offers, by id and name with what each status means, and the tags already used — and the plan's `revision` |
+| `read_nodes(id, slugs)`         | The full bodies of the nodes named, as Markdown, with what each is wired to and what holds it |
+| `next_task(id)`                 | Where a plan has got to and what can be started now. It goes by status category and the kind's `work` flag, not by fixed ids: work in an `active` status is listed as already started, `blocked` work with the notes left on it, and `todo` work is ready once everything flowing into it and everything it depends on is settled (`done` or `cancelled`). Ready tasks come with their bodies |
+| `plan_history(id)`              | Who changed what, newest first, people and agents alike |
+| `create_project(name)`          | A project to draw in, rather than everything piling into the workspace default |
+| `create_plan(spec)`             | Opens an empty plan and hands back its id; drawing is `apply_ops`. Takes a workspace and project slug, and a folder path to file it in at once; with one workspace reachable neither slug is needed, and with several it names them rather than guessing. The answer carries the project's vocabulary, so the first batch can use its words |
+| `apply_ops(id, ops[])`          | How a plan grows after that, and the only write door. Upsert by slug, so retries never duplicate. Each batch reaches every open canvas at once, so drawing in pieces is what a person watching actually sees. A `kind` or `status` is any string, checked against the project's vocabulary before anything is written: an id or a name is accepted (`In review` is written as `in-review`), a value the node already carries is always accepted even if archived, and anything else refuses the whole batch with the valid ones listed. A `body` is Markdown, applied to the node's block document as a minimal change. `rename_node` goes through it too, and is the one operation that is strict where the upserts are lenient: renaming a node that is not there, or onto an identifier another node answers to, fails the batch rather than being skipped. `upsert_comment` goes through the same door: an agent unsure of something leaves a note where a person will see it instead of drawing confidently around the guess. The server signs such a note `<owner>'s agent` — the surface has no author field, because nothing an agent put there would be worth trusting |
 | `set_plan_sources(id, ids)`     | Which plans this one was written from. Replaces the whole set, so two callers cannot half-agree about it; sources must be plans in the same project. Reading the plan back names each source, the drawer it is filed in, and whether it still resolves — a source that is deleted or moved is reported, never removed |
 | `layout(id, { scope })`         | Re-run layout over everything that is not pinned                                                                                                                                                                                  |
 | `export_plan(id)`               | Markdown tree plus `.canvas`. The download link it returns opens with the same key, because the content is what `get_plan` already hands over |
-| `list_folders({ project? })`    | The drawers inside a project, and how many plans each holds |
-| `create_folder(name)`           | Makes a drawer. Asked for one already there, it hands that one back rather than making a second of the same name — folders are addressed by name, and two of a name would make every other call ambiguous |
-| `rename_folder(folder, to)`     | Renames a drawer. Nothing inside it moves |
-| `delete_folder(folder, confirmName)` | To the trash, with the plans in it, which come back with it. The exact name is required as well, so a wrong name cannot take the wrong drawer |
-| `move_plan(id, { project?, folder? })` | Files a plan elsewhere: another drawer, another project, a project in another workspace. Naming only a folder keeps it where it is; `null` takes it to the top level. Crossing a workspace drops the plan's share link, and the answer says so |
+| `delete_plan(id, confirmTitle)` | To the trash, where a person can restore it. The exact title is required as well, so a wrong id cannot take somebody else's work |
+| `list_folders({ project? })`    | The drawers inside a project, each by its path from the top (`Specs/Billing`), and how many plans are filed directly in each |
+| `create_folder(path)`           | Makes a drawer. Folders nest: `Specs/Billing` makes `Billing` inside `Specs`, and any folder on the way that is missing is made too. Asked for one already there, it hands that one back rather than making a second of the same name |
+| `rename_folder(folder, to)`     | Renames a drawer. `to` is a name, not a path: renaming does not move it, and nothing inside it moves |
+| `delete_folder(folder, confirmName)` | To the trash, with the folders and plans inside it, which come back with it. The exact name — the last part of the path — is required as well, so a wrong path cannot take the wrong drawer |
+| `move_plan(id, { project?, folder? })` | Files a plan elsewhere: another drawer, another project, a project in another workspace. Naming only a folder keeps it in its project; `null` takes it to the top level. Crossing a workspace drops the plan's share link, and the answer says so |
+
+Every tool that takes a folder takes its path from the project's top level,
+`Specs/Billing`. A bare name, or the end of a path, still works when only one folder
+in the project answers to it, so prompts written before folders nested keep working;
+anything that would mean two folders is refused with their paths rather than
+guessed at.
+
+Agents use the project's vocabulary but cannot change it: adding a status is a
+person's decision, made in the project's settings.
 
 Authentication is a hosted Remote MCP endpoint: the settings page hands over the whole
 client configuration as JSON, ready to paste — including `type: "http"`, without which a
@@ -308,8 +406,10 @@ freezing a filing convention into the schema would refuse a legitimate link from
 anyone who spells it differently. The folder each source sits in is reported, so
 a client can enforce whatever convention it keeps.
 
-Markdown is deliberately _not_ parsed server-side. An agent converting its own prose
-into the structured spec does a far better job than a parser guessing at headings.
+A plan is deliberately _not_ parsed out of Markdown on the server. An agent converting
+its own prose into the structured spec does a far better job than a parser guessing at
+headings. (A node's body is parsed — into its blocks — but that is the shape of one
+body, not of the plan.)
 
 ## The export format
 
@@ -460,6 +560,8 @@ apps/
 packages/
   schema/       zod schemas, graph primitives, repair, and the pure write path.
                 The shared vocabulary — everything else depends on it
+  body/         A node body's block schema (Tiptap), Markdown ⇄ blocks, and
+                Y.XmlFragment ⇄ Markdown. The editor's schema and the server's are one
   ydoc/         PlanDoc ⇄ Y.Doc bindings. Shared by web and api — must stay shared
   layout/       ELK.js auto-layout. Shared by the web "arrange" button and the MCP
                 layout tool, so the two can never disagree
@@ -480,10 +582,17 @@ Two module-format facts worth knowing before editing a build file:
 Dependencies flow one way. Nothing in `packages/` may import from `apps/`.
 
 ```
-schema  ←  ydoc  ←  web, api
-   ↖ layout   ←  web, api
-   ↖ exporter ←  api
+schema  ←  ydoc      ←  web, api
+body    ←  ydoc
+body    ←  web                      the block editor
+schema  ←  layout    ←  web, api
+schema  ←  exporter  ←  api
 ```
+
+`body` depends on no other package here — it is Tiptap, the Markdown parser and
+Yjs — and `ydoc` is what brings it to the API. The web app imports it directly
+as well, because the editor has to be built from the same schema the server
+converts with.
 
 ## Where new code goes
 
@@ -492,7 +601,8 @@ Use this order when deciding where something belongs:
 1. **Is it a type or a validation rule?** → `packages/schema`
 2. **Is it a pure transform over a plan?** → `packages/exporter` or `packages/layout`
 3. **Does it change how the collaborative document is structured?** → `packages/ydoc`,
-   and remember both clients now depend on it
+   and remember both clients now depend on it. **What a node's body can hold, or how
+   it reads as Markdown?** → `packages/body`
 4. **Is it an authorisation decision?** → `apps/api/src/workspaces/access.service.ts`,
    which is the only place that decides who may see what
 5. **Does it need a database, a request, or a session?** → `apps/api`
@@ -559,9 +669,10 @@ popovers, `surface-4` for what is selected — separated by 1px translucent bord
 shadow.
 
 **Colour is data.** Electric indigo (`accent`) means "this is where you are" and
-nothing else. Everything else coloured is telemetry: slate for a draft, indigo for
-planned, amber for in progress, crimson for blocked, emerald for done. Violet
-(`collab`) is reserved for agents and live collaborators.
+nothing else. Everything else coloured is telemetry: a status's colour and a tag's,
+each one of the vocabulary's ten named colours (`--palette-*`) — by default slate
+for an idea, indigo for planned, amber for in progress, crimson for blocked, emerald
+for done. Violet (`collab`) is reserved for agents and live collaborators.
 
 **Corners are tight and technical.** `rounded-sm` (4px) for tags and indicators,
 `rounded-md` (6px) for inputs, buttons and rows, `rounded-lg` (8px) for cards and
@@ -577,6 +688,66 @@ grid, and one disc in a row of them reads as borrowed from elsewhere.
 Screens are built from `Page`, `Panel` and `Table` in `apps/web/src/components/ui`, so
 a list is a list wherever it appears. Anything reaching for a raw `<select>`, a native
 `title` tooltip or a hand-rolled avatar has skipped a component that already exists.
+
+### The canvas is handled like a drawing tool
+
+The pointer and the wheel do what they do in Figma rather than what React Flow does
+by default:
+
+| Input                               | Does                                                              |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| Drag on empty canvas                | Box selection; takes every node the box touches. Shift adds to it |
+| Middle-button drag, or Space + drag | Pans                                                              |
+| Wheel, two-finger scroll            | Pans; Shift+wheel pans sideways                                   |
+| Ctrl/⌘ + wheel, pinch               | Zooms at the pointer                                              |
+| Click a node                        | Selects it; Shift, Ctrl or ⌘ + click adds or removes it           |
+| Double-click empty canvas           | Nothing — it no longer zooms                                      |
+| Backspace or Delete                 | Deletes the selection                                             |
+
+A wheel over a card's body or a note that can scroll still scrolls it, as before.
+
+**A node is made where it is wanted, in one gesture.** Dragging from a node's
+outgoing terminal and letting go on empty canvas makes a node there, its left
+terminal on the point, joined from the source by a `flows_to` line — the rule every
+new line follows: it is a flow, and what it means is changed afterwards on the line.
+Let go inside a box and the new node is in that box. The new card opens straight
+into naming, on the card itself: Enter or leaving the field keeps it, and Escape or
+an empty title takes the node and its line away again. Making and naming are one
+undo step. _Add node_ in the title block and _Add node here_ in the canvas menu name
+their node the same way, and double-clicking any card's title renames it in place.
+
+**Copies.** Alt/⌥ + drag leaves the originals where they were and drops copies where
+the drag ends. Ctrl/⌘ + C copies the selection and X cuts it; V pastes at the
+pointer, or 20 px from the originals when the pointer is off the canvas; D
+duplicates in place. A copy carries the selected nodes, everything inside a selected
+box, the lines whose both ends were copied, and each node's title, kind, status,
+tags, body, size and pin — not the notes on it. Copies get fresh slugs, keep their
+arrangement, become the selection, and are one undo step. The clipboard is the
+system's (`clipboard.ts`): JSON under a type of its own, and a plain list of titles
+for anything else, so a copy pastes into another plan or another tab, and lines of
+plain text pasted onto the canvas become nodes. Kinds, statuses and tags travel by
+id and name; pasted into a project without them, they show as unknown until
+somebody picks one.
+
+**Moving a selection** commits every dragged node's position in one transaction and
+resolves each one's box on drop as a single node's is. Snapping treats the selection
+as one block and ignores its own members, and people watching see every node move,
+not only the one under the pointer.
+
+**Equal spacing.** While dragging, the block snaps so that its gap to a neighbour
+equals a gap already on the canvas between two nodes lined up on that axis, within
+the same 6px-at-100% reach as the alignment guides; where an alignment and a spacing
+snap compete on one axis, the nearer wins. Matched gaps are drawn as pink measures
+with their size, on the pair it matched and on the new gap (`spacing.ts`).
+
+**Gap handles.** Two or more selected nodes in a row or a column with equal gaps
+(±1 px) get a handle in each gap. Dragging one changes every gap by the same amount,
+live, with the first node held still and the size shown; letting go is one undo
+step. A selection that is not evenly spaced has no handles; **Tidy up** in the
+canvas menu spaces it evenly along its longer axis at its mean gap, and then they
+appear.
+
+Grid snapping, its step and the anchor settings are unchanged.
 
 ### A line can be bent round what is in the way
 
@@ -750,19 +921,22 @@ ever will, since layout places the drawing and a note is a remark beside it.
 
 ### A note can ask a question, and a box can answer it
 
-A node's body and a note have always been written as Markdown — the inspector says
-so — and were drawn as plain text, asterisks and all. They are rendered now, in a
-deliberately small subset: emphasis, strikethrough, code and code blocks, links,
-lists, task lists, block quotes and rules. Not headings, tables or images, because a
-note is a remark beside a drawing and a card is 260px of that drawing; a document's
-furniture inside either makes the picture about its own typography. Raw HTML is not
-rendered at all, and a link may only be `http`, `https` or `mailto` — a plan opens
-through a share link with no login, so a link in a document somebody else wrote
-reaches a reader who never agreed to trust its author. Nothing on this path builds an
-HTML string, which is why there is no `dangerouslySetInnerHTML` anywhere in the app.
+A node's body and a note were written as Markdown and drawn as plain text,
+asterisks and all. They are rendered now, in the subset the block editor makes:
+headings, emphasis, strikethrough, code and code blocks, links, lists, task lists,
+block quotes, rules, tables, toggles and callouts. The card draws them compactly
+with the same shapes the editor uses — a toggle opens and closes, a callout carries
+its type's colour. Images are not drawn, and raw HTML is not rendered at all; a link
+may only be `http`, `https` or `mailto` — a plan opens through a share link with no
+login, so a link in a document somebody else wrote reaches a reader who never agreed
+to trust its author. Nothing on this path builds an HTML string, which is why there
+is no `dangerouslySetInnerHTML` anywhere in the app.
 
-A body is raw while you are writing it and drawn when you are not, which is the
-bargain a note already made by being a textarea open and text closed.
+A body is written in the block editor in the inspector (`features/plan/editor`):
+`# ` makes a heading, `- ` a list, `[] ` a to-do, `> ` a quote and three backticks a
+code block as you type, `/` opens a menu of every block, a handle beside each block
+drags it, and other people's cursors show while they write. A note keeps its plain
+text field, open while you write and drawn when you are not.
 
 The reason it was worth doing: a note can carry a task list, so an agent unsure of
 something can ask rather than guess — the question, then the answers as `- [ ]`
@@ -776,6 +950,7 @@ The checkbox a task list renders is drawn by the app and not by the Markdown
 renderer, whose own is inert by design. One place therefore decides what a checkbox
 is, what it does when clicked, and that it is dead for a reader who may not edit the
 plan.
+
 ## Getting started
 
 Requires Node 20+ and pnpm 9+ (developed on Node 26 / pnpm 11).
@@ -824,13 +999,30 @@ There is no CI pipeline. `pnpm check` passing locally is the bar.
 **On NixOS, `pnpm check` stops at the API typecheck and it is not your change.**
 That script runs `prisma generate` first, and Prisma publishes no engine for
 `linux-nixos` — it tries to download one and gets a 404. The generated client is
-committed, so the typecheck itself is fine. Point Prisma at the engine nixpkgs
-has, or skip generation and run `tsc --noEmit` per package:
+not committed, so it has to be generated once before the API typechecks. Point
+Prisma at the engine nixpkgs has:
 
 ```bash
 export PRISMA_SCHEMA_ENGINE_BINARY=$(nix-build '<nixpkgs>' -A prisma-engines --no-out-link)/bin/schema-engine
 export PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
 ```
+
+### A refresh whose answer is lost does not end the session
+
+The access token is short-lived and the refresh cookie rotates on every use, and
+reuse of a spent refresh token revokes the session — that is how a stolen one is
+caught. The cost used to be that a refresh whose answer never reached the browser
+(a page load in the middle of it, a dropped connection) spent the cookie and left
+the screen signed in with no token, answering `Missing access token` to everything.
+
+So rotation marks the old session `replacedAt` instead of deleting it, and **a
+refresh token rotated in the last 30 seconds is accepted once more** and answered
+with its successor's session (`ROTATION_GRACE_MS` in `auth.service.ts`). Presented
+after the window it is refused and the session revoked, as before; replaced rows
+past the window are removed lazily. The browser refreshes a minute before the
+access token expires rather than after a 401, serialises refreshes across tabs with
+a Web Lock so two tabs never spend the same cookie, and when a refresh really fails
+it signs the screen out and sends you to sign in with the address to come back to.
 
 ### On Kubernetes
 
@@ -902,7 +1094,10 @@ CANVAS_CHECK_URL=http://127.0.0.1:8443 pnpm --filter @schematic/web canvas-check
 It signs in, walks workspace to project to plan, and checks the things that
 actually broke: that the canvas has height, that containers are drawn at their
 own bounds, and that a container's handle can be reached rather than buried
-behind the edges. It finds a browser itself — Chromium, Chrome or Firefox,
+behind the edges — and it drives the canvas's gestures: a box selection that does
+not pan, a dragged selection written whole and undone in one step, the wheel,
+a line let go on the canvas making a node named on its card, copying a node into
+another plan, Alt+drag, equal spacing, gap handles and Tidy up. It finds a browser itself — Chromium, Chrome or Firefox,
 whichever the machine has — and `CHROME_PATH` names one if you would rather
 choose. Needs a seeded plan to look at.
 
@@ -1020,6 +1215,10 @@ Still missing:
 - [x] Comments: notes on a plan, readable by a person and by an agent
 - [x] Live cursors, and a row that says who else is on the plan
 - [x] Export filenames from titles, so a vault keeps the names it had
+- [x] A canvas handled like a drawing tool: box selection, copy and paste, equal spacing
+- [x] Folders that nest, and one screen with the explorer beside every page
+- [x] Kinds, statuses and tags a project defines for itself
+- [x] A node's detail as a block editor several people write in at once
 - [ ] GitHub and Google sign-in callbacks
 - [ ] Email: invitations, address changes, password reset
 - [ ] Plan version history and restore
