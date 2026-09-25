@@ -19,7 +19,8 @@ import {
   type FolderSummary,
   type PlanSummary,
 } from '@/lib/api';
-import { formatWhen, plural } from '@/lib/utils';
+import { useT } from '@/i18n';
+import { formatWhen } from '@/lib/utils';
 import { useLiveList, type LoadReason } from '@/lib/use-live-list';
 import { MoveToFolder } from './MoveToFolder';
 import { projectRows } from './project-rows';
@@ -49,6 +50,8 @@ export function PlanIndexPage() {
   const [renameTo, setRenameTo] = useState('');
   const [trashing, setTrashing] = useState<FolderSummary | null>(null);
   const mayDelete = canAdminister(current.role);
+  const t = useT();
+  const m = t.workspaces;
 
   const reload = (reason: LoadReason): void => {
     // Cleared on the way in, so the previous project's plans are not shown
@@ -140,7 +143,7 @@ export function PlanIndexPage() {
 
   if (error !== null) {
     return (
-      <Page title="Plans">
+      <Page title={m.plans.title}>
         <Problem error={error} />
       </Page>
     );
@@ -156,29 +159,27 @@ export function PlanIndexPage() {
   return (
     <Page
       title={project.name}
-      description={`${drawers.length === 0 ? '' : `${plural(drawers.length, 'folder')} · `}${
-        list.length === 0 ? 'Nothing drawn yet' : plural(list.length, 'plan')
-      } in this project.`}
+      description={m.plans.description(drawers.length, list.length)}
       actions={
         <>
           <Button variant="ghost" onClick={() => setAddingFolder(true)}>
             <FolderPlus className="size-3.5" />
-            New folder
+            {m.plans.newFolder}
           </Button>
           <Button variant="primary" onClick={() => setCreating(true)}>
             <Plus className="size-3.5" />
-            New plan
+            {m.newPlan.title}
           </Button>
         </>
       }
     >
       {list.length === 0 && drawers.length === 0 ? (
         <Empty
-          title="No plans yet"
-          body="Draw one here, or point an AI agent at this workspace and let it create the first plan for you."
+          title={m.plans.empty.title}
+          body={m.plans.empty.body}
           action={
             <Button variant="primary" onClick={() => setCreating(true)}>
-              Create the first plan
+              {m.newPlan.createFirst}
             </Button>
           }
         />
@@ -188,15 +189,15 @@ export function PlanIndexPage() {
             {/* Name rather than Plan: a folder is a row here too, and a column
                 only half the rows can answer is a column that stops meaning
                 anything part-way down. */}
-            <TH>Name</TH>
+            <TH>{m.list.name}</TH>
             <TH className="w-24" align="right" hide="md">
-              Holds
+              {m.list.holds}
             </TH>
             <TH className="w-20 sm:w-32" align="right">
-              Updated
+              {m.list.updated}
             </TH>
             <TH className="w-10">
-              <span className="sr-only">Actions</span>
+              <span className="sr-only">{m.list.actions}</span>
             </TH>
           </THead>
           <tbody>
@@ -222,12 +223,12 @@ export function PlanIndexPage() {
                     <RowMenu label={row.folder.name}>
                       <DropdownAction onSelect={() => setRenaming(row.folder)}>
                         <FolderClosed className="size-3.5 text-ink-faint" />
-                        Rename
+                        {t.common.rename}
                       </DropdownAction>
                       {mayDelete ? (
                         <DropdownAction tone="danger" onSelect={() => setTrashing(row.folder)}>
                           <Trash2 className="size-3.5" />
-                          Move to trash
+                          {m.list.moveToTrash}
                         </DropdownAction>
                       ) : null}
                     </RowMenu>
@@ -244,7 +245,7 @@ export function PlanIndexPage() {
                         </span>
                       ) : null}
                       <span className="block truncate text-xs text-ink-faint md:hidden">
-                        {plural(row.plan.nodeCount, 'node')}
+                        {m.list.nodeCount(row.plan.nodeCount)}
                       </span>
                     </Link>
                   </TD>
@@ -258,18 +259,18 @@ export function PlanIndexPage() {
                     <RowMenu label={row.plan.title}>
                       <DropdownAction onSelect={() => setMoving(row.plan)}>
                         <FolderInput className="size-3.5 text-ink-faint" />
-                        Move to folder…
+                        {m.list.moveToFolder}
                       </DropdownAction>
                       <DropdownAction
                         onSelect={() => void navigate(`/plan/${row.plan.id}/settings`)}
                       >
                         <Settings className="size-3.5 text-ink-faint" />
-                        Settings
+                        {m.list.settings}
                       </DropdownAction>
                       {mayDelete ? (
                         <DropdownAction tone="danger" onSelect={() => setDeleting(row.plan)}>
                           <Trash2 className="size-3.5" />
-                          Move to trash
+                          {m.list.moveToTrash}
                         </DropdownAction>
                       ) : null}
                     </RowMenu>
@@ -284,12 +285,12 @@ export function PlanIndexPage() {
       <Modal
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
-        title={`Move ${deleting?.title ?? ''} to the trash?`}
-        description="It stops appearing everywhere it is listed. You can bring it back from the trash."
+        title={m.list.confirmTrash(deleting?.title ?? '')}
+        description={m.list.planTrashBody}
       >
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setDeleting(null)}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button
             variant="danger"
@@ -298,12 +299,12 @@ export function PlanIndexPage() {
             }}
           >
             <Trash2 className="size-3.5" />
-            Move to trash
+            {m.list.moveToTrash}
           </Button>
         </div>
       </Modal>
 
-      <Modal open={addingFolder} onOpenChange={setAddingFolder} title="New folder">
+      <Modal open={addingFolder} onOpenChange={setAddingFolder} title={m.plans.createFolder.title}>
         <form
           className="space-y-4"
           onSubmit={(event) => {
@@ -311,29 +312,29 @@ export function PlanIndexPage() {
             void addFolder();
           }}
         >
-          <Field label="Name" hint="A drawer inside this project. Folders do not nest.">
+          <Field label={m.plans.createFolder.nameLabel} hint={m.plans.createFolder.nameHint}>
             {(id) => (
               <Input
                 id={id}
                 autoFocus
                 value={folderName}
                 onChange={(event) => setFolderName(event.target.value)}
-                placeholder="Architecture"
+                placeholder={m.plans.createFolder.namePlaceholder}
               />
             )}
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setAddingFolder(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button type="submit" variant="primary">
-              Create folder
+              {m.plans.createFolder.submit}
             </Button>
           </div>
         </form>
       </Modal>
 
-      <Modal open={creating} onOpenChange={setCreating} title="New plan">
+      <Modal open={creating} onOpenChange={setCreating} title={m.newPlan.title}>
         <form
           className="space-y-4"
           onSubmit={(event) => {
@@ -341,34 +342,34 @@ export function PlanIndexPage() {
             void create();
           }}
         >
-          <Field label="Title">
+          <Field label={m.newPlan.titleLabel}>
             {(id) => (
               <Input
                 id={id}
                 autoFocus
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder="Ledger migration"
+                placeholder={m.newPlan.titlePlaceholder}
               />
             )}
           </Field>
-          <Field label="Description" hint="What this plan draws. One line, shown in the list.">
+          <Field label={m.newPlan.descriptionLabel} hint={m.newPlan.descriptionHint}>
             {(id) => (
               <Textarea
                 id={id}
                 rows={2}
                 value={newDescription}
                 onChange={(event) => setNewDescription(event.target.value)}
-                placeholder="How an invoice gets from the ledger to a PDF."
+                placeholder={m.newPlan.descriptionPlaceholder}
               />
             )}
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button type="submit" variant="primary">
-              Create plan
+              {m.newPlan.submit}
             </Button>
           </div>
         </form>
@@ -388,7 +389,7 @@ export function PlanIndexPage() {
       <Modal
         open={renaming !== null}
         onOpenChange={(open) => !open && setRenaming(null)}
-        title="Rename folder"
+        title={m.list.renameFolder}
       >
         <form
           className="space-y-4"
@@ -397,7 +398,7 @@ export function PlanIndexPage() {
             void rename();
           }}
         >
-          <Field label="Name">
+          <Field label={m.list.name}>
             {(id) => (
               <Input
                 id={id}
@@ -409,10 +410,10 @@ export function PlanIndexPage() {
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setRenaming(null)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button type="submit" variant="primary">
-              Rename
+              {t.common.rename}
             </Button>
           </div>
         </form>
@@ -421,16 +422,16 @@ export function PlanIndexPage() {
       <Modal
         open={trashing !== null}
         onOpenChange={(open) => !open && setTrashing(null)}
-        title={`Move ${trashing?.name ?? ''} to the trash?`}
-        description="The plans in it go with it, and come back with it."
+        title={m.list.confirmTrash(trashing?.name ?? '')}
+        description={m.list.folderTrashBody}
       >
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setTrashing(null)}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button variant="danger" onClick={() => void trashFolder()}>
             <Trash2 className="size-3.5" />
-            Move to trash
+            {m.list.moveToTrash}
           </Button>
         </div>
       </Modal>

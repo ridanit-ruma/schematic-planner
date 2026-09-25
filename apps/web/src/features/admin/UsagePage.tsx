@@ -1,9 +1,10 @@
 import { useState } from 'react';
 
 import { Problem, Spinner } from '@/components/ui/feedback';
+import { formatLocale, useT } from '@/i18n';
 import { admin, type Usage } from '@/lib/api';
 import { useLiveList } from '@/lib/use-live-list';
-import { cn, formatWhen, plural } from '@/lib/utils';
+import { cn, formatWhen } from '@/lib/utils';
 import { useDocumentTitle } from '@/lib/use-document-title';
 
 /**
@@ -14,7 +15,8 @@ import { useDocumentTitle } from '@/lib/use-document-title';
  * could fall behind and quietly lie.
  */
 export function UsagePage() {
-  useDocumentTitle('Usage');
+  const t = useT();
+  useDocumentTitle(t.admin.usage.documentTitle);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [error, setError] = useState<unknown>(null);
 
@@ -37,20 +39,28 @@ export function UsagePage() {
       {/* What is happening now, which is the only part of this screen that is
           not history. */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Figure label="Open plans" value={live.documents} note="right now" />
-        <Figure label="Connections" value={live.connections} note="right now" />
         <Figure
-          label="Signed in"
-          value={reach.sessions}
-          note={`${accounts.activeRecently} active in ${usage.recentDays}d`}
+          label={t.admin.usage.openPlans}
+          value={live.documents}
+          note={t.admin.usage.rightNow}
         />
         <Figure
-          label="Accounts"
+          label={t.admin.usage.connections}
+          value={live.connections}
+          note={t.admin.usage.rightNow}
+        />
+        <Figure
+          label={t.admin.usage.signedIn}
+          value={reach.sessions}
+          note={t.admin.usage.activeIn(accounts.activeRecently, usage.recentDays)}
+        />
+        <Figure
+          label={t.admin.usage.accounts}
           value={accounts.total}
           note={
             accounts.suspended > 0
-              ? `${accounts.joinedRecently} new · ${accounts.suspended} suspended`
-              : `${accounts.joinedRecently} new in ${usage.recentDays}d`
+              ? t.admin.usage.newAndSuspended(accounts.joinedRecently, accounts.suspended)
+              : t.admin.usage.newIn(accounts.joinedRecently, usage.recentDays)
           }
         />
       </section>
@@ -58,39 +68,68 @@ export function UsagePage() {
       <Trend usage={usage} />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="What has been drawn">
+        <Panel title={t.admin.usage.drawn.title}>
           <Rows
             rows={[
-              ['Plans', `${content.plans}`, content.trashedPlans > 0 ? `${content.trashedPlans} in the trash` : ''],
-              ['Nodes', `${content.nodes}`, content.plans > 0 ? `${Math.round(content.nodes / content.plans)} a plan on average` : ''],
-              ['Connections', `${content.edges}`, ''],
-              ['Largest plan', plural(content.largestPlan, 'node'), ''],
-              ['Workspaces', `${content.workspaces}`, plural(content.projects, 'project')],
+              [
+                t.admin.usage.drawn.plans,
+                `${content.plans}`,
+                content.trashedPlans > 0 ? t.admin.usage.drawn.inTrash(content.trashedPlans) : '',
+              ],
+              [
+                t.admin.usage.drawn.nodes,
+                `${content.nodes}`,
+                content.plans > 0
+                  ? t.admin.usage.drawn.nodesPerPlan(Math.round(content.nodes / content.plans))
+                  : '',
+              ],
+              [t.admin.usage.drawn.connections, `${content.edges}`, ''],
+              [
+                t.admin.usage.drawn.largestPlan,
+                t.admin.usage.drawn.nodeCount(content.largestPlan),
+                '',
+              ],
+              [
+                t.admin.usage.drawn.workspaces,
+                `${content.workspaces}`,
+                t.admin.usage.drawn.projectCount(content.projects),
+              ],
             ]}
           />
         </Panel>
 
-        <Panel title="Agents">
+        <Panel title={t.admin.usage.agents.title}>
           <Rows
             rows={[
-              ['Keys in use', `${agents.liveKeys}`, agents.keys > agents.liveKeys ? `${agents.keys - agents.liveKeys} revoked` : ''],
               [
-                'Changes by agents',
-                `${activity.byAgents}`,
-                activity.changes > 0
-                  ? `${Math.round((activity.byAgents / activity.changes) * 100)}% of everything`
+                t.admin.usage.agents.keysInUse,
+                `${agents.liveKeys}`,
+                agents.keys > agents.liveKeys
+                  ? t.admin.usage.agents.revoked(agents.keys - agents.liveKeys)
                   : '',
               ],
-              ['Share links', `${reach.shares}`, ''],
-              ['Invitations open', `${reach.liveInvites}`, ''],
-              ['Database', bytes(storage.databaseBytes), ''],
+              [
+                t.admin.usage.agents.changesByAgents,
+                `${activity.byAgents}`,
+                activity.changes > 0
+                  ? t.admin.usage.agents.shareOfEverything(
+                      Math.round((activity.byAgents / activity.changes) * 100),
+                    )
+                  : '',
+              ],
+              [t.admin.usage.agents.shareLinks, `${reach.shares}`, ''],
+              [t.admin.usage.agents.invitationsOpen, `${reach.liveInvites}`, ''],
+              [t.admin.usage.agents.database, bytes(storage.databaseBytes), ''],
             ]}
           />
           {agents.recent.length === 0 ? null : (
             <div className="mt-3 border-t border-rule pt-3">
-              <p className="rail-heading mb-1.5">Last used</p>
+              <p className="rail-heading mb-1.5">{t.admin.usage.agents.lastUsed}</p>
               {agents.recent.map((key) => (
-                <p key={`${key.by}-${key.name}`} className="flex justify-between gap-3 py-0.5 text-xs">
+                <p
+                  key={`${key.by}-${key.name}`}
+                  className="flex justify-between gap-3 py-0.5 text-xs"
+                >
                   <span className="min-w-0 truncate text-ink">
                     {key.name} <span className="text-ink-faint">· {key.by}</span>
                   </span>
@@ -105,12 +144,12 @@ export function UsagePage() {
       </div>
 
       {busiest.length === 0 ? null : (
-        <Panel title="Busiest workspaces">
+        <Panel title={t.admin.usage.busiest.title}>
           <Rows
             rows={busiest.map((workspace) => [
               workspace.name,
-              plural(workspace.changes, 'change'),
-              plural(workspace.plans, 'plan'),
+              t.admin.usage.busiest.changeCount(workspace.changes),
+              t.admin.usage.busiest.planCount(workspace.plans),
             ])}
           />
         </Panel>
@@ -127,13 +166,14 @@ export function UsagePage() {
  * shape. The axis is labelled, because a line with no scale is decoration.
  */
 function Trend({ usage }: { usage: Usage }) {
+  const t = useT();
   const days = fortnight(usage.activity.trend, usage.days);
   const peak = Math.max(1, ...days.map((day) => day.people + day.agents));
 
   return (
     <Panel
-      title={`Changes over ${usage.days} days`}
-      aside={`${usage.activity.changesRecently} in the last ${plural(usage.recentDays, 'day')}`}
+      title={t.admin.usage.trend.title(usage.days)}
+      aside={t.admin.usage.trend.aside(usage.activity.changesRecently, usage.recentDays)}
     >
       <div className="flex items-end gap-1" style={{ height: 96 }}>
         {days.map((day) => {
@@ -143,12 +183,12 @@ function Trend({ usage }: { usage: Usage }) {
               <span
                 className="w-full rounded-t-[2px] bg-collab"
                 style={{ height: `${(day.agents / peak) * 84}px` }}
-                title={`${day.agents} by agents`}
+                title={t.admin.usage.trend.byAgents(day.agents)}
               />
               <span
                 className="w-full rounded-b-[2px] bg-accent"
                 style={{ height: `${(day.people / peak) * 84}px` }}
-                title={`${day.people} by people`}
+                title={t.admin.usage.trend.byPeople(day.people)}
               />
               {total === 0 ? <span className="h-px w-full bg-rule-strong" /> : null}
             </div>
@@ -158,9 +198,9 @@ function Trend({ usage }: { usage: Usage }) {
       <div className="mt-1.5 flex items-center justify-between text-2xs text-ink-faint">
         <span>{days[0]?.day ?? ''}</span>
         <span className="flex items-center gap-3">
-          <Key className="bg-accent">people</Key>
-          <Key className="bg-collab">agents</Key>
-          <span>peak {peak}</span>
+          <Key className="bg-accent">{t.admin.usage.trend.people}</Key>
+          <Key className="bg-collab">{t.admin.usage.trend.agents}</Key>
+          <span>{t.admin.usage.trend.peak(peak)}</span>
         </span>
         <span>{days.at(-1)?.day ?? ''}</span>
       </div>
@@ -248,5 +288,11 @@ function bytes(value: number): string {
     size /= 1024;
     at += 1;
   }
-  return `${size < 10 && at > 0 ? size.toFixed(1) : Math.round(size)} ${units[at]}`;
+  const digits = size < 10 && at > 0 ? 1 : 0;
+  const number = size.toLocaleString(formatLocale(), {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+    useGrouping: false,
+  });
+  return `${number} ${units[at]}`;
 }

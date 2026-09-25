@@ -12,15 +12,6 @@ export const STATUS_COLOR: Record<PlanNodeStatus, string> = {
   dropped: 'var(--status-dropped)',
 };
 
-export const STATUS_LABEL: Record<PlanNodeStatus, string> = {
-  idea: 'Idea',
-  planned: 'Planned',
-  in_progress: 'In progress',
-  blocked: 'Blocked',
-  done: 'Done',
-  dropped: 'Dropped',
-};
-
 export function StatusDot({ status, className }: { status: PlanNodeStatus; className?: string }) {
   return (
     <span

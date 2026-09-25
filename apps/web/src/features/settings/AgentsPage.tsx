@@ -6,6 +6,7 @@ import { Field, Input } from '@/components/ui/field';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
+import { useT } from '@/i18n';
 import { config } from '@/lib/config';
 import { account, type ApiKeySummary } from '@/lib/api';
 import { formatWhen } from '@/lib/utils';
@@ -18,7 +19,8 @@ const MCP_URL = `${config.apiUrl}/mcp`;
  * into another program is monospace and one click from the clipboard.
  */
 export function AgentsPage() {
-  useDocumentTitle('Agents');
+  const t = useT();
+  useDocumentTitle(t.agents.documentTitle);
   const [keys, setKeys] = useState<ApiKeySummary[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [naming, setNaming] = useState(false);
@@ -46,17 +48,11 @@ export function AgentsPage() {
 
   return (
     <>
-      <p className="max-w-prose text-sm text-ink-muted">
-        Connect Cursor, Claude, or any other MCP client. A key belongs to you rather than to one
-        workspace, so a single key reaches every workspace you are a member of — the agent can read
-        your plans and draw new ones on the same canvas you are looking at.
-      </p>
+      <p className="max-w-prose text-sm text-ink-muted">{t.agents.intro}</p>
 
       <section className="rounded-lg border border-rule bg-surface-2 p-4">
-        <h2 className="text-sm font-medium text-ink">Server URL</h2>
-        <p className="mt-1 text-xs text-ink-muted">
-          The same for everyone on this instance. Pair it with a key below.
-        </p>
+        <h2 className="text-sm font-medium text-ink">{t.agents.server.title}</h2>
+        <p className="mt-1 text-xs text-ink-muted">{t.agents.server.body}</p>
         <CopyRow value={MCP_URL} className="mt-3" />
       </section>
 
@@ -66,14 +62,15 @@ export function AgentsPage() {
             on top of the sentence. */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
           <div className="min-w-0">
-            <h2 className="text-sm font-medium text-ink">Keys</h2>
-            <p className="mt-1 text-xs text-ink-muted">
-              A key acts as you, everywhere you are a member. Revoke one and it stops working
-              immediately.
-            </p>
+            <h2 className="text-sm font-medium text-ink">{t.agents.keys.title}</h2>
+            <p className="mt-1 text-xs text-ink-muted">{t.agents.keys.body}</p>
           </div>
-          <Button className="self-start sm:self-auto" variant="primary" onClick={() => setNaming(true)}>
-            New key
+          <Button
+            className="self-start sm:self-auto"
+            variant="primary"
+            onClick={() => setNaming(true)}
+          >
+            {t.agents.keys.newKey}
           </Button>
         </div>
 
@@ -89,11 +86,11 @@ export function AgentsPage() {
           </div>
         ) : keys.length === 0 ? (
           <Empty
-            title="No keys yet"
-            body="Create one to connect your first agent."
+            title={t.agents.keys.empty.title}
+            body={t.agents.keys.empty.body}
             action={
               <Button variant="primary" onClick={() => setNaming(true)}>
-                New key
+                {t.agents.keys.newKey}
               </Button>
             }
           />
@@ -101,15 +98,15 @@ export function AgentsPage() {
           <div className="mt-4">
             <Table>
               <THead>
-                <TH>Name</TH>
+                <TH>{t.agents.keys.columns.name}</TH>
                 <TH className="w-32" hide="md">
-                  Key
+                  {t.agents.keys.columns.key}
                 </TH>
                 <TH className="w-24 sm:w-28" align="right" hide="sm">
-                  Last used
+                  {t.agents.keys.columns.lastUsed}
                 </TH>
                 <TH className="w-20 sm:w-24" align="right">
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{t.agents.keys.columns.actions}</span>
                 </TH>
               </THead>
               <tbody>
@@ -123,12 +120,14 @@ export function AgentsPage() {
                         {key.prefix}…
                         <span className="sm:hidden">
                           {' · '}
-                          {key.lastUsedAt === null ? 'never used' : formatWhen(key.lastUsedAt)}
+                          {key.lastUsedAt === null
+                            ? t.agents.keys.neverUsed
+                            : formatWhen(key.lastUsedAt)}
                         </span>
                       </span>
                       {key.restrictedTo != null ? (
                         <span className="ml-2 text-xs text-ink-faint">
-                          limited to {key.restrictedTo}
+                          {t.agents.keys.limitedTo(key.restrictedTo)}
                         </span>
                       ) : null}
                     </TD>
@@ -136,7 +135,7 @@ export function AgentsPage() {
                       {key.prefix}…
                     </TD>
                     <TD align="right" className="text-xs text-ink-muted" hide="sm">
-                      {key.lastUsedAt === null ? 'Never' : formatWhen(key.lastUsedAt)}
+                      {key.lastUsedAt === null ? t.agents.keys.never : formatWhen(key.lastUsedAt)}
                     </TD>
                     <TD align="right">
                       <Button
@@ -146,7 +145,7 @@ export function AgentsPage() {
                           void account.revokeApiKey(key.id).then(reload);
                         }}
                       >
-                        Revoke
+                        {t.agents.keys.revoke}
                       </Button>
                     </TD>
                   </TR>
@@ -157,7 +156,7 @@ export function AgentsPage() {
         )}
       </section>
 
-      <Modal open={naming} onOpenChange={setNaming} title="New key">
+      <Modal open={naming} onOpenChange={setNaming} title={t.agents.create.title}>
         <form
           className="space-y-4"
           onSubmit={(event) => {
@@ -165,23 +164,23 @@ export function AgentsPage() {
             void create();
           }}
         >
-          <Field label="Name" hint="Something that says which machine or tool holds it.">
+          <Field label={t.agents.create.name} hint={t.agents.create.nameHint}>
             {(id) => (
               <Input
                 id={id}
                 autoFocus
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Cursor on my laptop"
+                placeholder={t.agents.create.namePlaceholder}
               />
             )}
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setNaming(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button type="submit" variant="primary">
-              Create key
+              {t.agents.create.submit}
             </Button>
           </div>
         </form>
@@ -190,15 +189,12 @@ export function AgentsPage() {
       <Modal
         open={issued !== null}
         onOpenChange={(open) => !open && setIssued(null)}
-        title="Copy your key now"
-        description="This is the only time it is shown. The server keeps a hash, not the key."
+        title={t.agents.issued.title}
+        description={t.agents.issued.description}
       >
         <CopyRow value={issued?.key ?? ''} />
-        <p className="mt-4 text-xs font-medium text-ink-muted">Configuration for an MCP client</p>
-        <p className="mt-1 text-xs text-ink-faint">
-          Paste it into the client's MCP settings. Copying this is the whole of the setup — there
-          is nothing to install.
-        </p>
+        <p className="mt-4 text-xs font-medium text-ink-muted">{t.agents.issued.configTitle}</p>
+        <p className="mt-1 text-xs text-ink-faint">{t.agents.issued.configBody}</p>
         <CopyBlock value={mcpConfig(issued?.key ?? '')} className="mt-2" />
       </Modal>
     </>
@@ -234,6 +230,7 @@ function mcpConfig(key: string): string {
  * the snippet is for.
  */
 function CopyBlock({ value, className }: { value: string; className?: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   return (
@@ -244,7 +241,7 @@ function CopyBlock({ value, className }: { value: string; className?: string }) 
       <Button
         size="icon"
         variant="quiet"
-        aria-label="Copy configuration"
+        aria-label={t.agents.copyConfiguration}
         className="absolute top-1.5 right-1.5"
         onClick={() => {
           void navigator.clipboard.writeText(value).then(() => {
@@ -260,6 +257,7 @@ function CopyBlock({ value, className }: { value: string; className?: string }) 
 }
 
 function CopyRow({ value, className }: { value: string; className?: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   return (
@@ -270,7 +268,7 @@ function CopyRow({ value, className }: { value: string; className?: string }) {
       <Button
         size="icon"
         variant="quiet"
-        aria-label="Copy"
+        aria-label={t.agents.copy}
         onClick={() => {
           void navigator.clipboard.writeText(value).then(() => {
             setCopied(true);

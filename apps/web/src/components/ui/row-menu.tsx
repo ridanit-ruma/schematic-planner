@@ -1,6 +1,8 @@
 import { MoreHorizontal } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { useT } from '@/i18n';
+
 import { DropdownMenu } from './dropdown-menu';
 
 /**
@@ -11,13 +13,14 @@ import { DropdownMenu } from './dropdown-menu';
  * should take two deliberate movements to reach.
  */
 export function RowMenu({ label, children }: { label: string; children: ReactNode }) {
+  const t = useT();
   return (
     <DropdownMenu
       align="end"
       trigger={
         <button
           type="button"
-          aria-label={`Actions for ${label}`}
+          aria-label={t.ui.rowMenu.actionsFor(label)}
           className="grid size-7 place-items-center rounded-md text-ink-faint transition-colors hover:bg-surface-4 hover:text-ink focus:outline-none"
         >
           <MoreHorizontal className="size-4" />

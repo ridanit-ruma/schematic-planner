@@ -2,6 +2,8 @@ import { Dialog } from 'radix-ui';
 import { X } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { useT } from '@/i18n';
+
 import { Button } from './button';
 
 export function Modal({
@@ -17,6 +19,7 @@ export function Modal({
   description?: string;
   children: ReactNode;
 }) {
+  const t = useT();
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -34,7 +37,7 @@ export function Modal({
               ) : null}
             </div>
             <Dialog.Close asChild>
-              <Button variant="ghost" size="icon" aria-label="Close">
+              <Button variant="ghost" size="icon" aria-label={t.common.close}>
                 <X className="size-4" />
               </Button>
             </Dialog.Close>

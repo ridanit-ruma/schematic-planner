@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router';
 
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 /**
@@ -8,19 +9,18 @@ import { cn } from '@/lib/utils';
  * first account.
  */
 export function AdminLayout() {
+  const t = useT();
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-7">
-      <h1 className="text-lg font-semibold tracking-tight text-ink">Instance</h1>
-      <p className="mt-1 text-sm text-ink-muted">
-        Everything about this deployment rather than about one workspace.
-      </p>
+      <h1 className="text-lg font-semibold tracking-tight text-ink">{t.admin.layout.title}</h1>
+      <p className="mt-1 text-sm text-ink-muted">{t.admin.layout.body}</p>
 
       <div className="mt-4 flex items-center gap-1 overflow-x-auto border-b border-rule">
         <Tab to="/admin" end>
-          Usage
+          {t.admin.layout.tabUsage}
         </Tab>
-        <Tab to="/admin/invitations">Invitations</Tab>
-        <Tab to="/admin/people">People</Tab>
+        <Tab to="/admin/invitations">{t.admin.layout.tabInvitations}</Tab>
+        <Tab to="/admin/people">{t.admin.layout.tabPeople}</Tab>
       </div>
 
       <div className="mt-6">

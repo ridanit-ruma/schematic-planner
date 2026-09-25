@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router';
 
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 /**
@@ -8,15 +9,16 @@ import { cn } from '@/lib/utils';
  * that changes with the workspace you happen to have open.
  */
 export function SettingsLayout() {
+  const t = useT();
   return (
     <div className="mx-auto max-w-3xl px-6 py-7">
-      <h1 className="text-lg font-semibold tracking-tight text-ink">Account</h1>
+      <h1 className="text-lg font-semibold tracking-tight text-ink">{t.account.layout.title}</h1>
 
       <div className="mt-4 flex items-center gap-1 border-b border-rule">
         <Tab to="/settings" end>
-          Account
+          {t.account.layout.tabAccount}
         </Tab>
-        <Tab to="/settings/agents">MCP keys</Tab>
+        <Tab to="/settings/agents">{t.account.layout.tabKeys}</Tab>
       </div>
 
       <div className="mt-6 space-y-6">

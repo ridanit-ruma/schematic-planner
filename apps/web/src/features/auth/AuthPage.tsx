@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 
+import { LanguagePicker } from '@/components/LanguagePicker';
 import { Wordmark } from '@/components/Mark';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Problem, Spinner } from '@/components/ui/feedback';
+import { useT } from '@/i18n';
 import { auth as authApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { useDocumentTitle } from '@/lib/use-document-title';
@@ -26,7 +28,9 @@ function landing(state: unknown): string {
 }
 
 export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
-  useDocumentTitle(mode === 'sign-in' ? 'Sign in' : 'Create an account');
+  const t = useT();
+  useDocumentTitle(mode === 'sign-in' ? t.auth.documentTitle.signIn : t.auth.documentTitle.signUp);
+  const languageId = useId();
   const { status, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -99,14 +103,12 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
       <div className="w-full max-w-sm rounded-xl bg-surface-2 p-6 elevated">
         <Wordmark className="text-ink" />
         <p className="mt-4 text-sm text-ink-muted">
-          {mode === 'sign-in'
-            ? 'Sign in to your plans.'
-            : 'Set up an account and a workspace to plan in.'}
+          {mode === 'sign-in' ? t.auth.intro.signIn : t.auth.intro.signUp}
         </p>
 
         <form className="mt-6 space-y-4" onSubmit={(event) => void submit(event)}>
           {mode === 'sign-up' ? (
-            <Field label="Name">
+            <Field label={t.auth.name}>
               {(id) => (
                 <Input
                   id={id}
@@ -119,7 +121,7 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
             </Field>
           ) : null}
 
-          <Field label="Email">
+          <Field label={t.auth.email}>
             {(id) => (
               <Input
                 id={id}
@@ -133,8 +135,8 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
           </Field>
 
           <Field
-            label="Password"
-            hint={mode === 'sign-up' ? 'At least 10 characters.' : undefined}
+            label={t.auth.password}
+            hint={mode === 'sign-up' ? t.auth.passwordHint : undefined}
           >
             {(id) => (
               <Input
@@ -151,12 +153,8 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
 
           {mode === 'sign-up' && (codeRequired || fromLink !== '') ? (
             <Field
-              label="Invitation"
-              hint={
-                fromLink === ''
-                  ? 'Sign-up here is by invitation. Ask whoever runs this instance for a link.'
-                  : 'From the link you followed.'
-              }
+              label={t.auth.invitation.label}
+              hint={fromLink === '' ? t.auth.invitation.byInvitation : t.auth.invitation.fromLink}
             >
               {(id) => (
                 <Input
@@ -173,27 +171,30 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
           {error !== null ? <Problem error={error} /> : null}
 
           <Button type="submit" variant="primary" className="w-full" disabled={busy}>
-            {mode === 'sign-in' ? 'Sign in' : 'Create account'}
+            {mode === 'sign-in' ? t.auth.submit.signIn : t.auth.submit.signUp}
           </Button>
         </form>
 
         <p className="mt-5 border-t border-rule pt-4 text-xs text-ink-muted">
-          {mode === 'sign-in' ? (
-            <>
-              No account yet?{' '}
-              <Link to="/register" className="text-accent underline">
-                Create one
-              </Link>
-            </>
-          ) : (
-            <>
-              Already have an account?{' '}
-              <Link to="/login" className="text-accent underline">
-                Sign in
-              </Link>
-            </>
-          )}
+          {mode === 'sign-in'
+            ? t.auth.switch.noAccount(
+                <Link to="/register" className="text-accent underline">
+                  {t.auth.switch.createOne}
+                </Link>,
+              )
+            : t.auth.switch.haveAccount(
+                <Link to="/login" className="text-accent underline">
+                  {t.auth.switch.signIn}
+                </Link>,
+              )}
         </p>
+
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <label htmlFor={languageId} className="text-xs text-ink-faint">
+            {t.common.language}
+          </label>
+          <LanguagePicker id={languageId} className="w-auto py-1 text-xs" />
+        </div>
       </div>
     </div>
   );

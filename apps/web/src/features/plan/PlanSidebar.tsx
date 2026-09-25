@@ -23,6 +23,7 @@ import { Field, Input } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
 import { Problem, Spinner } from '@/components/ui/feedback';
 import { Tooltip } from '@/components/ui/tooltip';
+import { useT } from '@/i18n';
 import { downloadExport, folders, plans, projects, type PlanNavigation } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useLiveList } from '@/lib/use-live-list';
@@ -75,6 +76,7 @@ export function PlanSidebar({ planId }: { planId: string }) {
   const [error, setError] = useState<unknown>(null);
   const navigate = useNavigate();
   const reread = useRef<() => void>(() => {});
+  const t = useT();
 
   useLiveList(() => {
     let live = true;
@@ -92,12 +94,13 @@ export function PlanSidebar({ planId }: { planId: string }) {
           const here = next.projects
             .flatMap((project) => project.plans)
             .find((plan) => plan.id === planId);
-          setOpen((current) =>
-            new Set(
-              [...current, next.projectId, here?.folderId].filter(
-                (key): key is string => key !== undefined && key !== null,
+          setOpen(
+            (current) =>
+              new Set(
+                [...current, next.projectId, here?.folderId].filter(
+                  (key): key is string => key !== undefined && key !== null,
+                ),
               ),
-            ),
           );
         })
         .catch(() => live && setFailed(true));
@@ -200,25 +203,25 @@ export function PlanSidebar({ planId }: { planId: string }) {
   if (collapsed) {
     return (
       <aside className="flex w-9 shrink-0 flex-col items-center gap-1 border-r border-rule bg-surface py-2">
-        <Tooltip content="Show plans" side="right">
+        <Tooltip content={t.canvas.sidebar.showPlans} side="right">
           <button
             type="button"
             onClick={toggleCollapsed}
             className="grid size-7 place-items-center rounded-md text-ink-muted hover:bg-surface-2 hover:text-ink"
           >
             <PanelLeftOpen className="size-4" />
-            <span className="sr-only">Show plans</span>
+            <span className="sr-only">{t.canvas.sidebar.showPlans}</span>
           </button>
         </Tooltip>
         {/* The way out stays reachable with the rail folded away. */}
         {nav === null ? null : (
-          <Tooltip content={`Leave for ${nav.workspace.name}`} side="right">
+          <Tooltip content={t.canvas.sidebar.leaveFor(nav.workspace.name)} side="right">
             <Link
               to={`/workspace/${nav.workspace.slug}`}
               className="grid size-7 place-items-center rounded-md text-ink-muted hover:bg-surface-2 hover:text-ink"
             >
               <ArrowLeft className="size-4" />
-              <span className="sr-only">{`Leave for ${nav.workspace.name}`}</span>
+              <span className="sr-only">{t.canvas.sidebar.leaveFor(nav.workspace.name)}</span>
             </Link>
           </Tooltip>
         )}
@@ -234,7 +237,7 @@ export function PlanSidebar({ planId }: { planId: string }) {
           it, and the scrim is the other way out. */}
       <button
         type="button"
-        aria-label="Hide plans"
+        aria-label={t.canvas.sidebar.hidePlans}
         onClick={toggleCollapsed}
         className="absolute inset-0 z-30 bg-black/50 md:hidden"
       />
@@ -242,26 +245,26 @@ export function PlanSidebar({ planId }: { planId: string }) {
         <div className="flex h-11 shrink-0 items-center gap-1 border-b border-rule px-2">
           {nav === null ? (
             <span className="flex-1 truncate px-1 text-xs text-ink-faint">
-              {failed ? 'Plans unavailable' : 'Loading'}
+              {failed ? t.canvas.sidebar.unavailable : t.common.loading}
             </span>
           ) : (
             <Link
               to={`/workspace/${nav.workspace.slug}`}
-              title={`Leave for ${nav.workspace.name}`}
+              title={t.canvas.sidebar.leaveFor(nav.workspace.name)}
               className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-0.5 text-xs font-medium text-ink hover:bg-surface-2"
             >
               <ArrowLeft className="size-3.5 shrink-0 text-ink-muted" />
               <span className="truncate">{nav.workspace.name}</span>
             </Link>
           )}
-          <Tooltip content="Hide plans">
+          <Tooltip content={t.canvas.sidebar.hidePlans}>
             <button
               type="button"
               onClick={toggleCollapsed}
               className="grid size-6 shrink-0 place-items-center rounded-md text-ink-muted hover:bg-surface-2 hover:text-ink"
             >
               <PanelLeftClose className="size-4" />
-              <span className="sr-only">Hide plans</span>
+              <span className="sr-only">{t.canvas.sidebar.hidePlans}</span>
             </button>
           </Tooltip>
         </div>
@@ -278,21 +281,19 @@ export function PlanSidebar({ planId }: { planId: string }) {
           menu={
             here === null ? (
               <ContextAction onSelect={() => undefined} disabled>
-                Nothing to add to
+                {t.canvas.sidebar.nothingToAddTo}
               </ContextAction>
             ) : (
               <>
-                <ContextAction
-                  onSelect={() => ask({ kind: 'folder', projectId: here.id })}
-                >
+                <ContextAction onSelect={() => ask({ kind: 'folder', projectId: here.id })}>
                   <FolderPlus className="size-3.5 text-ink-faint" />
-                  New folder
+                  {t.canvas.sidebar.newFolder}
                 </ContextAction>
                 <ContextAction
                   onSelect={() => ask({ kind: 'plan', projectId: here.id, folderId: null })}
                 >
                   <Plus className="size-3.5 text-ink-faint" />
-                  New plan
+                  {t.canvas.sidebar.newPlan}
                 </ContextAction>
               </>
             )
@@ -349,10 +350,10 @@ export function PlanSidebar({ planId }: { planId: string }) {
         }}
         title={
           naming?.kind === 'folder'
-            ? 'New folder'
+            ? t.canvas.sidebar.newFolder
             : naming?.kind === 'rename-folder'
-              ? 'Rename folder'
-              : 'New plan'
+              ? t.canvas.sidebar.renameFolder
+              : t.canvas.sidebar.newPlan
         }
       >
         <form
@@ -362,23 +363,27 @@ export function PlanSidebar({ planId }: { planId: string }) {
             submitName();
           }}
         >
-          <Field label="Name">
+          <Field label={t.canvas.sidebar.name}>
             {(id) => (
               <Input
                 id={id}
                 autoFocus
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder={naming?.kind === 'plan' ? 'Checkout flow' : 'Architecture'}
+                placeholder={
+                  naming?.kind === 'plan'
+                    ? t.canvas.sidebar.planPlaceholder
+                    : t.canvas.sidebar.folderPlaceholder
+                }
               />
             )}
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setNaming(null)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button type="submit" variant="primary">
-              {naming?.kind === 'rename-folder' ? 'Rename' : 'Create'}
+              {naming?.kind === 'rename-folder' ? t.common.rename : t.common.create}
             </Button>
           </div>
         </form>
@@ -424,6 +429,7 @@ function ProjectRow({
   onShare: (id: string) => void;
   onExport: (plan: Plan) => void;
 }) {
+  const t = useT();
   const expanded = open.has(project.id);
   const loose = project.plans.filter((plan) => plan.folderId === null);
   const drop: Drop = { project: project.id, folder: null };
@@ -435,13 +441,13 @@ function ProjectRow({
           <>
             <ContextAction onSelect={() => onNew({ kind: 'folder', projectId: project.id })}>
               <FolderPlus className="size-3.5 text-ink-faint" />
-              New folder
+              {t.canvas.sidebar.newFolder}
             </ContextAction>
             <ContextAction
               onSelect={() => onNew({ kind: 'plan', projectId: project.id, folderId: null })}
             >
               <Plus className="size-3.5 text-ink-faint" />
-              New plan
+              {t.canvas.sidebar.newPlan}
             </ContextAction>
             <ContextSeparator />
             <ContextAction
@@ -452,11 +458,11 @@ function ProjectRow({
               }
             >
               <Settings className="size-3.5 text-ink-faint" />
-              Settings
+              {t.canvas.sidebar.settings}
             </ContextAction>
             <ContextAction tone="danger" onSelect={() => onTrashProject(project.id)}>
               <Trash2 className="size-3.5" />
-              Move to trash
+              {t.canvas.sidebar.moveToTrash}
             </ContextAction>
           </>
         }
@@ -494,7 +500,7 @@ function ProjectRow({
       </ContextMenu>
 
       {!expanded ? null : project.folders.length === 0 && project.plans.length === 0 ? (
-        <p className="py-1 pr-2 pl-7 text-xs text-ink-faint">No plans yet</p>
+        <p className="py-1 pr-2 pl-7 text-xs text-ink-faint">{t.canvas.sidebar.noPlans}</p>
       ) : (
         <>
           {project.folders.map((folder) => (
@@ -573,6 +579,7 @@ function FolderRow({
   onShare: (id: string) => void;
   onExport: (plan: Plan) => void;
 }) {
+  const t = useT();
   const held = project.plans.filter((plan) => plan.folderId === folder.id);
   const target = `folder:${folder.id}`;
 
@@ -585,7 +592,7 @@ function FolderRow({
               onSelect={() => onNew({ kind: 'plan', projectId: project.id, folderId: folder.id })}
             >
               <Plus className="size-3.5 text-ink-faint" />
-              New plan here
+              {t.canvas.sidebar.newPlanHere}
             </ContextAction>
             <ContextAction
               onSelect={() =>
@@ -593,12 +600,12 @@ function FolderRow({
               }
             >
               <Pencil className="size-3.5 text-ink-faint" />
-              Rename
+              {t.common.rename}
             </ContextAction>
             <ContextSeparator />
             <ContextAction tone="danger" onSelect={() => onTrashFolder(folder.id)}>
               <Trash2 className="size-3.5" />
-              Move to trash
+              {t.canvas.sidebar.moveToTrash}
             </ContextAction>
           </>
         }
@@ -636,7 +643,7 @@ function FolderRow({
       </ContextMenu>
 
       {!expanded ? null : held.length === 0 ? (
-        <p className="py-1 pr-2 pl-10 text-xs text-ink-faint">Empty</p>
+        <p className="py-1 pr-2 pl-10 text-xs text-ink-faint">{t.canvas.sidebar.emptyFolder}</p>
       ) : (
         held.map((plan) => (
           <PlanRow
@@ -679,26 +686,27 @@ function PlanRow({
   onShare: (id: string) => void;
   onExport: (plan: Plan) => void;
 }) {
+  const t = useT();
   return (
     <ContextMenu
       menu={
         <>
           <ContextAction onSelect={() => onShare(plan.id)}>
             <Link2 className="size-3.5 text-ink-faint" />
-            Share
+            {t.canvas.sidebar.share}
           </ContextAction>
           <ContextAction onSelect={() => onExport(plan)}>
             <Download className="size-3.5 text-ink-faint" />
-            Export
+            {t.canvas.sidebar.export}
           </ContextAction>
           <ContextAction onSelect={() => window.location.assign(`/plan/${plan.id}/settings`)}>
             <Settings className="size-3.5 text-ink-faint" />
-            Plan settings
+            {t.canvas.sidebar.planSettings}
           </ContextAction>
           <ContextSeparator />
           <ContextAction tone="danger" onSelect={() => onTrash(plan.id)}>
             <Trash2 className="size-3.5" />
-            Move to trash
+            {t.canvas.sidebar.moveToTrash}
           </ContextAction>
         </>
       }
@@ -730,7 +738,7 @@ function PlanRow({
           className={cn('h-3 w-0.5 shrink-0', current ? 'bg-accent' : 'bg-transparent')}
         />
         <span className="min-w-0 flex-1 truncate">
-          {plan.title === '' ? 'Untitled plan' : plan.title}
+          {plan.title === '' ? t.canvas.sidebar.untitledPlan : plan.title}
         </span>
       </button>
     </ContextMenu>

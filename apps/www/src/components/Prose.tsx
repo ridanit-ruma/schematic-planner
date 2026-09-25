@@ -8,11 +8,15 @@ import type { ReactNode } from 'react';
 export function Prose({
   title,
   updated,
+  notice,
   lede,
   children,
 }: {
   title: string;
+  /** The whole line, date included — word order and date format differ by language. */
   updated?: string;
+  /** Set apart above the lede: what a translated legal page says about its own standing. */
+  notice?: string;
   lede?: string;
   children: ReactNode;
 }) {
@@ -20,8 +24,11 @@ export function Prose({
     <article className="mx-auto max-w-5xl px-6 py-20">
       <div className="max-w-2xl">
         <h1 className="text-2xl font-semibold tracking-[-0.025em] text-ink">{title}</h1>
-        {updated !== undefined ? (
-          <p className="mt-2 text-xs text-ink-faint">Last updated {updated}</p>
+        {updated !== undefined ? <p className="mt-2 text-xs text-ink-faint">{updated}</p> : null}
+        {notice !== undefined ? (
+          <p className="mt-4 rounded-md border border-rule bg-surface-2 px-3 py-2 text-sm text-ink-muted">
+            {notice}
+          </p>
         ) : null}
         {lede !== undefined ? (
           <p className="mt-4 text-base leading-relaxed text-ink-muted">{lede}</p>

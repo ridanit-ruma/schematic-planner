@@ -936,7 +936,17 @@ it makes the links the only door.
   touched — seventy-two of them, once, of which forty-one had to be picked back
   out by hand. Format what you changed.
 - **Everything written into this repository is in English.** Code, comments, commit
-  messages, PR titles and bodies, test names, documentation. No exceptions.
+  messages, PR titles and bodies, test names, documentation. The one exception is the
+  translations themselves, where another language is the content.
+- **Every word a person reads comes from a catalog.** The application's text lives in
+  `apps/web/src/i18n/messages/<language>/`, one namespace per area of the screen; a
+  component reads it through `useT()`, and code outside a component through `t()`.
+  English is the source, and the type checker refuses a language that is missing a
+  message, so a new string is written in all five (English, Korean, Japanese, Simplified
+  and Traditional Chinese) in the same change. Anything that takes a value — a count, a
+  name, a link — is a function, because word order and plurals differ by language.
+  The site's pages are translated whole (`apps/www/src/content/<page>/<language>.tsx`),
+  so a change to an English page is a change to its four siblings too.
 - **Comments explain _why_, and only where a reader would otherwise be puzzled.** Do
   not narrate what the code already says. Sparse and load-bearing beats thorough.
 - **Commits follow [Conventional Commits](https://www.conventionalcommits.org/)**:

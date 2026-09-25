@@ -9,7 +9,8 @@ import { Page } from '@/components/ui/page';
 import { RowMenu } from '@/components/ui/row-menu';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { plans, trash, type TrashItem } from '@/lib/api';
-import { formatWhen, plural } from '@/lib/utils';
+import { useT } from '@/i18n';
+import { formatWhen } from '@/lib/utils';
 import { useLiveList } from '@/lib/use-live-list';
 import { useWorkspace } from './workspace-context';
 
@@ -26,6 +27,8 @@ export function TrashPage() {
   const [error, setError] = useState<unknown>(null);
   const [purging, setPurging] = useState<TrashItem | null>(null);
   const [emptying, setEmptying] = useState(false);
+  const t = useT();
+  const m = t.workspaces.trash;
 
   const reload = (): void => {
     trash.list(current.id).then(setList).catch(setError);
@@ -88,12 +91,12 @@ export function TrashPage() {
 
   return (
     <Page
-      title="Trash"
-      description="Deleted plans and projects wait here. Nothing leaves on its own — restore it, or remove it for good."
+      title={m.title}
+      description={m.description}
       actions={
         items.length === 0 ? undefined : (
           <Button variant="danger" onClick={() => setEmptying(true)}>
-            Empty trash
+            {m.emptyTrash}
           </Button>
         )
       }
@@ -105,22 +108,19 @@ export function TrashPage() {
       ) : null}
 
       {items.length === 0 ? (
-        <Empty
-          title="Nothing in the trash"
-          body="Deleted plans and projects appear here instead of disappearing."
-        />
+        <Empty title={m.empty.title} body={m.empty.body} />
       ) : (
         <Table>
           <THead>
-            <TH>Item</TH>
+            <TH>{m.item}</TH>
             <TH className="w-44" hide="md">
-              Was in
+              {m.wasIn}
             </TH>
             <TH className="w-24 sm:w-32" align="right">
-              Deleted
+              {m.deleted}
             </TH>
             <TH className="w-10 md:w-44" align="right">
-              <span className="sr-only">Actions</span>
+              <span className="sr-only">{t.workspaces.list.actions}</span>
             </TH>
           </THead>
           <tbody>
@@ -129,14 +129,14 @@ export function TrashPage() {
                 <TD>
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="rail-heading shrink-0 rounded-sm border border-rule px-1 py-0.5">
-                      {item.kind}
+                      {m.kinds[item.kind]}
                     </span>
                     <span className="min-w-0 flex-1 truncate font-medium text-ink">
                       {item.name}
                     </span>
                     {item.shared ? (
                       <span className="rail-heading shrink-0 rounded-sm border border-collab/40 px-1 py-0.5 text-collab">
-                        shared
+                        {m.shared}
                       </span>
                     ) : null}
                   </span>
@@ -151,7 +151,7 @@ export function TrashPage() {
                   {formatWhen(item.deletedAt)}
                   {item.by === null ? null : (
                     <span className="block truncate text-2xs text-ink-faint">
-                      by {item.by.name}
+                      {m.by(item.by.name)}
                     </span>
                   )}
                 </TD>
@@ -161,33 +161,33 @@ export function TrashPage() {
                   <span className="hidden justify-end gap-1 md:flex">
                     <Button size="sm" variant="ghost" onClick={() => void restore(item)}>
                       <RotateCcw className="size-3.5" />
-                      Restore
+                      {m.restore}
                     </Button>
                     {item.shared ? (
                       <Button size="sm" variant="ghost" onClick={() => void stopSharing(item)}>
                         <Link2Off className="size-3.5" />
-                        Stop sharing
+                        {m.stopSharing}
                       </Button>
                     ) : null}
                     <Button size="sm" variant="ghost" onClick={() => setPurging(item)}>
-                      Delete
+                      {t.common.delete}
                     </Button>
                   </span>
                   <span className="flex justify-end md:hidden">
                     <RowMenu label={item.name}>
                       <DropdownAction onSelect={() => void restore(item)}>
                         <RotateCcw className="size-3.5 text-ink-faint" />
-                        Restore
+                        {m.restore}
                       </DropdownAction>
                       {item.shared ? (
                         <DropdownAction onSelect={() => void stopSharing(item)}>
                           <Link2Off className="size-3.5 text-ink-faint" />
-                          Stop sharing
+                          {m.stopSharing}
                         </DropdownAction>
                       ) : null}
                       <DropdownAction tone="danger" onSelect={() => setPurging(item)}>
                         <Trash2 className="size-3.5" />
-                        Delete for good
+                        {m.deleteForGood}
                       </DropdownAction>
                     </RowMenu>
                   </span>
@@ -201,18 +201,18 @@ export function TrashPage() {
       <Modal
         open={purging !== null}
         onOpenChange={(open) => !open && setPurging(null)}
-        title={`Delete ${purging?.name ?? ''} for good?`}
+        title={m.purge.title(purging?.name ?? '')}
         description={
           purging?.kind === 'project'
-            ? 'The project and every plan inside it go with it. This cannot be undone.'
+            ? m.purge.project
             : purging?.kind === 'folder'
-              ? 'The folder goes; the plans in it return to the top of the project. This cannot be undone.'
-              : 'The plan, its history and its share link go with it. This cannot be undone.'
+              ? m.purge.folder
+              : m.purge.plan
         }
       >
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setPurging(null)}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button
             variant="danger"
@@ -220,7 +220,7 @@ export function TrashPage() {
               if (purging !== null) void purge(purging);
             }}
           >
-            Delete for good
+            {m.deleteForGood}
           </Button>
         </div>
       </Modal>
@@ -228,15 +228,15 @@ export function TrashPage() {
       <Modal
         open={emptying}
         onOpenChange={setEmptying}
-        title="Empty the trash?"
-        description={`${plural(items.length, 'item')} will be removed for good. This cannot be undone.`}
+        title={m.emptyModal.title}
+        description={m.emptyModal.body(items.length)}
       >
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setEmptying(false)}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button variant="danger" onClick={() => void empty()}>
-            Empty trash
+            {m.emptyTrash}
           </Button>
         </div>
       </Modal>

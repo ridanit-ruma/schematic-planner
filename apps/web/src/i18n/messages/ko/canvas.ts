@@ -1,0 +1,58 @@
+import type { Messages } from '../en';
+import { josa, quoted } from './josa';
+
+export const canvas: Messages['canvas'] = {
+  canvas: {
+    menu: {
+      addNode: '여기에 노드 추가',
+      noteOnNode: '이 노드에 댓글 달기',
+      noteHere: '여기에 댓글 달기',
+      groupNodes: (count: number) => `노드 ${count}개를 그룹으로 묶기`,
+      takeOutOf: (box: string) => `${quoted(box)}에서 꺼내기`,
+      takeOutOfBox: '그룹에서 꺼내기',
+      standardWidth: '기본 너비로',
+      deleteNode: '노드 삭제',
+      deleteConnection: '연결 삭제',
+      undo: '실행 취소',
+      redo: '다시 실행',
+      fitPlan: '플랜 전체 보기',
+      gridSpacing: '격자 간격',
+      gridStep: (step: number) => `${step}px`,
+      snapBy: '맞춤 기준',
+      snapTerminals: '연결점',
+      snapOuterEdge: '바깥 테두리',
+      hideResolved: (count: number) => `해결된 댓글 ${count}개 숨기기`,
+      showResolved: (count: number) => `해결된 댓글 ${count}개 보기`,
+    },
+    grid: {
+      snap: '격자에 맞추기',
+      stopSnapping: '격자에 맞추지 않기',
+      snappingTo: (step: number) => `${step}px 격자에 맞추는 중`,
+      notSnapping: '격자에 맞추지 않음',
+    },
+    readingFrom: (by: string, from: string) =>
+      `${josa(by, '이')} ${quoted(from)}부터 읽고 있습니다`,
+  },
+  sidebar: {
+    showPlans: '플랜 목록 보기',
+    hidePlans: '플랜 목록 숨기기',
+    leaveFor: (workspace: string) => `${josa(workspace, '으로')} 돌아가기`,
+    unavailable: '플랜을 불러올 수 없음',
+    nothingToAddTo: '추가할 위치가 없습니다',
+    newFolder: '새 폴더',
+    newPlan: '새 플랜',
+    newPlanHere: '여기에 새 플랜',
+    renameFolder: '폴더 이름 변경',
+    settings: '설정',
+    moveToTrash: '휴지통으로 이동',
+    share: '공유',
+    export: '내보내기',
+    planSettings: '플랜 설정',
+    noPlans: '아직 플랜이 없습니다',
+    emptyFolder: '비어 있음',
+    untitledPlan: '제목 없는 플랜',
+    name: '이름',
+    planPlaceholder: '결제 흐름',
+    folderPlaceholder: '아키텍처',
+  },
+};

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
 import { NotFound, Problem, Spinner } from '@/components/ui/feedback';
+import { useT } from '@/i18n';
 import { downloadExport, plans } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { useDocumentTitle } from '@/lib/use-document-title';
@@ -60,6 +61,7 @@ function PlanWorkspace({
   connection: NonNullable<ReturnType<typeof usePlanDocument>['connection']>;
   status: ReturnType<typeof usePlanDocument>['status'];
 }) {
+  const t = useT();
   const { store, doc } = connection.bound;
   const nodes = useStore(store, (state) => state.nodes);
   const title = useStore(store, (state) => state.title);
@@ -91,12 +93,9 @@ function PlanWorkspace({
   const [atNote, setAtNote] = useState(0);
   const [error, setError] = useState<unknown>(null);
 
-  const openNotes = useMemo(
-    () => comments.filter((comment) => !comment.resolved),
-    [comments],
-  );
+  const openNotes = useMemo(() => comments.filter((comment) => !comment.resolved), [comments]);
 
-  useDocumentTitle(title === '' ? 'Untitled plan' : title);
+  useDocumentTitle(title === '' ? t.plan.page.untitled : title);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selected)?.data.node ?? null,
@@ -210,7 +209,7 @@ function PlanWorkspace({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <TitleBlock
-        title={title === '' ? 'Untitled plan' : title}
+        title={title === '' ? t.plan.page.untitled : title}
         nodeCount={nodes.length}
         openNotes={openNotes.length}
         onNextNote={() => {
@@ -286,7 +285,7 @@ function PlanWorkspace({
         ) : null}
       </div>
 
-      <Modal open={adding} onOpenChange={setAdding} title="Add node">
+      <Modal open={adding} onOpenChange={setAdding} title={t.plan.page.addNode}>
         <form
           className="space-y-4"
           onSubmit={(event) => {
@@ -294,23 +293,23 @@ function PlanWorkspace({
             addNode();
           }}
         >
-          <Field label="Title" hint="The identifier is derived from this and can be changed later.">
+          <Field label={t.plan.page.title} hint={t.plan.page.titleHint}>
             {(id) => (
               <Input
                 id={id}
                 autoFocus
                 value={newTitle}
                 onChange={(event) => setNewTitle(event.target.value)}
-                placeholder="Authentication"
+                placeholder={t.plan.page.titlePlaceholder}
               />
             )}
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setAdding(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button type="submit" variant="primary">
-              Add node
+              {t.plan.page.addNode}
             </Button>
           </div>
         </form>
@@ -319,8 +318,8 @@ function PlanWorkspace({
       <Modal
         open={shareUrl !== null}
         onOpenChange={(open) => !open && setShareUrl(null)}
-        title="Share this plan"
-        description="Anyone with this link can read the plan and download the export. They cannot change it."
+        title={t.plan.page.shareTitle}
+        description={t.plan.page.shareDescription}
       >
         <div className="space-y-3">
           <Input readOnly value={shareUrl ?? ''} onFocus={(event) => event.target.select()} />
@@ -332,13 +331,13 @@ function PlanWorkspace({
                 setShareUrl(null);
               }}
             >
-              Stop sharing
+              {t.plan.page.stopSharing}
             </Button>
             <Button
               variant="primary"
               onClick={() => void navigator.clipboard.writeText(shareUrl ?? '')}
             >
-              Copy link
+              {t.plan.page.copyLink}
             </Button>
           </div>
         </div>

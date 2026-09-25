@@ -3,6 +3,7 @@ import { memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 import { safeUrl } from './safe-url';
@@ -54,6 +55,7 @@ function Rendered({
   onToggleTask?: (index: number) => void;
   className?: string;
 }) {
+  const t = useT();
   const items = taskItems(body);
 
   return (
@@ -114,7 +116,7 @@ function Rendered({
                   type="checkbox"
                   checked={item?.checked ?? false}
                   disabled={onToggleTask === undefined || item === undefined}
-                  aria-label={item?.label ?? 'task'}
+                  aria-label={item?.label ?? t.ui.markdown.task}
                   // Otherwise ticking a box in a note also opens its editor, and
                   // the answer is lost under a textarea.
                   onClick={(event) => event.stopPropagation()}

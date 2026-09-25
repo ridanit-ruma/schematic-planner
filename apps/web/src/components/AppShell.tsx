@@ -29,6 +29,7 @@ import {
   DropdownSeparator,
 } from './ui/dropdown-menu';
 import { Tooltip } from './ui/tooltip';
+import { useT, type Messages } from '@/i18n';
 import { canAdminister, workspaces } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { CrumbProvider, useIsLost, useTrailingCrumb } from '@/lib/use-crumb';
@@ -50,8 +51,7 @@ export function AppShell() {
   const { all, resting } = useWorkspaces();
   // The account screens and the recent list name no workspace. Showing the
   // first in the list there moved people somewhere they had not asked to be.
-  const current =
-    all.find((workspace) => workspace.slug === workspaceSlug) ?? resting;
+  const current = all.find((workspace) => workspace.slug === workspaceSlug) ?? resting;
 
   return (
     // Wraps the trail and the screen that sets one, so a screen whose address
@@ -71,6 +71,7 @@ export function AppShell() {
 }
 
 function Rail({ current }: { current: Workspace | undefined }) {
+  const t = useT();
   // Below a wide desktop the rail keeps its rows but drops its words: the names
   // move to tooltips and the pane gets back 200px, which is the difference
   // between a usable table and a scrolling one.
@@ -92,8 +93,8 @@ function Rail({ current }: { current: Workspace | undefined }) {
         {/* Yours, not a workspace's — so it sits above the workspace band with
             air between them rather than under a heading that would file it
             under whichever workspace you happen to be in. */}
-        <RailLink to="/recent" icon={Clock} label="Recent">
-          Recent
+        <RailLink to="/recent" icon={Clock} label={t.shell.rail.recent}>
+          {t.shell.rail.recent}
         </RailLink>
 
         {current === undefined ? null : (
@@ -103,19 +104,36 @@ function Rail({ current }: { current: Workspace | undefined }) {
           <div className="mt-3 border-t border-rule pt-3 lg:mt-5 lg:border-t-0 lg:pt-0">
             <p className="rail-heading hidden truncate px-2 pb-1 lg:block">{current.name}</p>
             <div>
-              <RailLink to={`/workspace/${current.slug}`} icon={FolderKanban} label="Projects" end>
-                Projects
+              <RailLink
+                to={`/workspace/${current.slug}`}
+                icon={FolderKanban}
+                label={t.shell.rail.projects}
+                end
+              >
+                {t.shell.rail.projects}
               </RailLink>
-              <RailLink to={`/workspace/${current.slug}/members`} icon={Users} label="Members">
-                Members
+              <RailLink
+                to={`/workspace/${current.slug}/members`}
+                icon={Users}
+                label={t.shell.rail.members}
+              >
+                {t.shell.rail.members}
                 <span className="slug ml-auto text-ink-faint">{current.memberCount}</span>
               </RailLink>
-              <RailLink to={`/workspace/${current.slug}/settings`} icon={Settings} label="Settings">
-                Settings
+              <RailLink
+                to={`/workspace/${current.slug}/settings`}
+                icon={Settings}
+                label={t.shell.rail.settings}
+              >
+                {t.shell.rail.settings}
               </RailLink>
               {canAdminister(current.role) ? (
-                <RailLink to={`/workspace/${current.slug}/trash`} icon={Trash2} label="Trash">
-                  Trash
+                <RailLink
+                  to={`/workspace/${current.slug}/trash`}
+                  icon={Trash2}
+                  label={t.shell.rail.trash}
+                >
+                  {t.shell.rail.trash}
                 </RailLink>
               ) : null}
             </div>
@@ -135,6 +153,7 @@ function Rail({ current }: { current: Workspace | undefined }) {
  * under whichever workspace was open.
  */
 function AccountRow() {
+  const t = useT();
   const user = useAuth((state) => state.user);
   const signOut = useAuth((state) => state.signOut);
   const navigate = useNavigate();
@@ -147,11 +166,11 @@ function AccountRow() {
           <button
             type="button"
             className="flex w-full items-center justify-center gap-2 rounded-md py-1 hover:bg-surface-2 focus:outline-none lg:justify-start lg:px-1.5"
-            aria-label="Account"
+            aria-label={t.shell.account.menu}
           >
             <Avatar src={user?.avatarUrl} name={user?.name ?? '?'} className="size-6 rounded-sm" />
             <span className="hidden min-w-0 flex-1 truncate text-left text-xs text-ink lg:block">
-              {user?.name ?? 'You'}
+              {user?.name ?? t.shell.account.you}
             </span>
             <ChevronsUpDown
               aria-hidden
@@ -161,30 +180,32 @@ function AccountRow() {
         }
       >
         <DropdownLabel>
-          <span className="block truncate text-xs font-medium text-ink">{user?.name ?? 'You'}</span>
+          <span className="block truncate text-xs font-medium text-ink">
+            {user?.name ?? t.shell.account.you}
+          </span>
           <span className="block truncate text-2xs text-ink-muted">{user?.email ?? ''}</span>
         </DropdownLabel>
         <DropdownSeparator />
         <DropdownAction onSelect={() => void navigate('/settings')}>
           <UserRound className="size-3.5 text-ink-faint" />
-          Account settings
+          {t.shell.account.settings}
         </DropdownAction>
         <DropdownAction onSelect={() => void navigate('/settings/agents')}>
           <KeyRound className="size-3.5 text-ink-faint" />
-          Agent keys
+          {t.shell.account.agentKeys}
         </DropdownAction>
         {/* Only whoever owns the instance has anywhere to go here, and only
             they are allowed through the door at the other end. */}
         {user?.instanceRole !== 'OWNER' ? null : (
           <DropdownAction onSelect={() => void navigate('/admin')}>
             <Gauge className="size-3.5 text-ink-faint" />
-            Instance
+            {t.shell.account.instance}
           </DropdownAction>
         )}
         <DropdownSeparator />
         <DropdownAction tone="danger" onSelect={() => void signOut()}>
           <LogOut className="size-3.5" />
-          Sign out
+          {t.shell.account.signOut}
         </DropdownAction>
       </DropdownMenu>
     </div>
@@ -230,10 +251,10 @@ function RailLink({
   );
 }
 
-const SECTION_LABEL: { suffix: string; label: string }[] = [
-  { suffix: '/members', label: 'Members' },
-  { suffix: '/settings', label: 'Settings' },
-  { suffix: '/trash', label: 'Trash' },
+const sectionLabels = (t: Messages): { suffix: string; label: string }[] => [
+  { suffix: '/members', label: t.shell.crumbs.members },
+  { suffix: '/settings', label: t.shell.crumbs.settings },
+  { suffix: '/trash', label: t.shell.crumbs.trash },
 ];
 
 /**
@@ -247,6 +268,7 @@ const SECTION_LABEL: { suffix: string; label: string }[] = [
  * chevron would claim they sit inside it.
  */
 function TopBar({ current }: { current: Workspace | undefined }) {
+  const t = useT();
   const { projectSlug } = useParams();
   const { pathname } = useLocation();
   const trailing = useTrailingCrumb();
@@ -260,10 +282,10 @@ function TopBar({ current }: { current: Workspace | undefined }) {
     ? [
         {
           label: pathname.startsWith('/plan/')
-            ? 'Plan settings'
+            ? t.shell.crumbs.planSettings
             : pathname === '/recent'
-              ? 'Recent'
-              : 'Account',
+              ? t.shell.crumbs.recent
+              : t.shell.crumbs.account,
         },
       ]
     : current === undefined
@@ -273,12 +295,12 @@ function TopBar({ current }: { current: Workspace | undefined }) {
             ? { label: projectSlug, to: `/workspace/${current.slug}/project/${projectSlug}` }
             : {
                 label:
-                  SECTION_LABEL.find((section) => pathname.endsWith(section.suffix))?.label ??
-                  'Projects',
+                  sectionLabels(t).find((section) => pathname.endsWith(section.suffix))?.label ??
+                  t.shell.crumbs.projects,
               },
           // A project's own settings sit one further along the same trail.
           ...(projectSlug !== undefined && pathname.endsWith('/settings')
-            ? [{ label: 'Settings' }]
+            ? [{ label: t.shell.crumbs.settings }]
             : []),
         ];
 
@@ -328,6 +350,7 @@ function TopBar({ current }: { current: Workspace | undefined }) {
 }
 
 function WorkspaceSwitcher({ current }: { current: Workspace }) {
+  const t = useT();
   const { all, add } = useWorkspaces();
   const navigate = useNavigate();
 
@@ -345,7 +368,7 @@ function WorkspaceSwitcher({ current }: { current: Workspace }) {
           <button
             type="button"
             className="flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-surface-2 focus:outline-none"
-            aria-label={`${current.name} — switch workspace`}
+            aria-label={t.shell.workspaceSwitcher.label(current.name)}
           >
             <span className="min-w-0 truncate text-sm font-medium text-ink">{current.name}</span>
             <ChevronDown aria-hidden className="size-3.5 shrink-0 text-ink-faint" />
@@ -364,11 +387,15 @@ function WorkspaceSwitcher({ current }: { current: Workspace }) {
         <DropdownSeparator />
         <DropdownAction onSelect={() => setCreating(true)}>
           <Plus className="size-3.5 text-ink-faint" />
-          New workspace
+          {t.shell.workspaceSwitcher.newWorkspace}
         </DropdownAction>
       </DropdownMenu>
 
-      <Modal open={creating} onOpenChange={setCreating} title="New workspace">
+      <Modal
+        open={creating}
+        onOpenChange={setCreating}
+        title={t.shell.workspaceSwitcher.newWorkspace}
+      >
         <form
           className="space-y-4"
           onSubmit={(event) => {
@@ -383,24 +410,24 @@ function WorkspaceSwitcher({ current }: { current: Workspace }) {
             });
           }}
         >
-          <Field label="Name" hint="A workspace holds projects, and a project holds plans.">
+          <Field label={t.shell.workspaceSwitcher.name} hint={t.shell.workspaceSwitcher.hint}>
             {(id) => (
               <Input
                 id={id}
                 autoFocus
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Acme"
+                placeholder={t.shell.workspaceSwitcher.placeholder}
               />
             )}
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button type="submit" variant="primary">
               <Plus className="size-3.5" />
-              Create workspace
+              {t.shell.workspaceSwitcher.create}
             </Button>
           </div>
         </form>

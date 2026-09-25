@@ -1,10 +1,6 @@
-import {
-  normalizeEdge,
-  planEdgeInputSchema,
-  uniqueSlug,
-  type PlanOp,
-} from '@schematic/schema';
+import { normalizeEdge, planEdgeInputSchema, uniqueSlug, type PlanOp } from '@schematic/schema';
 
+import { t } from '@/i18n';
 import type { Rect } from './group-drop';
 
 export interface GroupMember {
@@ -19,8 +15,11 @@ export interface GroupMember {
  */
 const PADDING = { top: 40, left: 20, bottom: 20, right: 20 };
 
-/** What a group is called before anybody names it. */
-const TITLE = 'Group';
+/**
+ * What a group's identifier is made from. Fixed rather than taken from the
+ * title, which is in the reader's language and may have no letters a slug keeps.
+ */
+const SLUG = 'group';
 
 /**
  * A box drawn around a selection, as one batch of operations.
@@ -67,14 +66,14 @@ export function groupOps(
   const right = Math.max(...members.map((member) => member.rect.x + member.rect.width));
   const bottom = Math.max(...members.map((member) => member.rect.y + member.rect.height));
 
-  const slug = uniqueSlug(TITLE, taken);
+  const slug = uniqueSlug(SLUG, taken);
   const ops: PlanOp[] = [
     {
       op: 'upsert_node',
       node: {
         slug,
         kind: 'group',
-        title: TITLE,
+        title: t().plan.group.defaultTitle,
         position: { x: Math.round(left - PADDING.left), y: Math.round(top - PADDING.top) },
         size: {
           width: Math.round(right - left + PADDING.left + PADDING.right),

@@ -14,27 +14,21 @@ import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/field';
 import { Markdown } from '@/components/ui/markdown';
 import { Select } from '@/components/ui/select';
-import { STATUS_LABEL } from '@/components/ui/status';
+import { useT, type Messages } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { SIDE_PANEL } from './side-panel';
 import { useYText } from './use-y-text';
 
-const KIND_LABEL: Record<string, string> = {
-  feature: 'Feature',
-  task: 'Task',
-  decision: 'Decision',
-  note: 'Note',
-  group: 'Group',
-};
-
-const KIND_OPTIONS = planNodeKinds.map((kind) => ({
-  value: kind,
-  label: KIND_LABEL[kind] ?? kind,
-}));
-const STATUS_OPTIONS = planNodeStatuses.map((status) => ({
-  value: status,
-  label: STATUS_LABEL[status],
-}));
+const kindOptions = (t: Messages) =>
+  planNodeKinds.map((kind) => ({
+    value: kind,
+    label: t.plan.labels.nodeKind[kind],
+  }));
+const statusOptions = (t: Messages) =>
+  planNodeStatuses.map((status) => ({
+    value: status,
+    label: t.plan.labels.status[status],
+  }));
 
 /**
  * Everything typed here is written straight into the shared document, so two
@@ -59,6 +53,7 @@ export function Inspector({
   onRenamed: (slug: string) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const body = useMemo(() => nodeBodyText(doc, node.slug), [doc, node.slug]);
   const [text, writeText] = useYText(body);
   // Raw while the cursor is in it, drawn when it is not — the same bargain a
@@ -100,12 +95,12 @@ export function Inspector({
         */}
         <span className="truncate text-xs font-medium text-ink">{node.title}</span>
         <Button variant="ghost" size="sm" onClick={onClose}>
-          Close
+          {t.common.close}
         </Button>
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
-        <Field label="Title">
+        <Field label={t.plan.inspector.title}>
           {(id) => (
             <Input
               id={id}
@@ -122,13 +117,13 @@ export function Inspector({
             it exports to, so a node whose title has moved on was carrying a
             name from its first minute in both places. */}
         <Field
-          label="Identifier"
+          label={t.plan.inspector.identifier}
           hint={
             clash
-              ? 'Another node already answers to that'
+              ? t.plan.inspector.identifierClash
               : malformed
-                ? 'Lowercase words joined by single hyphens'
-                : 'How an agent addresses this node, and the file it exports to'
+                ? t.plan.inspector.identifierMalformed
+                : t.plan.inspector.identifierHint
           }
         >
           {(id) => (
@@ -148,24 +143,24 @@ export function Inspector({
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Kind">
+          <Field label={t.plan.inspector.kind}>
             {(id) => (
               <Select
                 id={id}
                 value={node.kind}
-                options={KIND_OPTIONS}
+                options={kindOptions(t)}
                 disabled={readOnly}
                 onChange={(kind) => patch({ kind })}
               />
             )}
           </Field>
 
-          <Field label="Status">
+          <Field label={t.plan.inspector.status}>
             {(id) => (
               <Select
                 id={id}
                 value={node.status}
-                options={STATUS_OPTIONS}
+                options={statusOptions(t)}
                 disabled={readOnly}
                 onChange={(status) => patch({ status })}
               />
@@ -173,7 +168,7 @@ export function Inspector({
           </Field>
         </div>
 
-        <Field label="Tags" hint="Separated by commas">
+        <Field label={t.plan.inspector.tags} hint={t.plan.inspector.tagsHint}>
           {(id) => (
             <Input
               id={id}
@@ -191,7 +186,7 @@ export function Inspector({
           )}
         </Field>
 
-        <Field label="Detail" hint="Markdown. Drawn as Markdown on the canvas">
+        <Field label={t.plan.inspector.detail} hint={t.plan.inspector.detailHint}>
           {(id) =>
             writing && !readOnly ? (
               <Textarea
@@ -215,7 +210,7 @@ export function Inspector({
                 )}
               >
                 {text.trim() === '' ? (
-                  <span className="text-sm text-ink-faint">Nothing yet</span>
+                  <span className="text-sm text-ink-faint">{t.plan.inspector.nothingYet}</span>
                 ) : (
                   <Markdown body={text} className="text-sm" />
                 )}
@@ -237,11 +232,9 @@ export function Inspector({
             }}
           >
             <Trash2 className="size-3.5" />
-            Delete node
+            {t.plan.inspector.deleteNode}
           </Button>
-          <p className="mt-2 text-xs text-ink-faint">
-            Removes the node and every connection attached to it.
-          </p>
+          <p className="mt-2 text-xs text-ink-faint">{t.plan.inspector.deleteNodeNote}</p>
         </div>
       )}
     </aside>

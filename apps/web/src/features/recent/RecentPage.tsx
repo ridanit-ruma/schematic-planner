@@ -10,6 +10,7 @@ import { Field, Input } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
 import { Page } from '@/components/ui/page';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
+import { useT } from '@/i18n';
 import { plans, workspaces, type RecentPlan } from '@/lib/api';
 import { formatWhen } from '@/lib/utils';
 import { useWorkspaces } from '@/features/workspaces/workspace-context';
@@ -24,6 +25,7 @@ import { useLiveList } from '@/lib/use-live-list';
  * standing between you and it.
  */
 export function RecentPage() {
+  const t = useT();
   const { all } = useWorkspaces();
   const navigate = useNavigate();
   const [list, setList] = useState<RecentPlan[] | null>(null);
@@ -37,7 +39,7 @@ export function RecentPage() {
 
   if (error !== null) {
     return (
-      <Page title="Recent">
+      <Page title={t.recent.title}>
         <Problem error={error} />
       </Page>
     );
@@ -53,18 +55,15 @@ export function RecentPage() {
   const first = all[0];
 
   return (
-    <Page
-      title="Recent"
-      description="What you have been working on, across every workspace you belong to."
-    >
+    <Page title={t.recent.title} description={t.recent.description}>
       {list.length === 0 ? (
         <Empty
-          title="Nothing drawn yet"
-          body="Plans you open or an agent changes appear here, newest first."
+          title={t.recent.empty.title}
+          body={t.recent.empty.body}
           action={
             first === undefined ? undefined : (
               <Button variant="primary" onClick={() => void navigate(`/workspace/${first.slug}`)}>
-                Open {first.name}
+                {t.recent.empty.open(first.name)}
               </Button>
             )
           }
@@ -72,15 +71,15 @@ export function RecentPage() {
       ) : (
         <Table>
           <THead>
-            <TH>Plan</TH>
+            <TH>{t.recent.columns.plan}</TH>
             <TH className="w-44" hide="md">
-              Where
+              {t.recent.columns.where}
             </TH>
             <TH className="w-40" hide="md">
-              Last touched by
+              {t.recent.columns.lastTouchedBy}
             </TH>
             <TH className="w-20 sm:w-28" align="right">
-              Updated
+              {t.recent.columns.updated}
             </TH>
           </THead>
           <tbody>
@@ -89,7 +88,7 @@ export function RecentPage() {
                 <TD>
                   <Link to={`/plan/${plan.id}`} className="block min-w-0">
                     <span className="block truncate font-medium text-ink">
-                      {plan.title === '' ? 'Untitled plan' : plan.title}
+                      {plan.title === '' ? t.recent.untitledPlan : plan.title}
                     </span>
                     {/* What the dropped columns were carrying, under the title
                         rather than beside it. */}
@@ -145,6 +144,7 @@ export function RecentPage() {
 
 /** Everyone gets a workspace at sign-up, so this is close to unreachable. */
 function FirstWorkspace() {
+  const t = useT();
   const { add } = useWorkspaces();
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
@@ -153,16 +153,16 @@ function FirstWorkspace() {
   return (
     <>
       <Empty
-        title="No workspace yet"
-        body="A workspace holds your projects, and the keys your agents connect with."
+        title={t.recent.firstWorkspace.title}
+        body={t.recent.firstWorkspace.body}
         action={
           <Button variant="primary" onClick={() => setCreating(true)}>
             <Plus className="size-3.5" />
-            Create a workspace
+            {t.recent.firstWorkspace.create}
           </Button>
         }
       />
-      <Modal open={creating} onOpenChange={setCreating} title="New workspace">
+      <Modal open={creating} onOpenChange={setCreating} title={t.recent.firstWorkspace.modalTitle}>
         <form
           className="space-y-4"
           onSubmit={(event) => {
@@ -173,23 +173,23 @@ function FirstWorkspace() {
             });
           }}
         >
-          <Field label="Name">
+          <Field label={t.recent.firstWorkspace.name}>
             {(id) => (
               <Input
                 id={id}
                 autoFocus
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Acme"
+                placeholder={t.recent.firstWorkspace.placeholder}
               />
             )}
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button type="submit" variant="primary">
-              Create workspace
+              {t.recent.firstWorkspace.submit}
             </Button>
           </div>
         </form>

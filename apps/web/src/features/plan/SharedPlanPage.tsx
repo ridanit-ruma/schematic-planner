@@ -8,6 +8,7 @@ import { useStore } from 'zustand';
 
 import { Button } from '@/components/ui/button';
 import { NotFound, Problem, Spinner } from '@/components/ui/feedback';
+import { useT } from '@/i18n';
 import { config } from '@/lib/config';
 import { isMissing, plans } from '@/lib/api';
 import { PlanCanvas } from './PlanCanvas';
@@ -23,6 +24,7 @@ import type { PlanConnection } from './use-plan-document';
  */
 export function SharedPlanPage() {
   const { token = '' } = useParams();
+  const t = useT();
   const [doc, setDoc] = useState<PlanDoc | null>(null);
   const [error, setError] = useState<unknown>(null);
 
@@ -40,7 +42,7 @@ export function SharedPlanPage() {
       <div className="mx-auto max-w-md px-6 py-16">
         <Problem error={error} />
         <Link to="/" className="mt-4 inline-block text-sm text-accent underline">
-          Go to Schematic Planner
+          {t.plan.shared.goHome}
         </Link>
       </div>
     );
@@ -58,6 +60,7 @@ export function SharedPlanPage() {
 }
 
 function SharedCanvas({ plan, token }: { plan: PlanDoc; token: string }) {
+  const t = useT();
   const connection = useMemo<PlanConnection>(() => {
     const ydoc = new Y.Doc();
     initializePlan(ydoc, plan);
@@ -80,7 +83,7 @@ function SharedCanvas({ plan, token }: { plan: PlanDoc; token: string }) {
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-rule bg-surface px-2 sm:gap-4 sm:px-3">
           <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{plan.title}</h1>
           <PlanSize count={nodes.length} />
-          <span className="hidden text-xs text-ink-muted sm:inline">Read only</span>
+          <span className="hidden text-xs text-ink-muted sm:inline">{t.plan.shared.readOnly}</span>
           <Button
             size="sm"
             variant="quiet"
@@ -88,7 +91,7 @@ function SharedCanvas({ plan, token }: { plan: PlanDoc; token: string }) {
               window.location.href = `${config.apiUrl}/share/${token}/export`;
             }}
           >
-            Export
+            {t.plan.shared.export}
           </Button>
         </header>
         <div className="min-h-0 flex-1">

@@ -8,6 +8,7 @@ import { NotFound, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { Page, Panel } from '@/components/ui/page';
 import { Select } from '@/components/ui/select';
+import { useT } from '@/i18n';
 import { isMissing, plans, projects as projectsApi, type PlanNavigation } from '@/lib/api';
 import { useWorkspaces } from '@/features/workspaces/workspace-context';
 
@@ -21,6 +22,7 @@ export function PlanSettingsPage() {
   const { planId = '' } = useParams();
   const navigate = useNavigate();
   const { all } = useWorkspaces();
+  const t = useT();
 
   const [nav, setNav] = useState<PlanNavigation | null>(null);
   const [title, setTitle] = useState('');
@@ -75,7 +77,7 @@ export function PlanSettingsPage() {
 
   if (error !== null && nav === null) {
     return (
-      <Page title="Plan settings" width="narrow">
+      <Page title={t.plan.settings.title} width="narrow">
         <Problem error={error} />
       </Page>
     );
@@ -126,19 +128,19 @@ export function PlanSettingsPage() {
 
   return (
     <Page
-      title={title === '' ? 'Untitled plan' : title}
-      description="Everything about this plan except the drawing."
+      title={title === '' ? t.plan.page.untitled : title}
+      description={t.plan.settings.description}
       width="narrow"
       actions={
         <Button variant="quiet" onClick={() => void navigate(`/plan/${planId}`)}>
-          Open the canvas
+          {t.plan.settings.openCanvas}
         </Button>
       }
     >
       <div className="space-y-6">
         {error !== null ? <Problem error={error} /> : null}
 
-        <Panel title="Name" description="What it is called in every list, and on the canvas.">
+        <Panel title={t.plan.settings.name.title} description={t.plan.settings.name.description}>
           <form
             className="space-y-3"
             onSubmit={(event) => {
@@ -146,12 +148,15 @@ export function PlanSettingsPage() {
               void save();
             }}
           >
-            <Field label="Title">
+            <Field label={t.plan.settings.name.titleField}>
               {(id) => (
                 <Input id={id} value={title} onChange={(event) => setTitle(event.target.value)} />
               )}
             </Field>
-            <Field label="Description" hint="One line, shown under the title in a list.">
+            <Field
+              label={t.plan.settings.name.descriptionField}
+              hint={t.plan.settings.name.descriptionHint}
+            >
               {(id) => (
                 <Textarea
                   id={id}
@@ -163,19 +168,19 @@ export function PlanSettingsPage() {
             </Field>
             <div className="flex items-center gap-3">
               <Button type="submit" variant="primary" disabled={title.trim() === ''}>
-                Save
+                {t.common.save}
               </Button>
-              {saved ? <span className="text-xs text-status-done">Saved</span> : null}
+              {saved ? <span className="text-xs text-status-done">{t.common.saved}</span> : null}
             </div>
           </form>
         </Panel>
 
         <Panel
-          title="Where it lives"
-          description="A plan keeps its address when it moves, so every link to it survives."
+          title={t.plan.settings.location.title}
+          description={t.plan.settings.location.description}
         >
           <div className="space-y-3">
-            <Field label="Workspace">
+            <Field label={t.plan.settings.location.workspace}>
               {(id) => (
                 <Select
                   id={id}
@@ -188,16 +193,14 @@ export function PlanSettingsPage() {
                 />
               )}
             </Field>
-            <Field label="Project">
+            <Field label={t.plan.settings.location.project}>
               {(id) =>
                 options === null ? (
                   <div className="flex h-8 items-center">
                     <Spinner />
                   </div>
                 ) : options.length === 0 ? (
-                  <p className="text-xs text-ink-muted">
-                    That workspace has no project to put it in.
-                  </p>
+                  <p className="text-xs text-ink-muted">{t.plan.settings.location.noProject}</p>
                 ) : (
                   <Select
                     id={id}
@@ -214,9 +217,7 @@ export function PlanSettingsPage() {
 
             {leavingWorkspace ? (
               <p className="text-xs text-status-progress">
-                Moving it out of {nav.workspace.name} takes it away from everyone there, and drops
-                its share link — that link was handed out on the understanding of who could reach
-                the plan.
+                {t.plan.settings.location.leaving(nav.workspace.name)}
               </p>
             ) : null}
 
@@ -226,44 +227,44 @@ export function PlanSettingsPage() {
               onClick={() => void move()}
             >
               <ArrowRight className="size-3.5" />
-              Move it
+              {t.plan.settings.location.move}
             </Button>
           </div>
         </Panel>
 
         <Panel
-          title="Delete this plan"
+          title={t.plan.settings.trash.title}
           tone="danger"
-          description="It goes to the workspace trash, where it can be restored or removed for good."
+          description={t.plan.settings.trash.description}
         >
           <Button variant="danger" onClick={() => setDeleting(true)}>
             <Trash2 className="size-3.5" />
-            Move to trash
+            {t.plan.settings.trash.moveToTrash}
           </Button>
         </Panel>
 
         <p className="text-xs text-ink-faint">
-          In{' '}
-          <Link to={`/workspace/${nav.workspace.slug}`} className="text-accent underline">
-            {nav.workspace.name}
-          </Link>
-          .
+          {t.plan.settings.in(
+            <Link to={`/workspace/${nav.workspace.slug}`} className="text-accent underline">
+              {nav.workspace.name}
+            </Link>,
+          )}
         </p>
       </div>
 
       <Modal
         open={deleting}
         onOpenChange={setDeleting}
-        title={`Move ${title} to the trash?`}
-        description="It stops appearing everywhere it is listed. You can bring it back from the trash."
+        title={t.plan.settings.trash.confirmTitle(title)}
+        description={t.plan.settings.trash.confirmDescription}
       >
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setDeleting(false)}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button variant="danger" onClick={() => void remove()}>
             <Trash2 className="size-3.5" />
-            Move to trash
+            {t.plan.settings.trash.moveToTrash}
           </Button>
         </div>
       </Modal>

@@ -1,30 +1,18 @@
-import { planEdgeKinds, type PlanEdge, type PlanEdgeKind, type PlanOp } from '@schematic/schema';
+import { planEdgeKinds, type PlanEdge, type PlanOp } from '@schematic/schema';
 import { Spline, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
+import { useT, type Messages } from '@/i18n';
 import { SIDE_PANEL } from './side-panel';
 
-export const EDGE_LABEL: Record<PlanEdgeKind, string> = {
-  flows_to: 'Flows to',
-  depends_on: 'Depends on',
-  contains: 'Contains',
-  relates_to: 'Relates to',
-};
-
-const EDGE_MEANING: Record<PlanEdgeKind, string> = {
-  flows_to: 'Control or data moves this way. A reply is its own flow, pointing back.',
-  depends_on: 'Orders the two. Becomes the number on each filename when you export.',
-  contains: 'Nests one inside the other. Becomes a directory when you export.',
-  relates_to: 'A plain association. Carries no structure.',
-};
-
-const KIND_OPTIONS = planEdgeKinds.map((kind) => ({
-  value: kind,
-  label: EDGE_LABEL[kind],
-  hint: EDGE_MEANING[kind],
-}));
+const kindOptions = (t: Messages) =>
+  planEdgeKinds.map((kind) => ({
+    value: kind,
+    label: t.plan.labels.edgeKind[kind],
+    hint: t.plan.labels.edgeMeaning[kind],
+  }));
 
 /**
  * Changing the kind is a delete and a create, because an edge is identified by
@@ -50,6 +38,7 @@ export function EdgeInspector({
   onStraighten: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const change = (next: Partial<Pick<PlanEdge, 'kind' | 'label' | 'via' | 'carries'>>): void => {
     const merged = {
       kind: next.kind ?? edge.kind,
@@ -72,9 +61,9 @@ export function EdgeInspector({
   return (
     <aside className={SIDE_PANEL}>
       <div className="flex items-center justify-between gap-2 border-b border-rule px-3 py-2">
-        <span className="text-xs font-medium text-ink">Connection</span>
+        <span className="text-xs font-medium text-ink">{t.plan.edgeInspector.connection}</span>
         <Button variant="ghost" size="sm" onClick={onClose}>
-          Close
+          {t.common.close}
         </Button>
       </div>
 
@@ -85,12 +74,12 @@ export function EdgeInspector({
           <span className="slug text-ink">{edge.to}</span>
         </p>
 
-        <Field label="Meaning" hint={EDGE_MEANING[edge.kind]}>
+        <Field label={t.plan.edgeInspector.meaning} hint={t.plan.labels.edgeMeaning[edge.kind]}>
           {(id) => (
             <Select
               id={id}
               value={edge.kind}
-              options={KIND_OPTIONS}
+              options={kindOptions(t)}
               disabled={readOnly}
               onChange={(kind) => change({ kind })}
             />
@@ -99,22 +88,19 @@ export function EdgeInspector({
 
         {isFlow ? (
           <>
-            <Field label="Set off by" hint="What starts it: a click, a route, a request, a timer.">
+            <Field label={t.plan.edgeInspector.setOffBy} hint={t.plan.edgeInspector.setOffByHint}>
               {(id) => (
                 <Input
                   id={id}
                   value={edge.via ?? ''}
                   disabled={readOnly}
-                  placeholder="click Sign in"
+                  placeholder={t.plan.edgeInspector.setOffByPlaceholder}
                   onChange={(event) => change({ via: blank(event.target.value) })}
                 />
               )}
             </Field>
 
-            <Field
-              label="Carries"
-              hint="What travels along it: a payload, a record, a return value."
-            >
+            <Field label={t.plan.edgeInspector.carries} hint={t.plan.edgeInspector.carriesHint}>
               {(id) => (
                 <Input
                   id={id}
@@ -127,7 +113,7 @@ export function EdgeInspector({
             </Field>
           </>
         ) : (
-          <Field label="Label" hint="Drawn on the line. Optional.">
+          <Field label={t.plan.edgeInspector.label} hint={t.plan.edgeInspector.labelHint}>
             {(id) => (
               <Input
                 id={id}
@@ -156,7 +142,7 @@ export function EdgeInspector({
             onClick={onStraighten}
           >
             <Spline className="size-3.5" />
-            Straighten
+            {t.plan.edgeInspector.straighten}
           </Button>
           <Button
             variant="danger"
@@ -170,7 +156,7 @@ export function EdgeInspector({
             }}
           >
             <Trash2 className="size-3.5" />
-            Remove connection
+            {t.plan.edgeInspector.removeConnection}
           </Button>
         </div>
       )}
