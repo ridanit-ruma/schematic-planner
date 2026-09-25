@@ -8,3 +8,4 @@ export * from './trace.js';
 export * from './tasks.js';
 export * from './group.js';
 export * from './card.js';
+export * from './vocabulary.js';

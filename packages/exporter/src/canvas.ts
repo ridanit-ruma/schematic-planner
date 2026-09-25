@@ -1,4 +1,5 @@
 import {
+  DEFAULT_VOCABULARY,
   cardBounds,
   containmentDepth,
   groupSize,
@@ -6,8 +7,10 @@ import {
   isGroup,
   type PlanDoc,
   type PlanGraph,
-  type PlanNodeStatus,
+  statusOf,
+  type PaletteColor,
   type Rect,
+  type Vocabulary,
 } from '@schematic/schema';
 
 /** https://jsoncanvas.org — the format Obsidian Canvas reads. */
@@ -45,14 +48,26 @@ const ROW_GAP = 200;
 const NOTE_WIDTH = 240;
 const NOTE_HEIGHT = 120;
 
-/** Obsidian's preset palette: 1 red, 2 orange, 3 yellow, 4 green, 5 cyan, 6 purple. */
-const STATUS_COLOR: Record<PlanNodeStatus, string | undefined> = {
-  idea: undefined,
-  planned: '5',
-  in_progress: '3',
-  blocked: '1',
-  done: '4',
-  dropped: '6',
+/**
+ * A status's colour as Obsidian writes it: one of its presets (1 red, 2 orange,
+ * 3 yellow, 4 green, 5 cyan, 6 purple) where one is close, so the file follows
+ * the reader's theme, and a hex value where none is.
+ *
+ * Grey is no colour at all, and the two defaults that were mapped before the
+ * palette existed — indigo to cyan, dim to purple — keep that mapping, so a
+ * project that has not changed its statuses exports exactly as it did.
+ */
+export const CANVAS_COLOR: Record<PaletteColor, string | undefined> = {
+  gray: undefined,
+  dim: '6',
+  red: '1',
+  orange: '2',
+  amber: '3',
+  green: '4',
+  teal: '5',
+  blue: '#3b82f6',
+  indigo: '5',
+  purple: '6',
 };
 
 /**
@@ -65,6 +80,7 @@ export function toCanvas(
   doc: Pick<PlanDoc, 'nodes' | 'edges'> & Partial<Pick<PlanDoc, 'comments'>>,
   graph: PlanGraph,
   fileOf: ReadonlyMap<string, string>,
+  vocabulary: Vocabulary = DEFAULT_VOCABULARY,
 ): Canvas {
   const rowsUsed = new Map<number, number>();
   const nodes: CanvasNode[] = [];
@@ -153,7 +169,9 @@ export function toCanvas(
           width: Math.round(rect.width),
           height: Math.round(rect.height),
         };
-    const color = STATUS_COLOR[node.status];
+    // A status the project does not know is drawn uncoloured, as grey is.
+    const status = statusOf(vocabulary, node.status);
+    const color = status === undefined ? undefined : CANVAS_COLOR[status.color];
     if (color !== undefined) canvasNode.color = color;
     nodes.push(canvasNode);
   }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { planDocSchema } from './plan.js';
-import { sanitizePlanDoc } from './sanitize.js';
+import { planDocFromSnapshot, sanitizePlanDoc } from './sanitize.js';
 
 const node = (slug: string) => ({ slug, title: slug });
 
@@ -71,5 +71,56 @@ describe('sanitizePlanDoc', () => {
     expect(doc.title).toBe('Untitled plan');
     expect(doc.nodes).toHaveLength(1);
     expect(planDocSchema.safeParse(doc).success).toBe(true);
+  });
+});
+
+describe('a kind or status the project does not know', () => {
+  const plan = (kind: string, status: string) => ({
+    id: 'p1',
+    title: 'Plan',
+    nodes: [{ slug: 'a', title: 'A', kind, status }, node('b')],
+    edges: [{ id: 'e1', kind: 'depends_on', from: 'a', to: 'b', label: null }],
+  });
+
+  it('is kept by sanitize rather than discarding the node', () => {
+    const { doc, dropped } = sanitizePlanDoc(plan('spike', 'in-review'));
+    expect(dropped).toEqual([]);
+    expect(doc.nodes[0]).toMatchObject({ slug: 'a', kind: 'spike', status: 'in-review' });
+    expect(doc.edges).toHaveLength(1);
+  });
+
+  it('passes the strict schema, so a stored snapshot is not read as empty', () => {
+    const parsed = planDocSchema.safeParse({
+      ...plan('spike', 'in-review'),
+      updatedAt: new Date(0).toISOString(),
+    });
+    expect(parsed.success).toBe(true);
+  });
+});
+
+describe('planDocFromSnapshot', () => {
+  const fallback = { id: 'p1', title: 'Stored', description: 'kept' };
+
+  it('reads a valid snapshot as it is', () => {
+    const doc = planDocFromSnapshot(
+      { id: 'p1', title: 'Plan', updatedAt: 'x', nodes: [node('a')], edges: [] },
+      fallback,
+    );
+    expect(doc.title).toBe('Plan');
+    expect(doc.nodes.map((one) => one.slug)).toEqual(['a']);
+  });
+
+  it('repairs a snapshot one bad node away from valid instead of emptying it', () => {
+    const doc = planDocFromSnapshot(
+      { title: 'Plan', nodes: [node('a'), { slug: 'Not A Slug', title: 'x' }], edges: [] },
+      fallback,
+    );
+    expect(doc.nodes.map((one) => one.slug)).toEqual(['a']);
+    expect(doc.description).toBe('kept');
+  });
+
+  it('falls back to an empty plan with the stored title for something unreadable', () => {
+    const doc = planDocFromSnapshot(null, fallback);
+    expect(doc).toMatchObject({ id: 'p1', title: 'Stored', nodes: [], edges: [] });
   });
 });
