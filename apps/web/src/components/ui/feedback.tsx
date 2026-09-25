@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 
 import { useT, type Messages } from '@/i18n';
-import { useLost } from '@/lib/use-crumb';
 
 import { cn } from '@/lib/utils';
 
@@ -79,7 +78,6 @@ const NOT_FOUND_TITLE: Record<NotFoundSubject, keyof Messages['ui']['notFound'][
 
 export function NotFound({ subject = 'page' }: { subject?: NotFoundSubject }) {
   const t = useT();
-  useLost();
 
   return (
     <div className="grid min-h-dvh place-items-center px-6">

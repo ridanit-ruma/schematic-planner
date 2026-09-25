@@ -1,5 +1,5 @@
 import { DropdownMenu as Primitive } from 'radix-ui';
-import { Check } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -90,4 +90,21 @@ export function DropdownLabel({ children }: { children: ReactNode }) {
 
 export function DropdownSeparator() {
   return <Primitive.Separator className="my-1 h-px bg-rule" />;
+}
+
+/** A menu that opens another, for a choice among a few fixed values. */
+export function DropdownSub({ label, children }: { label: ReactNode; children: ReactNode }) {
+  return (
+    <Primitive.Sub>
+      <Primitive.SubTrigger className={cn(item, 'data-[state=open]:bg-surface-2')}>
+        <span className="flex flex-1 items-center gap-2">{label}</span>
+        <ChevronRight className="size-3.5 text-ink-faint" />
+      </Primitive.SubTrigger>
+      <Primitive.Portal>
+        <Primitive.SubContent className={cn(content, 'min-w-40')} sideOffset={2} alignOffset={-4}>
+          {children}
+        </Primitive.SubContent>
+      </Primitive.Portal>
+    </Primitive.Sub>
+  );
 }

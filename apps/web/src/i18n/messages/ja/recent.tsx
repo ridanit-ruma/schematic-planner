@@ -6,7 +6,6 @@ export const recent: Messages['recent'] = {
   empty: {
     title: 'まだ何も描かれていません',
     body: '開いたプランや、エージェントが変更したプランが新しい順にここに表示されます。',
-    open: (workspace: string) => `${workspace}を開く`,
   },
   columns: {
     plan: 'プラン',

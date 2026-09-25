@@ -2,6 +2,8 @@ import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
+import { useExplorer } from '@/components/explorer/explorer-context';
+import { revealState } from '@/components/explorer/tree';
 import { Author } from '@/components/ui/author';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -27,7 +29,7 @@ import { useLiveList } from '@/lib/use-live-list';
 export function RecentPage() {
   const t = useT();
   const { all } = useWorkspaces();
-  const navigate = useNavigate();
+  const explorer = useExplorer();
   const [list, setList] = useState<RecentPlan[] | null>(null);
   const [error, setError] = useState<unknown>(null);
 
@@ -52,8 +54,6 @@ export function RecentPage() {
     );
   }
 
-  const first = all[0];
-
   return (
     <Page title={t.recent.title} description={t.recent.description}>
       {list.length === 0 ? (
@@ -61,11 +61,11 @@ export function RecentPage() {
           title={t.recent.empty.title}
           body={t.recent.empty.body}
           action={
-            first === undefined ? undefined : (
-              <Button variant="primary" onClick={() => void navigate(`/workspace/${first.slug}`)}>
-                {t.recent.empty.open(first.name)}
-              </Button>
-            )
+            // Named where it will live: in the tree, beside this list.
+            <Button variant="primary" onClick={explorer.newProject}>
+              <Plus className="size-3.5" />
+              {t.explorer.newProject}
+            </Button>
           }
         />
       ) : (
@@ -100,8 +100,13 @@ export function RecentPage() {
                   </Link>
                 </TD>
                 <TD className="min-w-0" hide="md">
+                  {/* Shows the project in the tree rather than a list of its own. */}
                   <Link
-                    to={`/workspace/${plan.workspace.slug}/project/${plan.project.slug}`}
+                    to="/recent"
+                    state={revealState({
+                      workspace: plan.workspace.slug,
+                      project: plan.project.slug,
+                    })}
                     className="block truncate text-xs text-ink-muted hover:text-ink"
                   >
                     {/* The workspace only when there is more than one: repeated

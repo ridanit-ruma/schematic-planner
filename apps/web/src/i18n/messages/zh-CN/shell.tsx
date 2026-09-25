@@ -1,13 +1,6 @@
 import type { Messages } from '../en';
 
 export const shell: Messages['shell'] = {
-  rail: {
-    recent: '最近',
-    projects: '项目',
-    members: '成员',
-    settings: '设置',
-    trash: '回收站',
-  },
   account: {
     menu: '账号',
     you: '你',
@@ -15,15 +8,6 @@ export const shell: Messages['shell'] = {
     agentKeys: '智能体密钥',
     instance: '实例',
     signOut: '退出登录',
-  },
-  crumbs: {
-    planSettings: '计划设置',
-    recent: '最近',
-    account: '账号',
-    projects: '项目',
-    members: '成员',
-    settings: '设置',
-    trash: '回收站',
   },
   workspaceSwitcher: {
     label: (name: string) => `切换工作区（当前：${name}）`,

@@ -2,6 +2,7 @@ import { Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
+import { useExplorer } from '@/components/explorer/explorer-context';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/field';
 import { NotFound, Problem, Spinner } from '@/components/ui/feedback';
@@ -17,6 +18,7 @@ export function ProjectSettingsPage() {
   const { current } = useWorkspace();
   const { projectSlug = '' } = useParams();
   const navigate = useNavigate();
+  const explorer = useExplorer();
 
   const [id, setId] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -70,6 +72,7 @@ export function ProjectSettingsPage() {
     if (trimmed === '') return;
     try {
       await projects.update(id, { name: trimmed, description });
+      explorer.reread();
       setSaved(true);
       window.setTimeout(() => setSaved(false), 1600);
     } catch (cause) {
@@ -80,26 +83,15 @@ export function ProjectSettingsPage() {
   const remove = async (): Promise<void> => {
     try {
       await projects.remove(id);
-      void navigate(`/workspace/${current.slug}`);
+      explorer.reread();
+      void navigate('/recent');
     } catch (cause) {
       setError(cause);
     }
   };
 
   return (
-    <Page
-      title={name}
-      description={m.projectSettings.description}
-      width="narrow"
-      actions={
-        <Button
-          variant="quiet"
-          onClick={() => void navigate(`/workspace/${current.slug}/project/${projectSlug}`)}
-        >
-          {m.projectSettings.openPlans}
-        </Button>
-      }
-    >
+    <Page title={name} description={m.projectSettings.description} width="narrow">
       <div className="space-y-6">
         {error !== null ? <Problem error={error} /> : null}
 

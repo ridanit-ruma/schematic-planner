@@ -159,10 +159,6 @@ export const plan: Messages['plan'] = {
   },
   page: {
     untitled: '未命名計畫',
-    addNode: '新增節點',
-    title: '標題',
-    titleHint: '識別碼會依標題產生，之後可以變更。',
-    titlePlaceholder: '身分驗證',
     shareTitle: '分享這個計畫',
     shareDescription: '任何擁有這個連結的人都能閱讀計畫並下載匯出檔，但無法修改。',
     stopSharing: '停止分享',

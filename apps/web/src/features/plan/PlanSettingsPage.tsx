@@ -2,6 +2,8 @@ import { ArrowRight, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
+import { useExplorer } from '@/components/explorer/explorer-context';
+import { revealState } from '@/components/explorer/tree';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/field';
 import { NotFound, Problem, Spinner } from '@/components/ui/feedback';
@@ -22,6 +24,7 @@ export function PlanSettingsPage() {
   const { planId = '' } = useParams();
   const navigate = useNavigate();
   const { all } = useWorkspaces();
+  const explorer = useExplorer();
   const t = useT();
 
   const [nav, setNav] = useState<PlanNavigation | null>(null);
@@ -95,6 +98,7 @@ export function PlanSettingsPage() {
     if (trimmed === '') return;
     try {
       await plans.update(planId, { title: trimmed, description });
+      explorer.renamePlan(planId, trimmed);
       setSaved(true);
       window.setTimeout(() => setSaved(false), 1600);
     } catch (cause) {
@@ -107,6 +111,7 @@ export function PlanSettingsPage() {
     setMoving(true);
     try {
       await plans.move(planId, target);
+      explorer.reread();
       void navigate(`/plan/${planId}`);
     } catch (cause) {
       setError(cause);
@@ -118,13 +123,15 @@ export function PlanSettingsPage() {
   const remove = async (): Promise<void> => {
     try {
       await plans.remove(planId);
-      void navigate(`/workspace/${nav.workspace.slug}`);
+      explorer.reread();
+      void navigate('/recent');
     } catch (cause) {
       setError(cause);
     }
   };
 
   const leavingWorkspace = workspaceId !== nav.workspace.id;
+  const project = nav.projects.find((each) => each.id === nav.projectId);
 
   return (
     <Page
@@ -245,7 +252,14 @@ export function PlanSettingsPage() {
 
         <p className="text-xs text-ink-faint">
           {t.plan.settings.in(
-            <Link to={`/workspace/${nav.workspace.slug}`} className="text-accent underline">
+            <Link
+              to="/recent"
+              state={revealState({
+                workspace: nav.workspace.slug,
+                ...(project === undefined ? {} : { project: project.slug }),
+              })}
+              className="text-accent underline"
+            >
               {nav.workspace.name}
             </Link>,
           )}

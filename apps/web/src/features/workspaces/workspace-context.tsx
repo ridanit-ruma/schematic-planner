@@ -32,6 +32,16 @@ interface CurrentValue {
 /** Announced by the workspace a route resolved, listened for by the provider above it. */
 const WORKSPACE_VISITED = 'schematic:workspace-visited';
 
+/**
+ * Remembers a workspace as the one you are in, and tells the provider, so the
+ * screens that name no workspace — the recent list, your account — keep showing
+ * it. A plan's address names no workspace either, so opening one says which it is in.
+ */
+export function visitWorkspace(slug: string): void {
+  rememberWorkspace(slug);
+  window.dispatchEvent(new CustomEvent(WORKSPACE_VISITED, { detail: slug }));
+}
+
 const WorkspacesContext = createContext<WorkspacesValue | null>(null);
 const CurrentContext = createContext<CurrentValue | null>(null);
 
@@ -119,9 +129,7 @@ export function WorkspaceLayout() {
   );
 
   useEffect(() => {
-    if (current === undefined) return;
-    rememberWorkspace(current.slug);
-    window.dispatchEvent(new CustomEvent(WORKSPACE_VISITED, { detail: current.slug }));
+    if (current !== undefined) visitWorkspace(current.slug);
   }, [current]);
   const value = useMemo(() => (current === undefined ? null : { current }), [current]);
 
