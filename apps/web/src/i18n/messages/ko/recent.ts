@@ -6,7 +6,6 @@ export const recent: Messages['recent'] = {
   empty: {
     title: '아직 그린 플랜이 없습니다',
     body: '직접 연 플랜이나 에이전트가 수정한 플랜이 최신순으로 여기에 표시됩니다.',
-    open: (workspace: string) => `${workspace} 열기`,
   },
   columns: {
     plan: '플랜',

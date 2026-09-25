@@ -6,7 +6,6 @@ export const recent: Messages['recent'] = {
   empty: {
     title: '还没有画任何东西',
     body: '你打开过的计划，以及智能体修改过的计划，会按时间从新到旧显示在这里。',
-    open: (workspace: string) => `打开 ${workspace}`,
   },
   columns: {
     plan: '计划',

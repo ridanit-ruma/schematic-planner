@@ -162,10 +162,6 @@ export const plan: Messages['plan'] = {
   },
   page: {
     untitled: '無題のプラン',
-    addNode: 'ノードを追加',
-    title: 'タイトル',
-    titleHint: '識別子はタイトルから生成されます。あとで変更できます。',
-    titlePlaceholder: '認証',
     shareTitle: 'このプランを共有',
     shareDescription:
       'このリンクを知っている人は誰でも、プランの閲覧とエクスポートのダウンロードができます。変更はできません。',

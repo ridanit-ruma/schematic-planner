@@ -10,109 +10,18 @@ export const workspaces: Messages['workspaces'] = {
     EDITOR: '編集者',
     VIEWER: '閲覧者',
   },
-  /** The ruled index shared by the project, plan and folder screens. */
+  /** Words the remaining tables and their row menus share. */
   list: {
-    name: '名前',
-    holds: '内容',
-    updated: '更新日時',
     actions: '操作',
-    settings: '設定',
-    moveToFolder: 'フォルダに移動…',
     moveToTrash: 'ゴミ箱に移動',
-    nodeCount: (n: number) => `ノード${n}個`,
-    planCount: (n: number) => `プラン${n}件`,
     confirmTrash: (name: string) => `${name}をゴミ箱に移動しますか？`,
-    planTrashBody: 'どの一覧にも表示されなくなります。ゴミ箱から元に戻せます。',
-    folderTrashBody: '中のプランも一緒に移動し、元に戻すときも一緒に戻ります。',
-    renameFolder: 'フォルダ名を変更',
-  },
-  newPlan: {
-    title: '新しいプラン',
-    titleLabel: 'タイトル',
-    titlePlaceholder: '会計台帳の移行',
-    descriptionLabel: '説明',
-    descriptionHint: 'このプランで何を描くか。1行で、一覧に表示されます。',
-    descriptionPlaceholder: '請求書が台帳から PDF になるまでの流れ。',
-    submit: 'プランを作成',
-    createFirst: '最初のプランを作成',
   },
   projects: {
-    title: 'プロジェクト',
-    description: (projects: number, workspace: string) =>
-      projects === 0
-        ? `${workspace}にはまだ何もありません。`
-        : `${workspace}のプロジェクト：${projects}件`,
-    newProject: '新しいプロジェクト',
-    empty: {
-      title: 'プロジェクトがありません',
-      body: 'プロジェクトは、作ろうとしているひとつのもののプランをまとめます。多くのワークスペースは、プロジェクト1つから始まります。',
-      action: '最初のプロジェクトを作成',
-    },
-    project: 'プロジェクト',
-    plans: 'プラン',
     trashBody: '中のプランも一緒に移動します。プロジェクトはゴミ箱から丸ごと元に戻せます。',
-    create: {
-      title: '新しいプロジェクト',
-      nameLabel: '名前',
-      nameHint: 'アドレスは名前から生成され、あとから変わることはありません。',
-      namePlaceholder: '請求機能の刷新',
-      descriptionLabel: '説明',
-      descriptionHint: 'このプロジェクトの目的。1行で、一覧に表示されます。',
-      descriptionPlaceholder: '請求処理をモノリスから切り出す。',
-      submit: 'プロジェクトを作成',
-    },
-  },
-  plans: {
-    title: 'プラン',
-    description: (folders: number, plans: number) => {
-      const counts = [
-        ...(folders === 0 ? [] : [`フォルダ${folders}個`]),
-        ...(plans === 0 ? [] : [`プラン${plans}件`]),
-      ];
-      return counts.length === 0
-        ? 'このプロジェクトにはまだ何も描かれていません。'
-        : `このプロジェクトの内容：${counts.join(' · ')}`;
-    },
-    newFolder: '新しいフォルダ',
-    empty: {
-      title: 'プランがありません',
-      body: 'ここでプランを描くか、AI エージェントにこのワークスペースを指定して最初のプランを作成させましょう。',
-    },
-    createFolder: {
-      title: '新しいフォルダ',
-      nameLabel: '名前',
-      nameHint: 'このプロジェクト内の整理用の引き出しです。フォルダは入れ子にできません。',
-      namePlaceholder: 'アーキテクチャ',
-      submit: 'フォルダを作成',
-    },
-  },
-  folder: {
-    title: 'フォルダ',
-    missing: {
-      title: 'フォルダが見つかりません',
-      body: '削除されたか、別のプロジェクトに属している可能性があります。',
-      back: (project: string) => `${project}に戻る`,
-    },
-    description: (plans: number) =>
-      plans === 0 ? 'このフォルダにはまだ何もありません。' : `このフォルダのプラン：${plans}件`,
-    moveFolderToTrash: 'フォルダをゴミ箱に移動',
-    empty: {
-      title: 'このフォルダは空です',
-      body: 'ここでプランを描くか、プロジェクトからプランを移動してください。',
-    },
-  },
-  moveToFolder: {
-    title: (plan: string) => `${plan}を移動`,
-    description: 'このプロジェクト内のどのフォルダに入れるかを選びます。',
-    folder: 'フォルダ',
-    topLevel: '最上位',
-    topLevelHint: 'どのフォルダにも入れない',
-    submit: '移動',
   },
   projectSettings: {
     title: 'プロジェクト設定',
     description: 'このプロジェクトの名前と、その扱いを設定します。',
-    openPlans: 'プランを開く',
     name: {
       title: '名前',
       body: '名前を変えてもアドレスは変わりません。誰かが保存したリンクは、そのまま使えます。',

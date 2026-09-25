@@ -1,13 +1,6 @@
 import type { Messages } from '../en';
 
 export const shell: Messages['shell'] = {
-  rail: {
-    recent: '最近',
-    projects: 'プロジェクト',
-    members: 'メンバー',
-    settings: '設定',
-    trash: 'ゴミ箱',
-  },
   account: {
     menu: 'アカウント',
     you: 'あなた',
@@ -15,15 +8,6 @@ export const shell: Messages['shell'] = {
     agentKeys: 'エージェントキー',
     instance: 'インスタンス',
     signOut: 'ログアウト',
-  },
-  crumbs: {
-    planSettings: 'プラン設定',
-    recent: '最近',
-    account: 'アカウント',
-    projects: 'プロジェクト',
-    members: 'メンバー',
-    settings: '設定',
-    trash: 'ゴミ箱',
   },
   workspaceSwitcher: {
     label: (name: string) => `${name}（ワークスペースを切り替え）`,

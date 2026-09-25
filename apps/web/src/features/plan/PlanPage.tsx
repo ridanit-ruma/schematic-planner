@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { useStore } from 'zustand';
 
+import { useExplorer } from '@/components/explorer/explorer-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
@@ -18,7 +19,6 @@ import { EdgeInspector } from './EdgeInspector';
 import { HistoryPanel } from './HistoryPanel';
 import { Inspector } from './Inspector';
 import { PlanCanvas, type PlanCanvasHandle } from './PlanCanvas';
-import { PlanSidebar } from './PlanSidebar';
 import { TitleBlock } from './TitleBlock';
 import { usePlanDocument } from './use-plan-document';
 import { usePlanUndo, useUndoKeys } from './use-undo';
@@ -28,27 +28,21 @@ export function PlanPage() {
   const user = useAuth((state) => state.user);
   const { connection, status, denied } = usePlanDocument(planId, user);
 
-  // Before the rail, because the rail is a list of this workspace's plans and
-  // this address is not in a workspace you can see.
   if (denied) return <NotFound subject="plan" />;
 
-  // The rail sits outside the document gate: opening a plan tears the previous
-  // connection down, and a rail inside would unmount and refetch itself every
-  // time somebody used it.
+  // Exactly the height of the pane, never more: React Flow draws into the box
+  // it is given, and a box that grows with its contents is a box of no height.
   return (
-    <div className="relative flex h-dvh min-h-0">
-      <PlanSidebar planId={planId} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        {connection === null ? (
-          <div className="grid flex-1 place-items-center">
-            <Spinner />
-          </div>
-        ) : (
-          <ReactFlowProvider>
-            <PlanWorkspace planId={planId} connection={connection} status={status} />
-          </ReactFlowProvider>
-        )}
-      </div>
+    <div className="relative flex h-full min-h-0 flex-col">
+      {connection === null ? (
+        <div className="grid flex-1 place-items-center">
+          <Spinner />
+        </div>
+      ) : (
+        <ReactFlowProvider>
+          <PlanWorkspace planId={planId} connection={connection} status={status} />
+        </ReactFlowProvider>
+      )}
     </div>
   );
 }
@@ -100,6 +94,13 @@ function PlanWorkspace({
   const openNotes = useMemo(() => comments.filter((comment) => !comment.resolved), [comments]);
 
   useDocumentTitle(title === '' ? t.plan.page.untitled : title);
+
+  // The tree beside the canvas carries the plan's name too, and a rename on the
+  // canvas — yours or anybody else's — arrives here first.
+  const { renamePlan } = useExplorer();
+  useEffect(() => {
+    if (title !== '') renamePlan(planId, title);
+  }, [renamePlan, planId, title]);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selected)?.data.node ?? null,

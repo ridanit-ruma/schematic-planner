@@ -162,10 +162,6 @@ export const plan = {
   },
   page: {
     untitled: 'Untitled plan',
-    addNode: 'Add node',
-    title: 'Title',
-    titleHint: 'The identifier is derived from this and can be changed later.',
-    titlePlaceholder: 'Authentication',
     shareTitle: 'Share this plan',
     shareDescription:
       'Anyone with this link can read the plan and download the export. They cannot change it.',

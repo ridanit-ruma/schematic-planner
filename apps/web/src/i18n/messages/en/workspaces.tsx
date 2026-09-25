@@ -11,103 +11,18 @@ export const workspaces = {
     EDITOR: 'editor',
     VIEWER: 'viewer',
   },
-  /** The ruled index shared by the project, plan and folder screens. */
+  /** Words the remaining tables and their row menus share. */
   list: {
-    name: 'Name',
-    holds: 'Holds',
-    updated: 'Updated',
     actions: 'Actions',
-    settings: 'Settings',
-    moveToFolder: 'Move to folder…',
     moveToTrash: 'Move to trash',
-    nodeCount: (n: number) => count(n, 'node', 'nodes'),
-    planCount: (n: number) => count(n, 'plan', 'plans'),
     confirmTrash: (name: string) => `Move ${name} to the trash?`,
-    planTrashBody:
-      'It stops appearing everywhere it is listed. You can bring it back from the trash.',
-    folderTrashBody: 'The plans in it go with it, and come back with it.',
-    renameFolder: 'Rename folder',
-  },
-  newPlan: {
-    title: 'New plan',
-    titleLabel: 'Title',
-    titlePlaceholder: 'Ledger migration',
-    descriptionLabel: 'Description',
-    descriptionHint: 'What this plan draws. One line, shown in the list.',
-    descriptionPlaceholder: 'How an invoice gets from the ledger to a PDF.',
-    submit: 'Create plan',
-    createFirst: 'Create the first plan',
   },
   projects: {
-    title: 'Projects',
-    description: (projects: number, workspace: string) =>
-      `${projects === 0 ? 'Nothing here yet' : count(projects, 'project', 'projects')} in ${workspace}.`,
-    newProject: 'New project',
-    empty: {
-      title: 'No projects yet',
-      body: 'A project groups the plans for one thing you are building. Most workspaces start with one.',
-      action: 'Create the first project',
-    },
-    project: 'Project',
-    plans: 'Plans',
     trashBody: 'The plans inside go with it. You can bring the whole project back from the trash.',
-    create: {
-      title: 'New project',
-      nameLabel: 'Name',
-      nameHint: 'The address is derived from this and does not change later.',
-      namePlaceholder: 'Billing rework',
-      descriptionLabel: 'Description',
-      descriptionHint: 'What this project is for. One line, shown in the list.',
-      descriptionPlaceholder: 'Moving billing off the monolith.',
-      submit: 'Create project',
-    },
-  },
-  plans: {
-    title: 'Plans',
-    description: (folders: number, plans: number) =>
-      `${folders === 0 ? '' : `${count(folders, 'folder', 'folders')} · `}${
-        plans === 0 ? 'Nothing drawn yet' : count(plans, 'plan', 'plans')
-      } in this project.`,
-    newFolder: 'New folder',
-    empty: {
-      title: 'No plans yet',
-      body: 'Draw one here, or point an AI agent at this workspace and let it create the first plan for you.',
-    },
-    createFolder: {
-      title: 'New folder',
-      nameLabel: 'Name',
-      nameHint: 'A drawer inside this project. Folders do not nest.',
-      namePlaceholder: 'Architecture',
-      submit: 'Create folder',
-    },
-  },
-  folder: {
-    title: 'Folder',
-    missing: {
-      title: 'No such folder',
-      body: 'It may have been thrown away, or it belongs to another project.',
-      back: (project: string) => `Back to ${project}`,
-    },
-    description: (plans: number) =>
-      `${plans === 0 ? 'Nothing filed here yet' : count(plans, 'plan', 'plans')} in this folder.`,
-    moveFolderToTrash: 'Move folder to trash',
-    empty: {
-      title: 'Nothing in this folder',
-      body: 'Draw a plan here, or move one in from the project.',
-    },
-  },
-  moveToFolder: {
-    title: (plan: string) => `Move ${plan}`,
-    description: 'Which drawer of this project it should be filed in.',
-    folder: 'Folder',
-    topLevel: 'Top level',
-    topLevelHint: 'Outside every folder',
-    submit: 'Move',
   },
   projectSettings: {
     title: 'Project settings',
     description: 'What this project is called, and what happens to it.',
-    openPlans: 'Open the plans',
     name: {
       title: 'Name',
       body: 'The address stays as it is — a link somebody saved should survive a change of mind about the name.',
