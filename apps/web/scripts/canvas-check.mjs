@@ -2540,6 +2540,293 @@ try {
   await call(`/trash/plans/${filed.id}`, { method: 'DELETE' });
   await call(`/folders/${drawer.id}`, { method: 'DELETE' });
 
+    // Its own block: every name in it is its own, whatever the sections around it call theirs.
+    {
+      console.log('\nhandling a selection');
+      /*
+       * The gestures of a drawing tool, on a plan of their own: a plain drag
+       * boxes a selection, a selection moves as one and is written as one, a
+       * line let go on the canvas makes the node it was reaching for, copies go
+       * through the system clipboard, and equal gaps are found and kept.
+       *
+       * Positions are asked of the document rather than measured on screen, so
+       * a zoom or a pan in between does not decide the answer. y = 2 (mod 20)
+       * keeps a bare card's terminal on the default grid, so nothing moves
+       * before anything is done to it.
+       */
+      const placedNode = (slug, x, y) => ({
+        op: 'upsert_node',
+        node: { slug, title: slug.toUpperCase(), position: { x, y }, pinned: true },
+      });
+      const gestures = await call(`/projects/${projectList[0].id}/plans`, {
+        method: 'POST',
+        body: { title: `Gestures ${Date.now()}`, description: '' },
+      });
+      const pasteTarget = await call(`/projects/${projectList[0].id}/plans`, {
+        method: 'POST',
+        body: { title: `Gestures paste target ${Date.now()}`, description: '' },
+      });
+      await call(`/plans/${gestures.id}/ops`, {
+        method: 'POST',
+        body: {
+          ops: [
+            placedNode('g-one', 0, 2),
+            placedNode('g-two', 400, 2),
+            placedNode('g-three', 800, 2),
+            placedNode('g-source', 0, 402),
+            placedNode('s-one', 0, 802),
+            placedNode('s-two', 305, 802),
+            placedNode('s-three', 700, 802),
+          ],
+        },
+      });
+      await call(`/plans/${pasteTarget.id}/ops`, {
+        method: 'POST',
+        body: { ops: [placedNode('e-one', 0, 2)] },
+      });
+      const stored = async (id = gestures.id) => (await call(`/plans/${id}`)).nodes ?? [];
+      const storedAt = async (slug, id = gestures.id) =>
+        (await stored(id)).find((each) => each.slug === slug)?.position ?? null;
+      const openGestures = async (target = page, id = gestures.id) => {
+        await target.goto(`${BASE}/plan/${id}`, { waitUntil: 'domcontentloaded' });
+        await target.waitForSelector('.react-flow__node', { timeout: 20_000 }).catch(() => null);
+        await wait(1500);
+      };
+      const viewOf = (target = page) =>
+        target.evaluate(() => {
+          const match = /translate\(([-0-9.]+)px, ([-0-9.]+)px\) scale\(([0-9.]+)\)/.exec(
+            document.querySelector('.react-flow__viewport')?.style.transform ?? '',
+          );
+          const box = document.querySelector('.react-flow')?.getBoundingClientRect();
+          return {
+            tx: Number(match?.[1] ?? 0),
+            ty: Number(match?.[2] ?? 0),
+            k: Number(match?.[3] ?? 1),
+            left: box?.left ?? 0,
+            top: box?.top ?? 0,
+          };
+        });
+      const onCanvas = async (point, target = page) => {
+        const view = await viewOf(target);
+        return { x: view.left + view.tx + point.x * view.k, y: view.top + view.ty + point.y * view.k };
+      };
+      const bare = () =>
+        page.evaluate(() => {
+          const box = document.querySelector('.react-flow')?.getBoundingClientRect();
+          if (box === undefined) return { x: 5, y: 5 };
+          for (let y = box.bottom - 30; y > box.top + 30; y -= 40) {
+            for (let x = box.left + 30; x < box.right - 30; x += 40) {
+              if (document.elementFromPoint(x, y)?.classList.contains('react-flow__pane')) {
+                return { x, y };
+              }
+            }
+          }
+          return { x: 5, y: 5 };
+        });
+      const letGo = async () => {
+        const at = await bare();
+        await page.mouse.click(at.x, at.y);
+        await wait(400);
+      };
+      const chosenNow = () =>
+        page.$$eval('.react-flow__node.selected', (list) =>
+          list.map((el) => el.getAttribute('data-id')).sort(),
+        );
+      const withKey = async (key, press, target = page) => {
+        await target.keyboard.down(key);
+        await target.keyboard.press(press);
+        await target.keyboard.up(key);
+      };
+
+      await openGestures();
+      const panBefore = await viewOf();
+      await drag(await onCanvas({ x: -60, y: -60 }), await onCanvas({ x: 900, y: 40 }));
+      check(
+        'a plain drag on the canvas boxes a selection',
+        (await chosenNow()).join() === 'g-one,g-three,g-two',
+        (await chosenNow()).join(),
+      );
+      const panAfter = await viewOf();
+      check('and does not pan', panBefore.tx === panAfter.tx && panBefore.ty === panAfter.ty);
+
+      const wasAt = await Promise.all(['g-one', 'g-two', 'g-three'].map((slug) => storedAt(slug)));
+      const lead = centreOf(await rectOf('g-two'));
+      await drag(lead, { x: lead.x + 100, y: lead.y + 150 });
+      await wait(600);
+      const isAt = await Promise.all(['g-one', 'g-two', 'g-three'].map((slug) => storedAt(slug)));
+      const moves = isAt.map((at, index) =>
+        at === null || wasAt[index] === null
+          ? 'missing'
+          : `${at.x - wasAt[index].x},${at.y - wasAt[index].y}`,
+      );
+      check(
+        'a dragged selection is written whole, every node moved alike',
+        new Set(moves).size === 1 && moves[0] !== '0,0' && moves[0] !== 'missing',
+        moves.join(' '),
+      );
+      await withKey('Control', 'z');
+      await wait(900);
+      const undone = await Promise.all(['g-one', 'g-two', 'g-three'].map((slug) => storedAt(slug)));
+      check(
+        'and one undo puts all of it back',
+        undone.every(
+          (at, index) => at !== null && at.x === wasAt[index]?.x && at.y === wasAt[index]?.y,
+        ),
+      );
+
+      const wheelAt = await bare();
+      await page.mouse.move(wheelAt.x, wheelAt.y);
+      const beforeWheel = await viewOf();
+      await page.mouse.wheel({ deltaY: 200 });
+      await wait(400);
+      const afterWheel = await viewOf();
+      check(
+        'the wheel pans the drawing',
+        afterWheel.ty !== beforeWheel.ty && afterWheel.k === beforeWheel.k,
+      );
+      await page.keyboard.down('Control');
+      await page.mouse.wheel({ deltaY: -200 });
+      await page.keyboard.up('Control');
+      await wait(400);
+      check('and zooms with Ctrl held', (await viewOf()).k !== afterWheel.k);
+      await openGestures();
+
+      const terminal = () =>
+        page
+          .$eval('.react-flow__node[data-id="g-source"] .react-flow__handle.source', (el) => {
+            const r = el.getBoundingClientRect();
+            return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+          })
+          .catch(() => ({ x: -1, y: -1 }));
+      const out = await terminal();
+      await drag(out, { x: out.x + 260, y: out.y + 40 });
+      const naming = await page.evaluate(
+        () => document.activeElement instanceof HTMLInputElement &&
+          document.activeElement.closest('.react-flow__node') !== null,
+      );
+      check('a line let go on the canvas makes a node, open for its title', naming);
+      await page.keyboard.type('Made here');
+      await page.keyboard.press('Enter');
+      await wait(900);
+      const madeHere = await call(`/plans/${gestures.id}`);
+      check(
+        'named on the card, and connected from where it was drawn out of',
+        madeHere.nodes?.some((each) => each.slug === 'made-here' && each.title === 'Made here') ===
+          true &&
+          madeHere.edges?.some(
+            (each) => each.kind === 'flows_to' && each.from === 'g-source' && each.to === 'made-here',
+          ) === true,
+      );
+      const count = (await stored()).length;
+      await drag(await terminal(), { x: out.x + 260, y: out.y + 200 });
+      await page.keyboard.press('Escape');
+      await wait(900);
+      check('and Escape takes the node back', (await stored()).length === count);
+
+      await letGo();
+      const one = centreOf(await rectOf('g-one'));
+      await page.mouse.click(one.x, one.y);
+      await wait(300);
+      await withKey('Control', 'c');
+      const other = await browser.newPage();
+      await openGestures(other, pasteTarget.id);
+      const pasteAt = await onCanvas({ x: 600, y: 300 }, other);
+      await other.mouse.move(pasteAt.x, pasteAt.y);
+      await other.mouse.move(pasteAt.x + 1, pasteAt.y + 1);
+      await withKey('Control', 'v', other);
+      await wait(1200);
+      const landed = (await stored(pasteTarget.id)).find((each) => each.slug === 'g-one');
+      check(
+        'a node copied in one plan pastes into another, at the pointer',
+        landed !== undefined && Math.abs(landed.position.x - 600) <= 20,
+        JSON.stringify(landed?.position ?? null),
+      );
+      await other.close();
+      await page.bringToFront();
+
+      await letGo();
+      await page.mouse.click(one.x, one.y);
+      await wait(300);
+      const scale = (await viewOf()).k;
+      await page.keyboard.down('Alt');
+      await drag(one, { x: one.x, y: one.y + 200 * scale });
+      await page.keyboard.up('Alt');
+      await wait(900);
+      const copied = await storedAt('g-one-2');
+      check(
+        'Alt+drag leaves the node and drops a copy where the drag ended',
+        JSON.stringify(await storedAt('g-one')) === JSON.stringify({ x: 0, y: 2 }) &&
+          copied !== null &&
+          Math.abs(copied.y - 202) <= 20,
+        JSON.stringify(copied),
+      );
+
+      await letGo();
+      const third = centreOf(await rectOf('s-three'));
+      let found = null;
+      // A drag starts once the pointer has moved a little, and that little is
+      // not carried: the first two pixels start it, and the node then moves
+      // from 700 to 3 past the gap of 45, inside the reach of the snap.
+      await page.mouse.move(third.x, third.y);
+      await page.mouse.down();
+      await page.mouse.move(third.x - 2, third.y);
+      await page.mouse.move(third.x - 2 - 40 * scale, third.y, { steps: 10 });
+      await page.mouse.move(third.x - 2 - 87 * scale, third.y, { steps: 10 });
+      await wait(200);
+      found = await page.$$eval('.bg-measure', (list) => list.map((el) => el.textContent));
+      await page.mouse.up();
+      await wait(900);
+      check(
+        'a node dragged near a gap already there shows the gap it repeats',
+        found.includes('45'),
+        found.join(','),
+      );
+      check('and lands on it', (await storedAt('s-three'))?.x === 610, JSON.stringify(await storedAt('s-three')));
+
+      await letGo();
+      await drag(await onCanvas({ x: -40, y: 760 }), await onCanvas({ x: 900, y: 900 }));
+      const handles = await page.$$eval('[data-gap-handle]', (list) =>
+        list.map((el) => {
+          const r = el.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        }),
+      );
+      check('an evenly spaced selection has a handle in each gap', handles.length === 2);
+      if (handles.length === 2) {
+        await drag(handles[0], { x: handles[0].x + 30 * scale, y: handles[0].y });
+        await wait(600);
+        const xs = await Promise.all(['s-one', 's-two', 's-three'].map(async (slug) => (await storedAt(slug))?.x));
+        check(
+          'and dragging one changes every gap alike',
+          xs[0] === 0 && xs[1] - 260 === 75 && xs[2] - xs[1] - 260 === 75,
+          xs.join(','),
+        );
+      }
+
+      await call(`/plans/${gestures.id}/ops`, {
+        method: 'POST',
+        body: { ops: [placedNode('s-three', 900, 802)] },
+      });
+      await wait(900);
+      await letGo();
+      await drag(await onCanvas({ x: -40, y: 760 }), await onCanvas({ x: 1000, y: 900 }));
+      const tidyAt = centreOf(await rectOf('s-two'));
+      await page.mouse.click(tidyAt.x, tidyAt.y, { button: 'right' });
+      await wait(700);
+      const tidied = await clickMenuItem('Tidy up');
+      const spaced = await Promise.all(['s-one', 's-two', 's-three'].map(async (slug) => (await storedAt(slug))?.x));
+      check(
+        'an uneven selection is offered Tidy up, which spaces it evenly',
+        tidied && spaced[1] - spaced[0] === spaced[2] - spaced[1],
+        spaced.join(','),
+      );
+
+      for (const id of [gestures.id, pasteTarget.id]) {
+        await call(`/plans/${id}`, { method: 'DELETE' });
+        await call(`/trash/plans/${id}`, { method: 'DELETE' });
+      }
+    }
+
   console.log('\na phone');
     // Nothing on this page may push the page sideways: a canvas you have to
     // scroll the chrome of is a canvas you cannot pan.
