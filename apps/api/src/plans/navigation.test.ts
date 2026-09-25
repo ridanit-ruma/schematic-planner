@@ -4,6 +4,7 @@ import type { PrismaService } from '../common/prisma.service.js';
 import type { CollabService } from '../collab/collab.service.js';
 import type { AccessService } from '../workspaces/access.service.js';
 import type { PlanDocumentsService } from './plan-documents.service.js';
+import type { VocabularyService } from '../projects/vocabulary.service.js';
 import { PlansService } from './plans.service.js';
 
 const at = new Date('2026-09-01T00:00:00Z');
@@ -57,7 +58,13 @@ function service(): PlansService {
     requirePlan: async () => ({ planId: 'login', projectId: 'p1', workspaceId: 'w1' }),
   } as unknown as AccessService;
 
-  return new PlansService(prisma, access, {} as CollabService, {} as PlanDocumentsService);
+  return new PlansService(
+    prisma,
+    access,
+    {} as CollabService,
+    {} as PlanDocumentsService,
+    {} as VocabularyService,
+  );
 }
 
 describe('the workspace tree', () => {
