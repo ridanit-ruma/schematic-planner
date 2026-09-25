@@ -76,7 +76,8 @@ export function MoveToFolder({
               value={chosen}
               options={[
                 { value: TOP, label: m.topLevel, hint: m.topLevelHint },
-                ...folders.map((folder) => ({ value: folder.id, label: folder.name })),
+                // By path, because folders nest and two of them may share a name.
+                ...folders.map((folder) => ({ value: folder.id, label: folder.path.join(' / ') })),
               ]}
               onChange={setChosen}
             />

@@ -81,22 +81,43 @@ export interface PlanSummary {
 export interface FolderSummary {
   id: string;
   name: string;
+  /** The folder it sits in, or null at the project's top level. */
+  parentId: string | null;
+  /** Names from the project's top level down to this folder, its own last. */
+  path: string[];
+  /** Plans filed directly in it, not in the folders below it. */
   planCount: number;
   updatedAt: string;
 }
 
-/** The workspace tree around one plan, used by the switcher on the canvas. */
-export interface PlanNavigation {
-  workspace: { id: string; slug: string; name: string };
+/** A folder as `folders.create` and `folders.update` answer it. */
+export interface FolderRecord {
+  id: string;
+  name: string;
   projectId: string;
+  parentId: string | null;
+}
+
+/**
+ * A whole workspace as the explorer draws it: projects, their folders (nested
+ * through `parentId`) and the plans filed in them, with nothing from the trash.
+ */
+export interface WorkspaceNavigation {
+  workspace: { id: string; slug: string; name: string; role: Role };
   projects: {
     id: string;
     slug: string;
     name: string;
-    folders: { id: string; name: string }[];
+    /** `parentId` is null for a folder at the project's own top level. */
+    folders: { id: string; name: string; parentId: string | null }[];
     /** `folderId` is null for a plan at the project's own top level. */
     plans: { id: string; title: string; updatedAt: string; folderId: string | null }[];
   }[];
+}
+
+/** The workspace tree around one plan, with the project that plan is in. */
+export interface PlanNavigation extends WorkspaceNavigation {
+  projectId: string;
 }
 
 /** One line on the screen the application opens on. */
@@ -118,6 +139,8 @@ export interface TrashItem {
   id: string;
   name: string;
   where: string;
+  /** For a plan or a folder: its project and the folders above it, top down. */
+  location: { project: string; folders: string[] } | null;
   deletedAt: string;
   by: { name: string; avatarUrl: string | null } | null;
   /** Still answering a public share link, which this is the only place to stop. */
@@ -326,6 +349,8 @@ export const workspaces = {
   previewInvite: (token: string) => api<InvitePreview>(`/invites/${token}`),
   declineInvite: (token: string) =>
     api<{ ok: true }>(`/invites/${token}/decline`, { method: 'POST' }),
+  /** Every project, folder and plan in the workspace, for the explorer. */
+  navigation: (id: string) => api<WorkspaceNavigation>(`/workspaces/${id}/navigation`),
 };
 
 export const projects = {
@@ -389,18 +414,29 @@ export const account = {
     }),
 };
 
-/** Drawers inside a project. They do not nest: project > folder > plan. */
+/**
+ * Drawers inside a project, which may hold drawers of their own. Names are
+ * unique among siblings: a clash answers 409, a move into itself 400.
+ */
 export const folders = {
+  /** Every folder outside the trash, in tree order. */
   list: (projectId: string) => api<FolderSummary[]>(`/projects/${projectId}/folders`),
-  create: (projectId: string, name: string) =>
-    api<{ id: string; name: string; projectId: string }>(`/projects/${projectId}/folders`, {
+  /** `parentId` null, or left out, makes it at the project's top level. */
+  create: (projectId: string, name: string, parentId: string | null = null) =>
+    api<FolderRecord>(`/projects/${projectId}/folders`, {
       method: 'POST',
-      ...json({ name }),
+      ...json({ name, parentId }),
     }),
   rename: (id: string, name: string) =>
-    api<{ id: string; name: string; projectId: string }>(`/folders/${id}`, {
+    api<FolderRecord>(`/folders/${id}`, {
       method: 'PATCH',
       ...json({ name }),
+    }),
+  /** Into another folder of the same project, or to its top level with null. */
+  move: (id: string, parentId: string | null) =>
+    api<FolderRecord>(`/folders/${id}`, {
+      method: 'PATCH',
+      ...json({ parentId }),
     }),
   remove: (id: string) => api<{ ok: true }>(`/folders/${id}`, { method: 'DELETE' }),
 };

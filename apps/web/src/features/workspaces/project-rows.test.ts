@@ -3,9 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { folderPlans, projectRows } from './project-rows';
 import type { FolderSummary, PlanSummary } from '@/lib/api';
 
-const folder = (id: string, name: string, planCount = 0): FolderSummary => ({
+const folder = (
+  id: string,
+  name: string,
+  planCount = 0,
+  parentId: string | null = null,
+): FolderSummary => ({
   id,
   name,
+  parentId,
+  path: [name],
   planCount,
   updatedAt: '2026-09-14T00:00:00.000Z',
 });
@@ -37,6 +44,17 @@ describe('what a project screen shows', () => {
   it('shows a folder with nothing in it', () => {
     expect(projectRows([folder('f1', 'Spikes')], [])).toEqual([
       { kind: 'folder', folder: folder('f1', 'Spikes') },
+    ]);
+  });
+
+  /* A folder inside another belongs to its parent's screen, not the project's. */
+  it('shows only the folders at the top level', () => {
+    const rows = projectRows(
+      [folder('f1', 'Specs'), folder('f2', 'Billing', 0, 'f1')],
+      [plan('p1', 'Deep', 'f2')],
+    );
+    expect(rows.map((row) => (row.kind === 'folder' ? row.folder.id : row.plan.id))).toEqual([
+      'f1',
     ]);
   });
 

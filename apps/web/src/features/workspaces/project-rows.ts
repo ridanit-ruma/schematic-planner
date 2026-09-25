@@ -13,7 +13,8 @@ export type ProjectRow =
   | { kind: 'plan'; plan: PlanSummary };
 
 /**
- * Folders first, then the plans filed in none of them.
+ * Top-level folders first, then the plans filed in none of them. A folder
+ * inside another is reached through its parent, not listed beside it.
  *
  * Order inside each group is the server's: folders by name, plans by how
  * recently they changed. Neither is re-sorted here — a list that quietly
@@ -25,7 +26,9 @@ export function projectRows(
   plans: readonly PlanSummary[],
 ): ProjectRow[] {
   return [
-    ...folders.map((folder): ProjectRow => ({ kind: 'folder', folder })),
+    ...folders
+      .filter((folder) => folder.parentId === null)
+      .map((folder): ProjectRow => ({ kind: 'folder', folder })),
     ...plans
       .filter((plan) => plan.folderId === null)
       .map((plan): ProjectRow => ({ kind: 'plan', plan })),

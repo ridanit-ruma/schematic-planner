@@ -39,7 +39,7 @@ type Drop = { project: string; folder: string | null };
 
 /** What the naming dialog is for, and where the thing it makes should go. */
 type Naming =
-  | { kind: 'folder'; projectId: string }
+  | { kind: 'folder'; projectId: string; parentId: string | null }
   | { kind: 'plan'; projectId: string; folderId: string | null }
   | { kind: 'rename-folder'; folderId: string; was: string };
 
@@ -89,19 +89,21 @@ export function PlanSidebar({ planId }: { planId: string }) {
           setFailed(false);
           // Only the project you are in starts open — opening all of them would
           // bury the current plan on a large workspace — and anything you opened
-          // by hand stays open as you move between plans. A drawer holding the
-          // plan on screen opens with it, or the rail would claim it is nowhere.
+          // by hand stays open as you move between plans. The drawers holding
+          // the plan on screen open with it, or the rail would claim it is nowhere.
           const here = next.projects
             .flatMap((project) => project.plans)
             .find((plan) => plan.id === planId);
-          setOpen(
-            (current) =>
-              new Set(
-                [...current, next.projectId, here?.folderId].filter(
-                  (key): key is string => key !== undefined && key !== null,
-                ),
-              ),
-          );
+          const drawers = next.projects.flatMap((project) => project.folders);
+          const above: string[] = [];
+          for (
+            let at = here?.folderId ?? null;
+            at !== null && !above.includes(at);
+            at = drawers.find((drawer) => drawer.id === at)?.parentId ?? null
+          ) {
+            above.push(at);
+          }
+          setOpen((current) => new Set([...current, next.projectId, ...above]));
         })
         .catch(() => live && setFailed(true));
     };
@@ -154,8 +156,15 @@ export function PlanSidebar({ planId }: { planId: string }) {
 
     void act(async () => {
       if (request.kind === 'folder') {
-        const made = await folders.create(request.projectId, trimmed);
-        setOpen((current) => new Set([...current, made.id]));
+        const made = await folders.create(request.projectId, trimmed, request.parentId);
+        setOpen(
+          (current) =>
+            new Set([
+              ...current,
+              made.id,
+              ...(request.parentId === null ? [] : [request.parentId]),
+            ]),
+        );
         return;
       }
       if (request.kind === 'rename-folder') {
@@ -285,7 +294,9 @@ export function PlanSidebar({ planId }: { planId: string }) {
               </ContextAction>
             ) : (
               <>
-                <ContextAction onSelect={() => ask({ kind: 'folder', projectId: here.id })}>
+                <ContextAction
+                  onSelect={() => ask({ kind: 'folder', projectId: here.id, parentId: null })}
+                >
                   <FolderPlus className="size-3.5 text-ink-faint" />
                   {t.canvas.sidebar.newFolder}
                 </ContextAction>
@@ -439,7 +450,9 @@ function ProjectRow({
       <ContextMenu
         menu={
           <>
-            <ContextAction onSelect={() => onNew({ kind: 'folder', projectId: project.id })}>
+            <ContextAction
+              onSelect={() => onNew({ kind: 'folder', projectId: project.id, parentId: null })}
+            >
               <FolderPlus className="size-3.5 text-ink-faint" />
               {t.canvas.sidebar.newFolder}
             </ContextAction>
@@ -503,27 +516,30 @@ function ProjectRow({
         <p className="py-1 pr-2 pl-7 text-xs text-ink-faint">{t.canvas.sidebar.noPlans}</p>
       ) : (
         <>
-          {project.folders.map((folder) => (
-            <FolderRow
-              key={folder.id}
-              folder={folder}
-              project={project}
-              planId={planId}
-              expanded={open.has(folder.id)}
-              onToggle={onToggle}
-              dragging={dragging}
-              over={over}
-              onOver={onOver}
-              onDragPlan={onDragPlan}
-              onDropPlan={onDropPlan}
-              onNew={onNew}
-              onNavigate={onNavigate}
-              onTrashFolder={onTrashFolder}
-              onTrashPlan={onTrashPlan}
-              onShare={onShare}
-              onExport={onExport}
-            />
-          ))}
+          {project.folders
+            .filter((folder) => folder.parentId === null)
+            .map((folder) => (
+              <FolderRow
+                key={folder.id}
+                folder={folder}
+                project={project}
+                planId={planId}
+                depth={0}
+                open={open}
+                onToggle={onToggle}
+                dragging={dragging}
+                over={over}
+                onOver={onOver}
+                onDragPlan={onDragPlan}
+                onDropPlan={onDropPlan}
+                onNew={onNew}
+                onNavigate={onNavigate}
+                onTrashFolder={onTrashFolder}
+                onTrashPlan={onTrashPlan}
+                onShare={onShare}
+                onExport={onExport}
+              />
+            ))}
           {loose.map((plan) => (
             <PlanRow
               key={plan.id}
@@ -548,7 +564,8 @@ function FolderRow({
   folder,
   project,
   planId,
-  expanded,
+  depth,
+  open,
   onToggle,
   dragging,
   over,
@@ -565,7 +582,9 @@ function FolderRow({
   folder: Folder;
   project: Project;
   planId: string;
-  expanded: boolean;
+  /** 0 at the project's top level, one more for each folder it is inside. */
+  depth: number;
+  open: ReadonlySet<string>;
   onToggle: (key: string) => void;
   dragging: string | null;
   over: string | null;
@@ -580,7 +599,9 @@ function FolderRow({
   onExport: (plan: Plan) => void;
 }) {
   const t = useT();
+  const expanded = open.has(folder.id);
   const held = project.plans.filter((plan) => plan.folderId === folder.id);
+  const inner = project.folders.filter((child) => child.parentId === folder.id);
   const target = `folder:${folder.id}`;
 
   return (
@@ -593,6 +614,12 @@ function FolderRow({
             >
               <Plus className="size-3.5 text-ink-faint" />
               {t.canvas.sidebar.newPlanHere}
+            </ContextAction>
+            <ContextAction
+              onSelect={() => onNew({ kind: 'folder', projectId: project.id, parentId: folder.id })}
+            >
+              <FolderPlus className="size-3.5 text-ink-faint" />
+              {t.canvas.sidebar.newFolder}
             </ContextAction>
             <ContextAction
               onSelect={() =>
@@ -627,8 +654,9 @@ function FolderRow({
             onOver(null);
             onDragPlan(null);
           }}
+          style={{ paddingLeft: `${20 + depth * 12}px` }}
           className={cn(
-            'flex h-7 w-full items-center gap-1.5 rounded-md pr-2 pl-5 text-left text-sm text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink',
+            'flex h-7 w-full items-center gap-1.5 rounded-md pr-2 text-left text-sm text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink',
             over === target && 'bg-accent/15 text-ink ring-1 ring-accent/50',
           )}
         >
@@ -642,23 +670,52 @@ function FolderRow({
         </button>
       </ContextMenu>
 
-      {!expanded ? null : held.length === 0 ? (
-        <p className="py-1 pr-2 pl-10 text-xs text-ink-faint">{t.canvas.sidebar.emptyFolder}</p>
+      {!expanded ? null : held.length === 0 && inner.length === 0 ? (
+        <p
+          className="py-1 pr-2 text-xs text-ink-faint"
+          style={{ paddingLeft: `${40 + depth * 12}px` }}
+        >
+          {t.canvas.sidebar.emptyFolder}
+        </p>
       ) : (
-        held.map((plan) => (
-          <PlanRow
-            key={plan.id}
-            plan={plan}
-            current={plan.id === planId}
-            depth={1}
-            dragging={dragging}
-            onDragPlan={onDragPlan}
-            onNavigate={onNavigate}
-            onTrash={onTrashPlan}
-            onShare={onShare}
-            onExport={onExport}
-          />
-        ))
+        <>
+          {inner.map((child) => (
+            <FolderRow
+              key={child.id}
+              folder={child}
+              project={project}
+              planId={planId}
+              depth={depth + 1}
+              open={open}
+              onToggle={onToggle}
+              dragging={dragging}
+              over={over}
+              onOver={onOver}
+              onDragPlan={onDragPlan}
+              onDropPlan={onDropPlan}
+              onNew={onNew}
+              onNavigate={onNavigate}
+              onTrashFolder={onTrashFolder}
+              onTrashPlan={onTrashPlan}
+              onShare={onShare}
+              onExport={onExport}
+            />
+          ))}
+          {held.map((plan) => (
+            <PlanRow
+              key={plan.id}
+              plan={plan}
+              current={plan.id === planId}
+              depth={depth + 1}
+              dragging={dragging}
+              onDragPlan={onDragPlan}
+              onNavigate={onNavigate}
+              onTrash={onTrashPlan}
+              onShare={onShare}
+              onExport={onExport}
+            />
+          ))}
+        </>
       )}
     </>
   );
@@ -677,7 +734,7 @@ function PlanRow({
 }: {
   plan: Plan;
   current: boolean;
-  /** 0 at the project's top level, 1 inside a folder. */
+  /** 0 at the project's top level, one more for each folder it is inside. */
   depth: number;
   dragging: string | null;
   onDragPlan: (id: string | null) => void;
@@ -724,9 +781,9 @@ function PlanRow({
         onContextMenu={(event) => event.stopPropagation()}
         onClick={() => !current && onNavigate(plan.id)}
         title={plan.title}
+        style={{ paddingLeft: `${28 + depth * 12}px` }}
         className={cn(
           'flex h-7 w-full items-center gap-2 rounded-md pr-2 text-left text-sm transition-colors',
-          depth === 0 ? 'pl-7' : 'pl-10',
           dragging === plan.id && 'opacity-40',
           current
             ? 'bg-surface-4 font-medium text-ink'
