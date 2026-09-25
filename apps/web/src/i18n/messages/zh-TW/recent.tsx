@@ -6,7 +6,6 @@ export const recent: Messages['recent'] = {
   empty: {
     title: '還沒有繪製任何東西',
     body: '你開啟過的計畫，或 AI 代理變更過的計畫，都會顯示在這裡，最新的排在最前面。',
-    open: (workspace: string) => `開啟 ${workspace}`,
   },
   columns: {
     plan: '計畫',

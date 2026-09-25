@@ -4,6 +4,8 @@ export const canvas: Messages['canvas'] = {
   canvas: {
     menu: {
       addNode: '在此添加节点',
+      tidyUp: '整理间距',
+      duplicate: '创建副本',
       noteOnNode: '评论此节点',
       noteHere: '在此添加评论',
       groupNodes: (count: number) => `将 ${count} 个节点编为分组`,
@@ -29,28 +31,17 @@ export const canvas: Messages['canvas'] = {
       snappingTo: (step: number) => `正在吸附到 ${step}px 网格`,
       notSnapping: '未吸附到网格',
     },
+    card: {
+      untitled: '未命名',
+      title: '节点标题',
+    },
+    spacing: {
+      handle: '拖动以调整间距',
+    },
+    paste: {
+      notLoaded: '此项目的状态和类型尚未加载，因此没有粘贴。请稍后再试。',
+      wordsRefused: '无法将复制的状态和类型添加到此项目，因此没有粘贴。',
+    },
     readingFrom: (by: string, from: string) => `${by} 正在从“${from}”开始阅读`,
-  },
-  sidebar: {
-    showPlans: '显示计划',
-    hidePlans: '隐藏计划',
-    leaveFor: (workspace: string) => `返回 ${workspace}`,
-    unavailable: '无法加载计划',
-    nothingToAddTo: '没有可添加的位置',
-    newFolder: '新建文件夹',
-    newPlan: '新建计划',
-    newPlanHere: '在此新建计划',
-    renameFolder: '重命名文件夹',
-    settings: '设置',
-    moveToTrash: '移到回收站',
-    share: '分享',
-    export: '导出',
-    planSettings: '计划设置',
-    noPlans: '还没有计划',
-    emptyFolder: '空',
-    untitledPlan: '未命名计划',
-    name: '名称',
-    planPlaceholder: '结账流程',
-    folderPlaceholder: '架构',
   },
 };

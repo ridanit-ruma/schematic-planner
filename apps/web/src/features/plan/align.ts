@@ -1,6 +1,7 @@
 import type { Rect } from '@schematic/schema';
 
 import { snapTo, type GridAnchor } from './snap';
+import { spacingSnap, type Axis, type GapMarker } from './spacing';
 
 /**
  * A line two nodes share, as it is drawn while one of them is being dragged.
@@ -93,4 +94,58 @@ export function place(
   const snapped = grid === null ? raw : snapTo(raw, grid.step, grid.anchor, anchorHeight);
   const lined = alignTo(raw, others, threshold);
   return { x: lined.x ?? snapped.x, y: lined.y ?? snapped.y, guides: lined.guides };
+}
+
+/**
+ * How far a dragged selection moves to land, as one block.
+ *
+ * Everything that moves together is placed together, so a selection keeps its
+ * shape: alignment and equal spacing are measured on the box around all of it,
+ * against everything that is not moving. The grid still holds the node the
+ * hand is on, by its own anchor, because a block has no terminal of its own —
+ * and moving the rest by the same amount lands them wherever the lead's grid
+ * puts them, which is where they were relative to it.
+ *
+ * On each axis the nearer of an alignment and an equal gap wins; when they
+ * agree both are drawn. With neither, the grid decides. For a single node the
+ * block is the node, and this is `place` with equal spacing added.
+ */
+export function placeBlock(
+  lead: Rect,
+  block: Rect,
+  others: readonly Rect[],
+  grid: { step: number; anchor: GridAnchor } | null,
+  threshold: number,
+  /** The height the grid holds the lead by: a card's own, and zero for a box. */
+  anchorHeight = lead.height,
+): { dx: number; dy: number; guides: Guide[]; gaps: GapMarker[] } {
+  const snapped = grid === null ? lead : snapTo(lead, grid.step, grid.anchor, anchorHeight);
+  const lined = alignTo(block, others, threshold);
+  const shift = { x: snapped.x - lead.x, y: snapped.y - lead.y };
+  const guides: Guide[] = [];
+  const spaced: Axis[] = [];
+
+  for (const axis of ['x', 'y'] as const) {
+    const corner = lined[axis];
+    const aligned = corner === null ? null : corner - block[axis];
+    const even = spacingSnap(block, others, axis, threshold);
+    if (aligned === null && even === null) continue;
+    if (even === null || (aligned !== null && Math.abs(aligned) <= Math.abs(even.shift))) {
+      shift[axis] = aligned as number;
+      guides.push(...lined.guides.filter((guide) => guide.axis === axis));
+      if (even !== null && Math.abs(even.shift - (aligned as number)) < 0.5) spaced.push(axis);
+      continue;
+    }
+    shift[axis] = even.shift;
+    spaced.push(axis);
+    if (aligned !== null && Math.abs(even.shift - aligned) < 0.5) {
+      guides.push(...lined.guides.filter((guide) => guide.axis === axis));
+    }
+  }
+
+  // Measured again where the block actually lands, so a gap found on one axis
+  // is drawn at the height the other axis put the block at.
+  const landed = { ...block, x: block.x + shift.x, y: block.y + shift.y };
+  const gaps = spaced.flatMap((axis) => spacingSnap(landed, others, axis, 0.5)?.markers ?? []);
+  return { dx: shift.x, dy: shift.y, guides, gaps };
 }

@@ -10,12 +10,20 @@ import { createPlanStore, type PlanStore } from './plan-store';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
+/** After the server could not be asked to renew the socket's token, ask again this much later. */
+const SOCKET_RENEWAL_RETRY_MS = 10_000;
+
 export interface PlanConnection {
   doc: Y.Doc;
   bound: PlanStore;
   publishDrag: (positions: Record<string, Position> | null) => void;
   /** Where this person's pointer is, in plan coordinates. Null when it has left. */
   publishCursor: (at: Position | null) => void;
+  /**
+   * The presence channel itself, for the body editor's carets. Absent where
+   * nobody else can be present, as on a shared read-only page.
+   */
+  awareness?: HocuspocusProvider['awareness'];
 }
 
 export interface PlanDocumentHandle {
@@ -109,16 +117,22 @@ export function usePlanDocument(
         retried = true;
         setStatus('connecting');
         void auth.refresh().then((renewed) => {
-          // The page has moved on, or there is no session left to renew with —
-          // and being unable to prove who you are is not the same as this plan
-          // not being here, so the sign-in the refresh already triggered is the
-          // right answer rather than a second one drawn over it.
           if (gone) return;
-          if (!renewed) {
-            setDenied(true);
+          if (renewed) {
+            provider.connect();
             return;
           }
-          provider.connect();
+          // No session left: the refresh has already signed the screen out and
+          // sign-in will bring the person back here. Being unable to prove who
+          // you are is not the same as this plan not being here, so nothing is
+          // drawn over that.
+          if (currentAccessToken() === null) return;
+          // The server could not be asked. Nothing was decided about the plan
+          // either, so try again later rather than calling it missing.
+          retried = false;
+          setTimeout(() => {
+            if (!gone) provider.connect();
+          }, SOCKET_RENEWAL_RETRY_MS);
         });
       },
     });
@@ -194,7 +208,7 @@ export function usePlanDocument(
       });
     };
 
-    setConnection({ doc, bound, publishDrag, publishCursor });
+    setConnection({ doc, bound, publishDrag, publishCursor, awareness });
 
     return () => {
       gone = true;

@@ -4,11 +4,13 @@ import {
   ControlButton,
   Controls,
   ReactFlow,
+  SelectionMode,
   ViewportPortal,
   type Connection,
   type EdgeTypes,
   type NodeChange,
   type NodeTypes,
+  type OnConnectEnd,
   useReactFlow,
   useStore as useFlowStore,
 } from '@xyflow/react';
@@ -20,9 +22,18 @@ import {
   type Box,
   type PlanOp,
   type Position,
+  type Vocabulary,
 } from '@schematic/schema';
-import { ORIGIN_LOCAL, commitLayout, commitNodePosition, nudgeEdges } from '@schematic/ydoc';
 import {
+  ORIGIN_LOCAL,
+  commitLayout,
+  commitNodePosition,
+  nudgeEdges,
+  readPlanDoc,
+} from '@schematic/ydoc';
+import {
+  AlignHorizontalSpaceAround,
+  Copy,
   Group,
   Grid2x2,
   MessageSquarePlus,
@@ -45,9 +56,21 @@ import {
   ContextSub,
 } from '@/components/ui/context-menu';
 import { useT } from '@/i18n';
-import { place, type Guide } from './align';
+import { placeBlock, type Guide } from './align';
+import {
+  adoptWords,
+  clipboardForms,
+  copyPayload,
+  pasteOps,
+  readClipboard,
+  type ClipboardPayload,
+} from './clipboard';
+import { GapHandles, GapMarkers } from './GapHandles';
 import { resolveDrop, type DropTarget, type Rect } from './group-drop';
 import { groupOps } from './make-group';
+import { carry, descendantsOf, dropSelection, type Moves } from './move-selection';
+import { evenRow, tidyUp, type GapMarker } from './spacing';
+import { TitleEditorProvider, useNodeDraft } from './title-editing';
 import type { PlanStore } from './plan-store';
 import { PlanStoreProvider } from './store-context';
 import { useReadingWalk } from './use-reading-walk';
@@ -154,23 +177,47 @@ function useOpeningFit(doc: Y.Doc, count: number, taken: RefObject<boolean>): vo
   }, [count, fitView, taken]);
 }
 
+/** What the page around the canvas can ask of it. */
+export interface PlanCanvasHandle {
+  /** Makes a node in the middle of the view and opens its title for typing. */
+  addNode: () => void;
+}
+
+/** How far a paste or a duplicate lands from what it copied, when there is no pointer to put it at. */
+const PASTE_OFFSET = 20;
+
 export function PlanCanvas({
   connection,
   readOnly,
   onApplyOps,
   undo,
-  onAddNode,
   onAddComment,
+  handle,
+  words,
+  onError,
 }: {
   connection: PlanConnection;
   readOnly: boolean;
   onApplyOps: (ops: PlanOp[]) => void;
   /** Absent on a shared link, which has no document of its own to take back. */
   undo?: Undo;
-  /** Asks for a name, and puts the node where it is told. */
-  onAddNode?: (at: Position) => void;
   /** Leaves a note at a place, about a node when one was right-clicked. */
   onAddComment?: (at: Position, anchor: string | null) => void;
+  /** Filled in with what the page can ask of the canvas. */
+  handle?: RefObject<PlanCanvasHandle | null>;
+  /**
+   * Whether this person may change the project's vocabulary, and how. A paste
+   * from another project adds the kinds, statuses and tags this one lacks, and
+   * waits for them to have loaded.
+   */
+  words?: {
+    loaded: boolean;
+    canEdit: boolean;
+    /** Resolves to whether the edit was saved. */
+    edit: (edit: (vocabulary: Vocabulary) => Vocabulary) => Promise<boolean>;
+  };
+  /** Something the person asked for that could not be done. */
+  onError?: (error: unknown) => void;
 }) {
   const { store, doc } = connection.bound;
   const nodes = useStore(store, (state) => state.nodes);
@@ -225,91 +272,166 @@ export function PlanCanvas({
 
   const { fitView, getZoom, screenToFlowPosition } = useReactFlow();
 
+  /** Where a node is drawn, absolute, at the size it is drawn at. */
+  const rectOf = useCallback(
+    (node: PlanFlowNode): Rect => ({
+      ...(absolute[node.id] ?? { x: 0, y: 0 }),
+      ...boxOf(bounds, node),
+    }),
+    [absolute, bounds],
+  );
+
   /**
-   * Where a dragged node goes, the same answer while it moves and when it
+   * Where a dragged block goes, the same answer while it moves and when it
    * lands. Its neighbours are everything that is not moving with it.
    */
-  const placeDragged = useCallback(
-    (node: PlanFlowNode, raw: Position, moving: ReadonlySet<string>) => {
+  const placeMoving = useCallback(
+    (leader: PlanFlowNode, leaderRect: Rect, block: Rect, moving: ReadonlySet<string>) => {
       const others: Rect[] = [];
       for (const candidate of nodes) {
-        if (moving.has(candidate.id)) continue;
-        const at = absolute[candidate.id];
-        if (at !== undefined) others.push({ ...at, ...boxOf(bounds, candidate) });
+        if (moving.has(candidate.id) || absolute[candidate.id] === undefined) continue;
+        others.push(rectOf(candidate));
       }
-      return place(
-        { x: raw.x, y: raw.y, ...boxOf(bounds, node) },
+      return placeBlock(
+        leaderRect,
+        block,
         others,
         grid.on ? { step: grid.step, anchor: grid.anchor } : null,
         GUIDE_PX / getZoom(),
-        anchorHeight(node),
+        anchorHeight(leader),
       );
     },
-    [absolute, anchorHeight, bounds, getZoom, grid, nodes],
+    [absolute, anchorHeight, getZoom, grid, nodes, rectOf],
   );
 
   /*
-   * The node being dragged, and the lines it has found to sit on.
+   * The nodes being dragged, and the lines and gaps they have found.
    *
    * React Flow reports a drag as position changes, and they are placed here on
-   * their way into the store, so the node is drawn where it will land rather
-   * than corrected after it is let go. Every node moving with it is shifted by
-   * the same amount, so a dragged selection keeps its shape.
+   * their way into the store, so the nodes are drawn where they will land
+   * rather than corrected after they are let go. Everything moving is placed as
+   * one block and shifted by the same amount, so a dragged selection keeps its
+   * shape.
    */
   const lead = useRef<string | null>(null);
+  /** Whether this drag leaves the originals where they are and drops copies. Read as it starts. */
+  const copying = useRef(false);
+  const [dragging, setDragging] = useState(false);
   const [guides, setGuides] = useState<Guide[]>([]);
-  const handleNodesChange = useCallback(
-    (changes: NodeChange<PlanFlowNode>[]) => {
-      const leading = changes.find(
-        (change) => change.type === 'position' && change.id === lead.current,
+  const [gaps, setGaps] = useState<GapMarker[]>([]);
+  /** What was already selected when a Shift+box began; the box adds to it. */
+  const keptSelection = useRef<ReadonlySet<string> | null>(null);
+
+  /**
+   * Where a set of dragged nodes lands, as one block led by the node under the
+   * hand. React Flow's positions are relative to the box a node is in, so they
+   * are made absolute first.
+   */
+  const placeDragged = useCallback(
+    (moved: readonly { id: string; position: Position }[], leaderId: string | null) => {
+      const byId = new Map(nodes.map((node) => [node.id, node]));
+      const rects = new Map<string, Rect>();
+      const moving = new Set<string>();
+      for (const { id, position } of moved) {
+        const node = byId.get(id);
+        if (node === undefined) continue;
+        const parent = node.parentId === undefined ? undefined : absolute[node.parentId];
+        rects.set(id, {
+          x: (parent?.x ?? 0) + position.x,
+          y: (parent?.y ?? 0) + position.y,
+          ...boxOf(bounds, node),
+        });
+        moving.add(id);
+        for (const slug of descendantsOf(id, parentOf)) moving.add(slug);
+      }
+      const leading = leaderId !== null && rects.has(leaderId) ? leaderId : [...rects.keys()][0];
+      if (leading === undefined) return null;
+      const placed = placeMoving(
+        byId.get(leading) as PlanFlowNode,
+        rects.get(leading) as Rect,
+        union([...rects.values()]),
+        moving,
       );
-      const node = nodes.find((candidate) => candidate.id === lead.current);
-      if (leading?.type !== 'position' || leading.position === undefined || node === undefined) {
+      return { rects, moving, ...placed };
+    },
+    [absolute, bounds, nodes, parentOf, placeMoving],
+  );
+
+  const handleNodesChange = useCallback(
+    (incoming: NodeChange<PlanFlowNode>[]) => {
+      // React Flow's box replaces the selection. Under Shift it adds to it, so
+      // what was selected before is held on to here. Answered as a selection
+      // rather than dropped: the box has already marked those nodes unselected
+      // inside React Flow, and only a changed node is read back from here.
+      const kept = keptSelection.current;
+      const changes =
+        kept === null
+          ? incoming
+          : incoming.map((change) =>
+              change.type === 'select' && !change.selected && kept.has(change.id)
+                ? { ...change, selected: true }
+                : change,
+            );
+      const moved =
+        lead.current === null
+          ? []
+          : changes.flatMap((change) =>
+              change.type === 'position' && change.position !== undefined
+                ? [{ id: change.id, position: change.position }]
+                : [],
+            );
+      const placed = moved.length === 0 ? null : placeDragged(moved, lead.current);
+      if (placed === null) {
         onNodesChange(changes);
         return;
       }
-      const moving = new Set<string>();
-      for (const change of changes) {
-        if (change.type !== 'position') continue;
-        moving.add(change.id);
-        for (const slug of descendantsOf(change.id, parentOf)) moving.add(slug);
-      }
-      const parent = node.parentId === undefined ? undefined : absolute[node.parentId];
-      const raw = {
-        x: (parent?.x ?? 0) + leading.position.x,
-        y: (parent?.y ?? 0) + leading.position.y,
-      };
-      const placed = placeDragged(node, raw, moving);
       setGuides(placed.guides);
-      const shift = { x: placed.x - raw.x, y: placed.y - raw.y };
+      setGaps(placed.gaps);
+      // Everyone else sees every dragged node move, where it is drawn here.
+      // A copy being dragged out is not a move: for them the originals stay.
+      if (!copying.current) {
+        const ghosts: Record<string, Position> = {};
+        for (const [slug, rect] of placed.rects) {
+          ghosts[slug] = { x: rect.x + placed.dx, y: rect.y + placed.dy };
+        }
+        connection.publishDrag(ghosts);
+      }
       onNodesChange(
         changes.map((change) =>
           change.type === 'position' && change.position !== undefined
             ? {
                 ...change,
-                position: { x: change.position.x + shift.x, y: change.position.y + shift.y },
+                position: { x: change.position.x + placed.dx, y: change.position.y + placed.dy },
               }
             : change,
         ),
       );
     },
-    [absolute, nodes, onNodesChange, parentOf, placeDragged],
+    [connection, onNodesChange, placeDragged],
   );
   // Where the menu was opened, so what it adds lands under the pointer rather
   // than wherever the viewport happens to be centred.
   const [pointer, setPointer] = useState<Position>({ x: 0, y: 0 });
   const [under, setUnder] = useState<{ kind: 'node' | 'edge'; id: string } | null>(null);
 
-  /** Someone else's in-flight drag overrides the stored position for that node. */
+  /**
+   * Someone else's in-flight drag overrides the stored position for that node.
+   * It arrives absolute and is drawn relative to whatever box holds the node.
+   */
   const rendered = useMemo(
     () =>
       Object.keys(remoteDrag).length === 0
         ? nodes
         : nodes.map((node) => {
             const ghost = remoteDrag[node.id];
-            return ghost === undefined ? node : { ...node, position: ghost };
+            if (ghost === undefined) return node;
+            const parent = node.parentId === undefined ? undefined : absolute[node.parentId];
+            return {
+              ...node,
+              position: { x: ghost.x - (parent?.x ?? 0), y: ghost.y - (parent?.y ?? 0) },
+            };
           }),
-    [nodes, remoteDrag],
+    [absolute, nodes, remoteDrag],
   );
 
   /**
@@ -339,8 +461,6 @@ export function PlanCanvas({
 
   const handleDrag = useCallback(
     (event: MouseEvent | TouchEvent, node: PlanFlowNode) => {
-      connection.publishDrag({ [node.id]: node.position });
-
       const parent = node.parentId === undefined ? null : absolute[node.parentId];
       const box = boxOf(bounds, node);
       const centre = {
@@ -390,130 +510,496 @@ export function PlanCanvas({
               }, ARM_MS),
       };
     },
-    [absolute, arm, bounds, connection, nodes],
+    [absolute, arm, bounds, nodes],
   );
 
   /**
-   * Where a drag ends decides two things at once: where the node sits, and
-   * which group it belongs to. Both are written here, once, at the end —
+   * Writes a move: the boxes nodes left and joined, where every moved node and
+   * everything it holds now is, and the writing on the lines they carry — in
+   * one transaction, so it is one step to take back and arrives on everyone
+   * else's screen at once.
+   */
+  const commitMoves = useCallback(
+    (moves: Moves): void => {
+      const ops: PlanOp[] = [];
+      for (const change of moves.membership) {
+        if (change.from !== null) {
+          ops.push({ op: 'delete_edge', kind: 'contains', from: change.from, to: change.slug });
+        }
+        if (change.to !== null) ops.push(containsOp(change.to, change.slug));
+      }
+      doc.transact(() => {
+        if (ops.length > 0) onApplyOps(ops);
+        const placed = new Set(moves.placed);
+        for (const slug of moves.placed) {
+          const at = moves.positions.get(slug);
+          if (at !== undefined) commitNodePosition(doc, slug, at, ORIGIN_LOCAL);
+        }
+        const carried = new Map([...moves.positions].filter(([slug]) => !placed.has(slug)));
+        if (carried.size > 0) commitLayout(doc, carried, ORIGIN_LOCAL);
+        // Everything placed along the lines these ends carry — the writing on
+        // them — goes with them, or it is left standing where the line used to run.
+        nudgeEdges(
+          doc,
+          new Map([...moves.shifts].filter(([, shift]) => shift.x !== 0 || shift.y !== 0)),
+          ORIGIN_LOCAL,
+        );
+      }, ORIGIN_LOCAL);
+    },
+    [doc, onApplyOps],
+  );
+
+  /**
+   * The boxes a drop can land in. Anything already drawn as a box takes a drop
+   * on sight. An ordinary card takes one only when it has been held over long
+   * enough to light up, which is the same answer the person was looking at
+   * when they let go.
+   */
+  const dropTargets = useCallback((): DropTarget[] => {
+    const held = armed.current;
+    return nodes
+      .filter(
+        (candidate) =>
+          isGroup(candidate.data.node, candidate.data.childCount) || candidate.id === held,
+      )
+      .map((candidate) => ({
+        slug: candidate.id,
+        rect: rectOf(candidate),
+        depth: Math.round(((candidate.zIndex ?? 0) as number) / 10),
+      }));
+  }, [nodes, rectOf]);
+
+  /** Puts pasted nodes in the plan as one step, and makes them the selection. */
+  const addCopies = useCallback(
+    (ops: PlanOp[], slugs: readonly string[]): void => {
+      const manager = undo?.manager ?? null;
+      manager?.stopCapturing();
+      onApplyOps(ops);
+      manager?.stopCapturing();
+      const chosen = new Set(slugs);
+      onNodesChange(
+        store
+          .getState()
+          .nodes.map((node) => ({ type: 'select', id: node.id, selected: chosen.has(node.id) })),
+      );
+      select(null);
+    },
+    [onApplyOps, onNodesChange, select, store, undo],
+  );
+
+  /**
+   * Where a drag ends decides two things at once: where the nodes sit, and
+   * which box each belongs to. Both are written here, once, at the end —
    * everything before this went over awareness and left no history.
+   *
+   * Every dragged node, not only the one under the hand: a selection moved
+   * together is written together, or the rest of it springs back to where the
+   * document last had it. With Alt held from the start, the originals stay and
+   * copies land where the drag ended.
    */
   const handleDragStop = useCallback(
-    (_: unknown, node: PlanFlowNode) => {
+    (_: unknown, node: PlanFlowNode, dragged: PlanFlowNode[]) => {
       connection.publishDrag(null);
-
-      const previous = absolute[node.id] ?? { x: 0, y: 0 };
-      const parent = node.parentId === undefined ? null : absolute[node.parentId];
-      const dropped = {
-        x: (parent?.x ?? 0) + node.position.x,
-        y: (parent?.y ?? 0) + node.position.y,
-        ...boxOf(bounds, node),
-      };
+      const copy = copying.current;
+      copying.current = false;
+      setDragging(false);
 
       // Placed in absolute coordinates, by the same rule the drag was drawn
       // with, so it lands where it was shown. Placed before the drop is
       // resolved, so that a node moved clear of something it landed on is moved
       // from a position already on the grid.
-      const placed = placeDragged(node, dropped, new Set([node.id, ...descendantsOf(node.id, parentOf)]));
-      const snapped = { ...dropped, x: placed.x, y: placed.y };
+      const placed = placeDragged(
+        (dragged.length > 0 ? dragged : [node]).map((each) => ({
+          id: each.id,
+          position: each.position,
+        })),
+        node.id,
+      );
       lead.current = null;
       setGuides([]);
-
-      // A group cannot be dropped into itself or into anything it holds.
-      const forbidden = new Set<string>([node.id]);
-      for (const [slug, holder] of Object.entries(parentOf)) {
-        let cursor: string | undefined = holder;
-        const seen = new Set<string>();
-        while (cursor !== undefined && !seen.has(cursor)) {
-          if (cursor === node.id) {
-            forbidden.add(slug);
-            break;
-          }
-          seen.add(cursor);
-          cursor = parentOf[cursor];
-        }
-      }
-
-      // Anything already drawn as a box takes a drop on sight. An ordinary
-      // card takes one only when it has been held over long enough to light up,
-      // which is the same answer the person was looking at when they let go.
-      const held = armed.current;
-      const targets: DropTarget[] = nodes
-        .filter(
-          (candidate) =>
-            isGroup(candidate.data.node, candidate.data.childCount) || candidate.id === held,
-        )
-        .map((candidate) => ({
-          slug: candidate.id,
-          rect: { ...(absolute[candidate.id] ?? { x: 0, y: 0 }), ...boxOf(bounds, candidate) } as Rect,
-          depth: Math.round(((candidate.zIndex ?? 0) as number) / 10),
-        }));
-
-      // Where a drop must not land. Only siblings count: a node keeps the
-      // column it was aimed at and slides past what is under it.
-      const occupants = new Map<string, Rect[]>();
-      for (const candidate of nodes) {
-        const holder = parentOf[candidate.id];
-        if (holder === undefined || candidate.id === node.id) continue;
-        const at = absolute[candidate.id];
-        if (at === undefined) continue;
-        const list = occupants.get(holder) ?? [];
-        list.push({ ...at, ...boxOf(bounds, candidate) });
-        occupants.set(holder, list);
-      }
-
-      // The box it was already in, which a drag may not change. A node on the
-      // open canvas passes null and joins whatever it was dropped into.
-      const drop = resolveDrop(snapped, targets, forbidden, occupants, parentOf[node.id] ?? null);
+      setGaps([]);
+      const targets = dropTargets();
       disarm();
-      const was = parentOf[node.id] ?? null;
+      if (placed === null) return;
 
-      if (drop.parent !== was) {
-        const ops: PlanOp[] = [];
-        if (was !== null) ops.push({ op: 'delete_edge', kind: 'contains', from: was, to: node.id });
-        if (drop.parent !== null) {
-          ops.push({
-            op: 'upsert_edge',
-            edge: normalizeEdge(
-              planEdgeInputSchema.parse({ kind: 'contains', from: drop.parent, to: node.id }),
-            ),
-          });
+      const dropped = [...placed.rects].map(([slug, rect]) => ({
+        slug,
+        rect: { ...rect, x: rect.x + placed.dx, y: rect.y + placed.dy },
+      }));
+
+      if (!copy) {
+        const rects: Record<string, Rect> = {};
+        for (const candidate of nodes) rects[candidate.id] = rectOf(candidate);
+        commitMoves(dropSelection(dropped, { absolute, parentOf, rects, targets }));
+        return;
+      }
+
+      // The copies are made from the document, where the originals still are,
+      // and moved by as much as the drag moved the block.
+      const first = dropped[0];
+      const was = first === undefined ? undefined : absolute[first.slug];
+      const payload = copyPayload(
+        readPlanDoc(doc).doc,
+        dropped.map((each) => each.slug),
+        absolute,
+      );
+      if (first !== undefined && was !== undefined && payload !== null) {
+        const pasted = pasteOps(
+          payload,
+          nodes.map((each) => each.id),
+          { offset: { x: first.rect.x - was.x, y: first.rect.y - was.y } },
+        );
+        const ops = [...pasted.ops];
+        // A copy nothing else copied holds joins the box it was let go over,
+        // as a new node would. Not the original it came from, which it is
+        // usually lying on top of.
+        for (const { slug, rect } of dropped) {
+          const made = pasted.renamed.get(slug);
+          if (made === undefined || !pasted.roots.includes(made)) continue;
+          const drop = resolveDrop(rect, targets, placed.moving);
+          if (drop.parent !== null) ops.push(containsOp(drop.parent, made));
         }
-        onApplyOps(ops);
+        addCopies(ops, pasted.slugs);
       }
-
-      commitNodePosition(doc, node.id, drop.position, ORIGIN_LOCAL);
-
-      // Dragging a group moves everything inside it, so their stored absolute
-      // coordinates move with it. Without this the picture and the plan would
-      // disagree the moment anybody else opened it.
-      const shift = { x: drop.position.x - previous.x, y: drop.position.y - previous.y };
-      const moved = new Map<string, Position>();
-      if (shift.x !== 0 || shift.y !== 0) {
-        for (const slug of descendantsOf(node.id, parentOf)) {
-          const at = absolute[slug];
-          if (at !== undefined) moved.set(slug, { x: at.x + shift.x, y: at.y + shift.y });
-        }
-      }
-
-      // Everything placed along the lines these ends carry — the writing on them
-      // and any bend somebody dragged them through — goes with them, or it is
-      // left standing where the line used to run.
-      if (shift.x !== 0 || shift.y !== 0) {
-        const carried = new Map<string, Position>([[node.id, shift]]);
-        for (const slug of descendantsOf(node.id, parentOf)) carried.set(slug, shift);
-        nudgeEdges(doc, carried, ORIGIN_LOCAL);
-      }
-      if (moved.size > 0) commitLayout(doc, moved, ORIGIN_LOCAL);
+      // The originals were dragged on this screen only; the document still has
+      // them where they were.
+      connection.bound.refresh();
     },
-    [absolute, bounds, connection, disarm, doc, nodes, onApplyOps, parentOf, placeDragged],
+    [
+      absolute,
+      addCopies,
+      commitMoves,
+      connection,
+      disarm,
+      doc,
+      dropTargets,
+      nodes,
+      parentOf,
+      placeDragged,
+      rectOf,
+    ],
   );
+
+  /** The deepest box under a point, which a node made there is made inside. */
+  const holderAt = useCallback(
+    (point: Position): string | null => {
+      let best: { slug: string; depth: number; area: number } | null = null;
+      for (const candidate of nodes) {
+        if (!isGroup(candidate.data.node, candidate.data.childCount)) continue;
+        const rect = rectOf(candidate);
+        if (
+          point.x < rect.x ||
+          point.y < rect.y ||
+          point.x > rect.x + rect.width ||
+          point.y > rect.y + rect.height
+        ) {
+          continue;
+        }
+        const depth = Math.round(((candidate.zIndex ?? 0) as number) / 10);
+        const area = rect.width * rect.height;
+        if (best === null || depth > best.depth || (depth === best.depth && area < best.area)) {
+          best = { slug: candidate.id, depth, area };
+        }
+      }
+      return best?.slug ?? null;
+    },
+    [nodes, rectOf],
+  );
+
+  const draft = useNodeDraft({
+    doc,
+    apply: onApplyOps,
+    undo,
+    slugs: () => store.getState().nodes.map((each) => each.id),
+  });
+
+  /**
+   * A new, empty node at a point, opened for its title.
+   *
+   * Out of a terminal, the new node's own left terminal lands on the point,
+   * so the line drawn to get there arrives straight. Asked for from a menu or
+   * the title block, the card is centred on it. On the grid either way.
+   */
+  const createAt = useCallback(
+    (at: Position, options: { from?: string; anchor: 'terminal' | 'centre'; pinned: boolean }) => {
+      const box = { width: CARD.width, height: CARD.minHeight };
+      const corner =
+        options.anchor === 'terminal'
+          ? { x: at.x, y: at.y - box.height / 2 }
+          : { x: at.x - box.width / 2, y: at.y - box.height / 2 };
+      draft.create({
+        position: grid.on ? snapTo(corner, grid.step, grid.anchor, box.height) : corner,
+        holder: holderAt(at),
+        pinned: options.pinned,
+        ...(options.from === undefined ? {} : { from: options.from }),
+      });
+    },
+    [draft, grid, holderAt],
+  );
+
+  /**
+   * A line let go of over empty canvas makes the node it was reaching for.
+   *
+   * Only out of an outgoing terminal and only onto the canvas itself: a line
+   * dropped on a node or a terminal is a connection, which `onConnect` makes,
+   * and one dropped on a note or a panel was not aimed at the drawing.
+   */
+  const handleConnectEnd = useCallback<OnConnectEnd>(
+    (event, state) => {
+      if (state.isValid === true || state.toNode !== null || state.fromNode === null) return;
+      if (state.fromHandle?.type !== 'source') return;
+      const point = pointerOf(event);
+      if (point === null) return;
+      // Where the hand is, not where the gesture began: a touch reports the
+      // element it started on.
+      const landed = document.elementFromPoint(point.x, point.y);
+      if (landed === null) return;
+      // The open canvas, or the open floor of a box: a box takes the pointer
+      // across its whole area, and letting go inside one makes the node in it.
+      const box = landed.closest('.react-flow__node')?.getAttribute('data-id');
+      const floor =
+        box != null &&
+        landed.closest('.react-flow__handle') === null &&
+        nodes.some(
+          (candidate) =>
+            candidate.id === box && isGroup(candidate.data.node, candidate.data.childCount),
+        );
+      if (!landed.classList.contains('react-flow__pane') && !floor) return;
+      createAt(screenToFlowPosition(point), {
+        from: state.fromNode.id,
+        anchor: 'terminal',
+        pinned: true,
+      });
+    },
+    [createAt, nodes, screenToFlowPosition],
+  );
+
+  const wrapper = useRef<HTMLDivElement | null>(null);
+  /** Where the pointer is over the canvas, in plan coordinates; null when it is elsewhere. */
+  const hover = useRef<Position | null>(null);
+
+  useEffect(() => {
+    if (handle === undefined) return;
+    handle.current = {
+      addNode: () => {
+        const box = wrapper.current?.getBoundingClientRect();
+        const centre = screenToFlowPosition(
+          box === undefined
+            ? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+            : { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+        );
+        // Left unpinned, as Add node always has, so Arrange is still free to
+        // tidy it into the graph.
+        createAt(centre, { anchor: 'centre', pinned: false });
+      },
+    };
+    return () => {
+      handle.current = null;
+    };
+  }, [createAt, handle, screenToFlowPosition]);
+
+  /*
+   * Copy, cut, paste and duplicate.
+   *
+   * The clipboard events rather than the keys: they carry the system clipboard
+   * with them, so a copy made in one plan pastes into another, in another tab
+   * or another browser, without asking for permission to read it. They are
+   * the canvas's only while nothing else has the keyboard — a field, or text
+   * somebody has selected to copy.
+   */
+  const clipboardActions = useRef({
+    copy: (): ClipboardPayload | null => null,
+    remove: (_slugs: readonly string[]): void => undefined,
+    paste: (_payload: ClipboardPayload, _where: 'pointer' | 'offset'): void => undefined,
+  });
+  clipboardActions.current = {
+    copy: () => {
+      const state = store.getState();
+      const chosen = state.nodes.filter((each) => each.selected === true).map((each) => each.id);
+      if (chosen.length === 0) return null;
+      return copyPayload(readPlanDoc(doc).doc, chosen, state.absolute, state.vocabulary);
+    },
+    remove: (slugs) => {
+      if (slugs.length === 0) return;
+      undo?.manager?.stopCapturing();
+      onApplyOps(slugs.map((slug) => ({ op: 'delete_node', slug }) as PlanOp));
+      undo?.manager?.stopCapturing();
+    },
+    paste: (payload, where) => {
+      // The defaults stand in until the project's words arrive; adapting to
+      // them would quietly turn its own statuses and kinds into the defaults.
+      if (words !== undefined && !words.loaded) {
+        onError?.(new Error(t.canvas.canvas.paste.notLoaded));
+        return;
+      }
+      const at = where === 'pointer' ? hover.current : null;
+      const pointerHolder = at === null ? null : holderAt(at);
+      const adoption = adoptWords(payload, store.getState().vocabulary, words?.canEdit === true);
+      const place = (): void => {
+        const pasted = pasteOps(
+          payload,
+          store.getState().nodes.map((each) => each.id),
+          at === null
+            ? { offset: { x: PASTE_OFFSET, y: PASTE_OFFSET } }
+            : { at: grid.on ? snapTo(at, grid.step) : at },
+          adoption,
+        );
+        const ops = [...pasted.ops];
+        if (at === null) {
+          // Beside the originals, in the plan they came from: in the same box.
+          const present = new Set(store.getState().nodes.map((each) => each.id));
+          if (payload.plan === readPlanDoc(doc).doc.id) {
+            for (const [slug, holder] of Object.entries(payload.holders)) {
+              const made = pasted.renamed.get(slug);
+              if (made !== undefined && present.has(holder)) ops.push(containsOp(holder, made));
+            }
+          }
+        } else if (pointerHolder !== null) {
+          // At the pointer: in whatever box the pointer is in.
+          for (const made of pasted.roots) ops.push(containsOp(pointerHolder, made));
+        }
+        addCopies(ops, pasted.slugs);
+      };
+      if (adoption.add === null || words === undefined) {
+        place();
+        return;
+      }
+      // The copies use the statuses and kinds being added, so they wait until
+      // those are saved; a refused save leaves nothing pointing at them.
+      void words.edit(adoption.add).then((saved) => {
+        if (saved) place();
+        else onError?.(new Error(t.canvas.canvas.paste.wordsRefused));
+      });
+    },
+  };
+
+  useEffect(() => {
+    const ours = (event: Event): boolean => {
+      if (isEditingText(event.target)) return false;
+      const active = document.activeElement;
+      return (
+        active === null ||
+        active === document.body ||
+        (wrapper.current?.contains(active) ?? false)
+      );
+    };
+    const selectingText = (): boolean => {
+      const selected = window.getSelection();
+      return selected !== null && !selected.isCollapsed && selected.toString() !== '';
+    };
+    const put = (event: ClipboardEvent): ClipboardPayload | null => {
+      if (event.clipboardData === null || !ours(event) || selectingText()) return null;
+      const payload = clipboardActions.current.copy();
+      if (payload === null) return null;
+      for (const [type, value] of Object.entries(clipboardForms(payload))) {
+        event.clipboardData.setData(type, value);
+      }
+      event.preventDefault();
+      return payload;
+    };
+    const onCopy = (event: ClipboardEvent): void => {
+      put(event);
+    };
+    const onCut = (event: ClipboardEvent): void => {
+      if (readOnly) return;
+      const payload = put(event);
+      if (payload !== null) clipboardActions.current.remove(payload.nodes.map((each) => each.slug));
+    };
+    const onPaste = (event: ClipboardEvent): void => {
+      if (readOnly || event.clipboardData === null || !ours(event)) return;
+      const data = event.clipboardData;
+      const payload = readClipboard((type) => data.getData(type));
+      if (payload === null) return;
+      event.preventDefault();
+      clipboardActions.current.paste(payload, 'pointer');
+    };
+    // Duplicate has no clipboard event of its own, and the browser would
+    // bookmark the page.
+    const onKey = (event: KeyboardEvent): void => {
+      if (readOnly || !(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey) return;
+      if (event.key.toLowerCase() !== 'd' || !ours(event)) return;
+      const payload = clipboardActions.current.copy();
+      if (payload === null) return;
+      event.preventDefault();
+      clipboardActions.current.paste(payload, 'offset');
+    };
+    document.addEventListener('copy', onCopy);
+    document.addEventListener('cut', onCut);
+    document.addEventListener('paste', onPaste);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('copy', onCopy);
+      document.removeEventListener('cut', onCut);
+      document.removeEventListener('paste', onPaste);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [readOnly]);
 
   /**
    * A box drawn around what is selected — the other way to make a group, and
    * the one that does not need anything to be dropped on anything.
    */
   const selection = useMemo(() => nodes.filter((node) => node.selected === true), [nodes]);
+
+  /**
+   * The selected nodes that move on their own. One inside a selected box moves
+   * with the box, so spacing it separately would pull it out of its place in it.
+   */
+  const members = useMemo(() => {
+    const chosen = new Set(selection.map((node) => node.id));
+    return selection
+      .filter((node) => {
+        let parent = parentOf[node.id];
+        for (let depth = 0; parent !== undefined && depth < 20; depth += 1) {
+          if (chosen.has(parent)) return false;
+          parent = parentOf[parent];
+        }
+        return true;
+      })
+      .map((node) => ({ slug: node.id, rect: rectOf(node) }));
+  }, [parentOf, rectOf, selection]);
+  const evenlySpaced = useMemo(
+    () => evenRow(members.map((member) => member.rect)) !== null,
+    [members],
+  );
+
+  /** Spaces an uneven selection evenly along its longer axis, at its mean gap. */
+  const tidySelection = (): void => {
+    const tidied = tidyUp(members.map((member) => member.rect));
+    if (tidied === null) return;
+    commitMoves(
+      carry(
+        new Map(members.map((member, index) => [member.slug, tidied.positions[index] as Position])),
+        absolute,
+        parentOf,
+      ),
+    );
+  };
+
+  /** A gap being dragged: drawn on this screen only, until it is let go. */
+  const previewSpacing = (positions: ReadonlyMap<string, Position> | null): void => {
+    if (positions === null) {
+      connection.bound.refresh();
+      return;
+    }
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    onNodesChange(
+      [...positions].map(([slug, at]) => {
+        const holder = byId.get(slug)?.parentId;
+        const parent = holder === undefined ? undefined : absolute[holder];
+        return {
+          type: 'position' as const,
+          id: slug,
+          position: { x: at.x - (parent?.x ?? 0), y: at.y - (parent?.y ?? 0) },
+        };
+      }),
+    );
+  };
+
+  const duplicateSelection = (): void => {
+    const payload = clipboardActions.current.copy();
+    if (payload !== null) clipboardActions.current.paste(payload, 'offset');
+  };
 
   const groupSelection = (): void => {
     const result = groupOps(
@@ -648,9 +1134,11 @@ export function PlanCanvas({
 
   const menu = (
     <>
-      {readOnly || onAddNode === undefined ? null : (
+      {readOnly ? null : (
         <>
-          <ContextAction onSelect={() => onAddNode(pointer)}>
+          <ContextAction
+            onSelect={() => createAt(pointer, { anchor: 'centre', pinned: false })}
+          >
             <Plus className="size-3.5 text-ink-faint" />
             {t.canvas.canvas.menu.addNode}
           </ContextAction>
@@ -670,6 +1158,18 @@ export function PlanCanvas({
             <ContextAction onSelect={groupSelection}>
               <Group className="size-3.5 text-ink-faint" />
               {t.canvas.canvas.menu.groupNodes(selection.length)}
+            </ContextAction>
+          )}
+          {members.length < 2 || evenlySpaced ? null : (
+            <ContextAction onSelect={tidySelection}>
+              <AlignHorizontalSpaceAround className="size-3.5 text-ink-faint" />
+              {t.canvas.canvas.menu.tidyUp}
+            </ContextAction>
+          )}
+          {selection.length === 0 ? null : (
+            <ContextAction onSelect={duplicateSelection} hint="⌘D">
+              <Copy className="size-3.5 text-ink-faint" />
+              {t.canvas.canvas.menu.duplicate}
             </ContextAction>
           )}
           {holderOfUnder === null ? null : (
@@ -758,20 +1258,45 @@ export function PlanCanvas({
 
   return (
     <PlanStoreProvider store={store}>
+    <TitleEditorProvider value={readOnly ? null : draft.editor}>
     <ContextMenu menu={menu}>
     {/* The pointer can leave the canvas without leaving anything on it —
         straight off the edge of the window, or onto a panel — and then no node
         ever hears that it was let go of. */}
     <div
+      ref={wrapper}
       className="relative h-full w-full"
-      onPointerMove={(event) =>
-        connection.publishCursor(screenToFlowPosition({ x: event.clientX, y: event.clientY }))
-      }
+      onPointerMove={(event) => {
+        const at = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+        hover.current = at;
+        connection.publishCursor(at);
+      }}
       onPointerLeave={() => {
+        hover.current = null;
         highlight(null);
         // Leaving the canvas has to take the pointer off everyone else's screen
         // too, or it is left standing wherever it crossed the edge.
         connection.publishCursor(null);
+      }}
+      // Held from the moment a Shift+box starts on the canvas until it is let
+      // go: React Flow empties the selection as the box begins.
+      onPointerDownCapture={(event) => {
+        if (
+          event.shiftKey &&
+          event.button === 0 &&
+          event.target instanceof Element &&
+          event.target.classList.contains('react-flow__pane')
+        ) {
+          keptSelection.current = new Set(
+            store
+              .getState()
+              .nodes.filter((node) => node.selected === true)
+              .map((node) => node.id),
+          );
+        }
+      }}
+      onPointerUp={() => {
+        keptSelection.current = null;
       }}
     >
       <EdgeMarkers />
@@ -795,6 +1320,25 @@ export function PlanCanvas({
         onNodeDrag={readOnly ? undefined : handleDrag}
         onNodeDragStop={readOnly ? undefined : handleDragStop}
         onConnect={readOnly ? undefined : handleConnect}
+        onConnectEnd={readOnly ? undefined : handleConnectEnd}
+        /*
+         * Pointer and wheel, as a drawing tool has them: a plain drag on the
+         * canvas draws a selection box that takes whatever it touches, the
+         * middle button (or Space) pans, the wheel scrolls the drawing and
+         * zooms only with Ctrl or ⌘ held or a pinch. Shift is a modifier for
+         * clicking and boxing, not a mode of its own.
+         */
+        panOnDrag={PAN_BUTTONS}
+        selectionOnDrag
+        selectionMode={SelectionMode.Partial}
+        selectionKeyCode={null}
+        multiSelectionKeyCode={MULTI_SELECT_KEYS}
+        panOnScroll
+        zoomOnScroll={false}
+        zoomActivationKeyCode={ZOOM_KEYS}
+        zoomOnPinch
+        zoomOnDoubleClick={false}
+        deleteKeyCode={readOnly ? null : DELETE_KEYS}
         onNodeClick={(_, node) => select(node.id)}
         onEdgeClick={(_, edge) => selectEdge(edge.id)}
         onPaneClick={() => {
@@ -826,9 +1370,17 @@ export function PlanCanvas({
         onMoveStart={(event) => {
           if (event !== null) taken.current = true;
         }}
-        onNodeDragStart={(_, node) => {
+        onNodeDragStart={(event, node) => {
           taken.current = true;
           lead.current = node.id;
+          // Alt is read as the drag begins, the way every drawing tool reads it:
+          // letting go of it halfway does not turn a copy back into a move.
+          copying.current = !readOnly && event.altKey;
+          setDragging(true);
+        }}
+        onSelectionContextMenu={(event) => {
+          setUnder(null);
+          setPointer(screenToFlowPosition({ x: event.clientX, y: event.clientY }));
         }}
         onPaneContextMenu={(event) => {
           setUnder(null);
@@ -873,6 +1425,16 @@ export function PlanCanvas({
         />
         <PeerCursors store={store} />
         <AlignGuides guides={guides} />
+        <GapMarkers gaps={gaps} />
+        {readOnly || dragging || members.length < 2 ? null : (
+          <GapHandles
+            members={members}
+            onPreview={previewSpacing}
+            onCommit={(positions) =>
+              commitMoves(carry(new Map(positions), absolute, parentOf))
+            }
+          />
+        )}
         <Controls
           showInteractive={false}
           className="!border !border-rule !bg-surface !shadow-none [&_button]:!border-rule [&_button]:!bg-surface [&_button]:!fill-ink-muted hover:[&_button]:!bg-surface-2"
@@ -896,26 +1458,46 @@ export function PlanCanvas({
       </ReactFlow>
     </div>
     </ContextMenu>
+    </TitleEditorProvider>
     </PlanStoreProvider>
   );
 }
 
-/** Everything held by a node, at any depth. */
-function descendantsOf(slug: string, parentOf: Record<string, string>): string[] {
-  const held: string[] = [];
-  const stack = [slug];
-  const seen = new Set<string>([slug]);
-  while (stack.length > 0) {
-    const current = stack.pop() as string;
-    for (const [child, parent] of Object.entries(parentOf)) {
-      if (parent !== current || seen.has(child)) continue;
-      seen.add(child);
-      held.push(child);
-      stack.push(child);
-    }
-  }
-  return held;
+/** The box around several boxes. */
+function union(rects: readonly Rect[]): Rect {
+  const left = Math.min(...rects.map((rect) => rect.x));
+  const top = Math.min(...rects.map((rect) => rect.y));
+  const right = Math.max(...rects.map((rect) => rect.x + rect.width));
+  const bottom = Math.max(...rects.map((rect) => rect.y + rect.height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
 }
+
+function containsOp(from: string, to: string): PlanOp {
+  return {
+    op: 'upsert_edge',
+    edge: normalizeEdge(planEdgeInputSchema.parse({ kind: 'contains', from, to })),
+  };
+}
+
+/** A field, or anything else text is being typed into, which keeps its own shortcuts. */
+function isEditingText(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
+  );
+}
+
+/*
+ * The canvas's own gestures, declared once: React Flow listens for each key
+ * list it is handed, and a new array every render is a new listener.
+ */
+const PAN_BUTTONS = [1];
+const MULTI_SELECT_KEYS = ['Shift', 'Control', 'Meta'];
+const ZOOM_KEYS = ['Control', 'Meta'];
+const DELETE_KEYS = ['Backspace', 'Delete'];
 
 /**
  * Who is walking the plan, while they are.

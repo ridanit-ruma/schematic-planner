@@ -13,6 +13,7 @@ import { config } from '@/lib/config';
 import { isMissing, plans } from '@/lib/api';
 import { PlanCanvas } from './PlanCanvas';
 import { useDocumentTitle } from '@/lib/use-document-title';
+import { useSharedVocabulary } from '@/lib/vocabulary';
 import { PlanSize } from './TitleBlock';
 import { createPlanStore } from './plan-store';
 import type { PlanConnection } from './use-plan-document';
@@ -73,6 +74,10 @@ function SharedCanvas({ plan, token }: { plan: PlanDoc; token: string }) {
   }, [plan]);
 
   useEffect(() => () => connection.bound.destroy(), [connection]);
+
+  // Drawn in the project's own colours, as the plan is for its members.
+  const vocabulary = useSharedVocabulary(token);
+  useEffect(() => connection.bound.setVocabulary(vocabulary), [connection, vocabulary]);
 
   const nodes = useStore(connection.bound.store, (state) => state.nodes);
   useDocumentTitle(plan.title);

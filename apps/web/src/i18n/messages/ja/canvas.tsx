@@ -4,6 +4,8 @@ export const canvas: Messages['canvas'] = {
   canvas: {
     menu: {
       addNode: 'ここにノードを追加',
+      tidyUp: '間隔を揃える',
+      duplicate: '複製',
       noteOnNode: 'このノードにコメント',
       noteHere: 'ここにコメント',
       groupNodes: (count: number) => `${count}個のノードをグループ化`,
@@ -29,28 +31,19 @@ export const canvas: Messages['canvas'] = {
       snappingTo: (step: number) => `${step}px グリッドにスナップ中`,
       notSnapping: 'グリッドにスナップしていません',
     },
+    card: {
+      untitled: '無題',
+      title: 'ノードのタイトル',
+    },
+    spacing: {
+      handle: 'ドラッグして間隔を変更',
+    },
+    paste: {
+      notLoaded:
+        'このプロジェクトのステータスと種類がまだ読み込まれていないため、貼り付けませんでした。少し待ってからもう一度お試しください。',
+      wordsRefused:
+        'コピーしたステータスと種類をこのプロジェクトに追加できなかったため、貼り付けませんでした。',
+    },
     readingFrom: (by: string, from: string) => `${by}が${from}から読み進めています`,
-  },
-  sidebar: {
-    showPlans: 'プランを表示',
-    hidePlans: 'プランを隠す',
-    leaveFor: (workspace: string) => `${workspace}に戻る`,
-    unavailable: 'プランを読み込めません',
-    nothingToAddTo: '追加先がありません',
-    newFolder: '新しいフォルダ',
-    newPlan: '新しいプラン',
-    newPlanHere: 'ここに新しいプラン',
-    renameFolder: 'フォルダ名を変更',
-    settings: '設定',
-    moveToTrash: 'ゴミ箱に移動',
-    share: '共有',
-    export: 'エクスポート',
-    planSettings: 'プラン設定',
-    noPlans: 'プランがありません',
-    emptyFolder: '空',
-    untitledPlan: '無題のプラン',
-    name: '名前',
-    planPlaceholder: '購入フロー',
-    folderPlaceholder: 'アーキテクチャ',
   },
 };

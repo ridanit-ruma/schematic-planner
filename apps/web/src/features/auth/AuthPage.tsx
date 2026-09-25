@@ -63,7 +63,9 @@ export function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     };
   }, [mode]);
 
-  if (status === 'signed-in') return <Navigate to="/recent" replace />;
+  // Signing in again after a session ended mid-use goes straight back to where
+  // it ended, not by way of /recent.
+  if (status === 'signed-in') return <Navigate to={landing(location.state)} replace />;
   // Until the session has been asked about, this may be somebody who is about
   // to be sent straight past the form. Showing it now would flash it at them.
   if (status === 'loading') {

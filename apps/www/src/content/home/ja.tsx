@@ -14,16 +14,17 @@ export const meta: PageMeta = {
     '文章で書いたプランを、あなたと AI エージェントの両方が編集できるグラフにし、Markdown ファイルと Obsidian Canvas としてエクスポートできます。オープンソースで、セルフホストも可能です。',
 };
 
-const AGENT_CALL = `create_plan({
-  title: "Billing rework",
-  nodes: [
-    { slug: "ledger-schema", title: "Ledger schema" },
-    { slug: "pricing-rules", title: "Pricing rules" },
-    { slug: "render-pdf",    title: "Render PDF" }
-  ],
-  edges: [
-    { from: "pricing-rules", to: "ledger-schema" },
-    { from: "render-pdf",    to: "pricing-rules" }
+const AGENT_CALL = `create_plan({ title: "Billing rework" })
+
+apply_ops({
+  planId: "…",
+  ops: [
+    { op: "upsert_node",
+      node: { slug: "pricing-rules", title: "Pricing rules" } },
+    { op: "upsert_node",
+      node: { slug: "render-pdf", title: "Render PDF" } },
+    { op: "upsert_edge",
+      edge: { from: "pricing-rules", to: "render-pdf" } }
   ]
 })`;
 
@@ -112,8 +113,8 @@ export default function HomeJa() {
               エージェントから見えるもの
             </h2>
             <p className="mt-3 max-w-[52ch] text-base leading-[1.65] text-ink-muted">
-              URL とキーの先に、ツールが 11
-              個あります。インストールするものも、サーバーに合わせて更新し続けるものもありません。プラン全体は一度の呼び出しで届き、その後の変更はすべて、バッチでアトミックに適用されるただ一つの入り口を通ります。だから
+              URL とキーの先に、ツールが 21
+              個あります。インストールするものも、サーバーに合わせて更新し続けるものもありません。一度の呼び出しでプランを開き、そこに描くものはすべて、バッチでアトミックに適用されるただ一つの入り口を通ります。だから
               40 個のノードが一つずつ這い出てくるのではなく、キャンバスに一度に現れます。
             </p>
             <p className="mt-3 max-w-[52ch] text-base leading-[1.65] text-ink-muted">

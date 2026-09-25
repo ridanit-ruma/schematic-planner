@@ -5,7 +5,6 @@ export const recent = {
   empty: {
     title: 'Nothing drawn yet',
     body: 'Plans you open or an agent changes appear here, newest first.',
-    open: (workspace: string) => `Open ${workspace}`,
   },
   columns: {
     plan: 'Plan',

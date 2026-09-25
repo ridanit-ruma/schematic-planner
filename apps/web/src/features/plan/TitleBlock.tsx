@@ -10,7 +10,7 @@ import {
   Settings,
   Wand2,
 } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import { DropdownAction, DropdownMenu } from '@/components/ui/dropdown-menu';
@@ -72,6 +72,9 @@ export function TitleBlock({
   settingsHref?: string;
 }) {
   const t = useT();
+  // In-app navigation, not a page load: a load mid-refresh drops the response
+  // that carries the rotated session cookie.
+  const navigate = useNavigate();
   return (
     <header className="flex h-11 shrink-0 items-center gap-2 border-b border-rule bg-surface px-2 sm:gap-3 sm:px-3">
       <ConnectionLight status={status} />
@@ -155,7 +158,7 @@ export function TitleBlock({
           {t.plan.titleBlock.export}
         </DropdownAction>
         {settingsHref === undefined ? null : (
-          <DropdownAction onSelect={() => window.location.assign(settingsHref)}>
+          <DropdownAction onSelect={() => void navigate(settingsHref)}>
             <Settings className="size-3.5 text-ink-faint" />
             {t.plan.titleBlock.planSettings}
           </DropdownAction>

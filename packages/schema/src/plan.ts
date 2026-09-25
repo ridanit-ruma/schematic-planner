@@ -4,6 +4,11 @@ import { SLUG_MAX_LENGTH, SLUG_PATTERN } from './slug.js';
 
 export const PLAN_DOC_VERSION = 1;
 
+/**
+ * The kinds and statuses every project starts with. A project's vocabulary may
+ * add others, so a node's `kind` and `status` are any string: these are the ids
+ * of the defaults, not a closed list. See `vocabulary.ts`.
+ */
 export const planNodeKinds = ['feature', 'task', 'decision', 'note', 'group'] as const;
 export type PlanNodeKind = (typeof planNodeKinds)[number];
 
@@ -29,6 +34,9 @@ export type PlanNodeStatus = (typeof planNodeStatuses)[number];
  */
 export const planEdgeKinds = ['flows_to', 'contains', 'depends_on', 'relates_to'] as const;
 export type PlanEdgeKind = (typeof planEdgeKinds)[number];
+
+/** A kind or status as a node stores it: an id from some project's vocabulary. */
+export const vocabularyValueSchema = z.string().min(1).max(40);
 
 export const slugSchema = z
   .string()
@@ -77,10 +85,14 @@ export const metaSchema = z
 
 export const planNodeSchema = z.object({
   slug: slugSchema,
-  kind: z.enum(planNodeKinds).default('task'),
+  /**
+   * An id from the project's vocabulary. Not checked against it here: a node
+   * whose kind the project does not know is drawn as unknown, not discarded.
+   */
+  kind: vocabularyValueSchema.default('task'),
   title: z.string().min(1).max(200),
   body: z.string().max(100_000).default(''),
-  status: z.enum(planNodeStatuses).default('idea'),
+  status: vocabularyValueSchema.default('idea'),
   /** `null` means "unplaced" — layout is free to position it. */
   position: positionSchema.nullable().default(null),
   /** Set when a human has moved the node. Auto-layout must not touch it. */

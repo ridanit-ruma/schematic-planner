@@ -10,106 +10,18 @@ export const workspaces: Messages['workspaces'] = {
     EDITOR: '編輯者',
     VIEWER: '檢視者',
   },
-  /** The ruled index shared by the project, plan and folder screens. */
+  /** Words the remaining tables and their row menus share. */
   list: {
-    name: '名稱',
-    holds: '內容',
-    updated: '更新時間',
     actions: '操作',
-    settings: '設定',
-    moveToFolder: '移到資料夾…',
     moveToTrash: '移到垃圾桶',
-    nodeCount: (n: number) => `${n} 個節點`,
-    planCount: (n: number) => `${n} 個計畫`,
     confirmTrash: (name: string) => `要將 ${name} 移到垃圾桶嗎？`,
-    planTrashBody: '它將不再出現在任何列出它的地方。你可以從垃圾桶還原。',
-    folderTrashBody: '裡面的計畫會跟著一起移過去，還原時也會一起回來。',
-    renameFolder: '重新命名資料夾',
-  },
-  newPlan: {
-    title: '新增計畫',
-    titleLabel: '標題',
-    titlePlaceholder: '帳務系統遷移',
-    descriptionLabel: '說明',
-    descriptionHint: '這個計畫描繪的內容。一行文字，顯示在清單中。',
-    descriptionPlaceholder: '發票如何從帳務系統產生成 PDF。',
-    submit: '建立計畫',
-    createFirst: '建立第一個計畫',
   },
   projects: {
-    title: '專案',
-    description: (projects: number, workspace: string) =>
-      projects === 0 ? `${workspace} 裡還沒有任何專案。` : `${workspace} 裡有 ${projects} 個專案。`,
-    newProject: '新增專案',
-    empty: {
-      title: '還沒有專案',
-      body: '專案用來收納同一項開發工作的各個計畫。多數工作區都從一個專案開始。',
-      action: '建立第一個專案',
-    },
-    project: '專案',
-    plans: '計畫',
     trashBody: '裡面的計畫會跟著一起移過去。你可以從垃圾桶還原整個專案。',
-    create: {
-      title: '新增專案',
-      nameLabel: '名稱',
-      nameHint: '網址會依名稱產生，之後不會變更。',
-      namePlaceholder: '帳單系統改版',
-      descriptionLabel: '說明',
-      descriptionHint: '這個專案的用途。一行文字，顯示在清單中。',
-      descriptionPlaceholder: '把帳單功能從單體架構中拆分出來。',
-      submit: '建立專案',
-    },
-  },
-  plans: {
-    title: '計畫',
-    description: (folders: number, plans: number) =>
-      plans === 0
-        ? folders === 0
-          ? '這個專案還沒有繪製任何計畫。'
-          : `這個專案有 ${folders} 個資料夾，還沒有繪製任何計畫。`
-        : folders === 0
-          ? `這個專案有 ${plans} 個計畫。`
-          : `這個專案有 ${folders} 個資料夾、${plans} 個計畫。`,
-    newFolder: '新增資料夾',
-    empty: {
-      title: '還沒有計畫',
-      body: '在這裡繪製一個，或讓 AI 代理連上這個工作區，由它為你建立第一個計畫。',
-    },
-    createFolder: {
-      title: '新增資料夾',
-      nameLabel: '名稱',
-      nameHint: '用來整理這個專案裡的計畫。資料夾裡不能再放資料夾。',
-      namePlaceholder: '系統架構',
-      submit: '建立資料夾',
-    },
-  },
-  folder: {
-    title: '資料夾',
-    missing: {
-      title: '找不到這個資料夾',
-      body: '它可能已被移到垃圾桶，或屬於其他專案。',
-      back: (project: string) => `返回 ${project}`,
-    },
-    description: (plans: number) =>
-      plans === 0 ? '這個資料夾還沒有任何計畫。' : `這個資料夾有 ${plans} 個計畫。`,
-    moveFolderToTrash: '將資料夾移到垃圾桶',
-    empty: {
-      title: '這個資料夾是空的',
-      body: '在這裡繪製計畫，或從專案中移入計畫。',
-    },
-  },
-  moveToFolder: {
-    title: (plan: string) => `移動 ${plan}`,
-    description: '要把它放進這個專案的哪個資料夾。',
-    folder: '資料夾',
-    topLevel: '最上層',
-    topLevelHint: '不在任何資料夾中',
-    submit: '移動',
   },
   projectSettings: {
     title: '專案設定',
     description: '這個專案的名稱，以及如何處置它。',
-    openPlans: '開啟計畫清單',
     name: {
       title: '名稱',
       body: '網址會維持不變，別人存下的連結不該因為改名而失效。',

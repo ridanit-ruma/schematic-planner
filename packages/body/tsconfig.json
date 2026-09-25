@@ -1,0 +1,4 @@
+{
+  "extends": "@schematic/typescript-config/library.json",
+  "include": ["src/**/*.ts", "*.config.ts"]
+}

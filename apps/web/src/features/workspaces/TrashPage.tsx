@@ -1,6 +1,7 @@
 import { Link2Off, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
+import { useExplorer } from '@/components/explorer/explorer-context';
 import { Button } from '@/components/ui/button';
 import { Empty, Problem, Spinner } from '@/components/ui/feedback';
 import { DropdownAction } from '@/components/ui/dropdown-menu';
@@ -23,6 +24,7 @@ import { useWorkspace } from './workspace-context';
  */
 export function TrashPage() {
   const { current, reload: reloadWorkspaces } = useWorkspace();
+  const explorer = useExplorer();
   const [list, setList] = useState<TrashItem[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [purging, setPurging] = useState<TrashItem | null>(null);
@@ -40,6 +42,7 @@ export function TrashPage() {
       await trash.restore(item.kind, item.id);
       reload();
       reloadWorkspaces();
+      explorer.reread();
     } catch (cause) {
       setError(cause);
     }
@@ -141,11 +144,11 @@ export function TrashPage() {
                     ) : null}
                   </span>
                   <span className="block truncate text-xs text-ink-muted md:hidden">
-                    {item.where}
+                    {whereOf(item)}
                   </span>
                 </TD>
                 <TD className="truncate text-xs text-ink-muted" hide="md">
-                  {item.where}
+                  {whereOf(item)}
                 </TD>
                 <TD align="right" className="text-xs text-ink-muted">
                   {formatWhen(item.deletedAt)}
@@ -242,4 +245,13 @@ export function TrashPage() {
       </Modal>
     </Page>
   );
+}
+
+/**
+ * Where a plan or a folder was, as the path the tree would have shown it at:
+ * folders nest, so the folder a thing sat in is not enough to find it again.
+ */
+function whereOf(item: TrashItem): string {
+  if (item.location === null) return item.where;
+  return [item.location.project, ...item.location.folders].join(' / ');
 }

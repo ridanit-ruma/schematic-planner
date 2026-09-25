@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { alignTo, place } from './align';
+import { alignTo, place, placeBlock } from './align';
 
 const card = (x: number, y: number, width = 260, height = 76) => ({ x, y, width, height });
 
@@ -68,5 +68,50 @@ describe('placing a dragged node', () => {
 
   it('only lines up with neighbours when the grid is off', () => {
     expect(place(card(3, 57), [], null, 6)).toMatchObject({ x: 3, y: 57 });
+  });
+});
+
+describe('placing a dragged block', () => {
+  const grid = { step: 20, anchor: 'terminal' as const };
+
+  it('is place, for a block of one', () => {
+    const raw = card(3, 103);
+    const others = [card(400, 101)];
+    const one = place(raw, others, grid, 6);
+    const block = placeBlock(raw, raw, others, grid, 6);
+    expect({ x: raw.x + block.dx, y: raw.y + block.dy }).toEqual({ x: one.x, y: one.y });
+    expect(block.guides).toEqual(one.guides);
+  });
+
+  // Two cards moved together line up by the box around both of them.
+  it('lines up the whole block, not the node under the hand', () => {
+    const lead = card(0, 200);
+    const block = { x: 0, y: 150, width: 560, height: 126 };
+    // The block's top (150) is 3 from a neighbour's top; the lead's is nowhere near.
+    const placed = placeBlock(lead, block, [card(900, 147)], null, 6);
+    expect(placed.dy).toBe(-3);
+  });
+
+  it('holds the grid by the node under the hand', () => {
+    const lead = card(3, 1);
+    const placed = placeBlock(lead, { ...lead, width: 800, height: 400 }, [], grid, 6);
+    expect(lead.x + placed.dx).toBe(0);
+    expect((lead.y + placed.dy + 38) % 20).toBe(0);
+  });
+
+  it('prefers an equal gap to the grid, and says so', () => {
+    const others = [card(0, 0), card(300, 0)];
+    const placed = placeBlock(card(603, 3), card(603, 3), others, grid, 6);
+    expect(placed.dx).toBe(-3);
+    expect(placed.gaps.map((gap) => gap.size)).toEqual([40, 40]);
+  });
+
+  it('takes whichever of an alignment and an equal gap is nearer', () => {
+    // Left edges line up 2 away (a card at 601 below); the gap of 40 is 3 away.
+    const others = [card(0, 0), card(300, 0), card(601, 300)];
+    const placed = placeBlock(card(603, 3), card(603, 3), others, null, 6);
+    expect(placed.dx).toBe(-2);
+    expect(placed.guides.some((guide) => guide.axis === 'x')).toBe(true);
+    expect(placed.gaps).toEqual([]);
   });
 });

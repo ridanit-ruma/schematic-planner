@@ -54,7 +54,6 @@ export const plan: Messages['plan'] = {
     tags: '태그',
     tagsHint: '쉼표로 구분',
     detail: '내용',
-    detailHint: 'Markdown 형식이며, 캔버스에도 Markdown으로 표시됩니다',
     nothingYet: '아직 없음',
     deleteNode: '노드 삭제',
     deleteNodeNote: '노드와 여기에 이어진 연결을 모두 삭제합니다.',
@@ -177,10 +176,6 @@ export const plan: Messages['plan'] = {
   },
   page: {
     untitled: '제목 없는 플랜',
-    addNode: '노드 추가',
-    title: '제목',
-    titleHint: '식별자는 제목을 바탕으로 만들어지며, 나중에 바꿀 수 있습니다.',
-    titlePlaceholder: '인증',
     shareTitle: '플랜 공유',
     shareDescription:
       '링크가 있으면 누구나 이 플랜을 보고 내보내기 파일을 내려받을 수 있습니다. 수정은 할 수 없습니다.',

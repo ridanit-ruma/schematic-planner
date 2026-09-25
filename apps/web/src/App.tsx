@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router';
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router';
 
 import { AppShell } from '@/components/AppShell';
+import { revealState } from '@/components/explorer/tree';
 import { NotFound, Spinner } from '@/components/ui/feedback';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAuth } from '@/lib/auth-store';
@@ -17,11 +18,8 @@ import { PlanSettingsPage } from '@/features/plan/PlanSettingsPage';
 import { SharedPlanPage } from '@/features/plan/SharedPlanPage';
 import { AgentsPage } from '@/features/settings/AgentsPage';
 import { RecentPage } from '@/features/recent/RecentPage';
-import { FolderPage } from '@/features/workspaces/FolderPage';
 import { InvitePage } from '@/features/workspaces/InvitePage';
 import { MembersPage } from '@/features/workspaces/MembersPage';
-import { PlanIndexPage } from '@/features/workspaces/PlanIndexPage';
-import { ProjectIndexPage } from '@/features/workspaces/ProjectIndexPage';
 import { ProjectSettingsPage } from '@/features/workspaces/ProjectSettingsPage';
 import { TrashPage } from '@/features/workspaces/TrashPage';
 import { WorkspaceSettingsPage } from '@/features/workspaces/WorkspaceSettingsPage';
@@ -36,13 +34,17 @@ import { WorkspaceLayout, WorkspacesProvider } from '@/features/workspaces/works
  *   /settings/agents                     the keys your agents hold
  *   /admin  /admin/invitations  /admin/people
  *                                        the instance, for whoever owns it
- *   /workspace/:slug                     projects
- *   /workspace/:slug/project/:slug       plans in a project
  *   /workspace/:slug/project/:slug/settings
  *   /workspace/:slug/members  /settings  /trash
  *   /plan/:planId                        the canvas
  *   /plan/:planId/settings               its name, where it lives, deleting it
  *   /share/:token                        read only, no session
+ *
+ * Every signed-in address is drawn in one shell, with the workspace's tree
+ * beside it. The tree replaced the project, plan and folder lists, so their
+ * addresses — /workspace/:slug, …/project/:slug, …/folder/:id — open Recent
+ * with that workspace, project or folder opened in the tree: links people
+ * saved still land somewhere that shows what they pointed at.
  *
  * A workspace and a project are addressed by a readable slug; a plan is not,
  * and sits at the top level. A plan link is the thing people paste to each
@@ -67,15 +69,6 @@ export function App() {
         <Route path="/invite/:token" element={<InvitePage />} />
 
         <Route
-          path="/plan/:planId"
-          element={
-            <RequireAuth status={status}>
-              <PlanPage />
-            </RequireAuth>
-          }
-        />
-
-        <Route
           element={
             <RequireAuth status={status}>
               <WorkspacesProvider>
@@ -88,8 +81,7 @@ export function App() {
               the first screen has an address of its own. */}
           <Route index element={<Navigate to="/recent" replace />} />
           <Route path="/recent" element={<RecentPage />} />
-          {/* The canvas is its own full-screen shell; everything else about a
-              plan is an ordinary screen in this one. */}
+          <Route path="/plan/:planId" element={<PlanPage />} />
           <Route path="/plan/:planId/settings" element={<PlanSettingsPage />} />
           <Route path="/settings" element={<SettingsLayout />}>
             <Route index element={<AccountSettingsPage />} />
@@ -104,9 +96,9 @@ export function App() {
           </Route>
 
           <Route path="/workspace/:workspaceSlug" element={<WorkspaceLayout />}>
-            <Route index element={<ProjectIndexPage />} />
-            <Route path="project/:projectSlug" element={<PlanIndexPage />} />
-            <Route path="project/:projectSlug/folder/:folderId" element={<FolderPage />} />
+            <Route index element={<RevealInTree />} />
+            <Route path="project/:projectSlug" element={<RevealInTree />} />
+            <Route path="project/:projectSlug/folder/:folderId" element={<RevealInTree />} />
             <Route path="project/:projectSlug/settings" element={<ProjectSettingsPage />} />
             <Route path="members" element={<MembersPage />} />
             <Route path="settings" element={<WorkspaceSettingsPage />} />
@@ -120,6 +112,26 @@ export function App() {
         </Route>
       </Routes>
     </TooltipProvider>
+  );
+}
+
+/**
+ * One of the removed list addresses: Recent, with what it named opened in the
+ * tree. Under the workspace's own route, so a workspace that is not yours is
+ * still a 404 rather than a quiet move somewhere else.
+ */
+function RevealInTree() {
+  const { workspaceSlug, projectSlug, folderId } = useParams();
+  return (
+    <Navigate
+      to="/recent"
+      replace
+      state={revealState({
+        ...(workspaceSlug === undefined ? {} : { workspace: workspaceSlug }),
+        ...(projectSlug === undefined ? {} : { project: projectSlug }),
+        ...(folderId === undefined ? {} : { folder: folderId }),
+      })}
+    />
   );
 }
 
@@ -140,7 +152,15 @@ function RequireAuth({
     );
   }
   if (status === 'signed-out') {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    // Also where a session that ends mid-use lands, so the whole address is
+    // kept: signing in again returns to the same plan, query and all.
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: `${location.pathname}${location.search}${location.hash}` }}
+      />
+    );
   }
   return <>{children}</>;
 }

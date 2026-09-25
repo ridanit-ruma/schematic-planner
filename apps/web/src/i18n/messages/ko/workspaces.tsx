@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 import type { Messages } from '../en';
-import { josa, quoted } from './josa';
+import { quoted } from './josa';
 
 export const workspaces: Messages['workspaces'] = {
   /** A role's display name. The enum value sent to the API stays as it is. */
@@ -11,108 +11,18 @@ export const workspaces: Messages['workspaces'] = {
     EDITOR: '편집자',
     VIEWER: '뷰어',
   },
-  /** The ruled index shared by the project, plan and folder screens. */
+  /** Words the remaining tables and their row menus share. */
   list: {
-    name: '이름',
-    holds: '내용',
-    updated: '수정일',
     actions: '관리',
-    settings: '설정',
-    moveToFolder: '폴더로 이동…',
     moveToTrash: '휴지통으로 이동',
-    nodeCount: (n: number) => `노드 ${n}개`,
-    planCount: (n: number) => `플랜 ${n}개`,
     confirmTrash: (name: string) => `${quoted(name, '을')} 휴지통으로 옮길까요?`,
-    planTrashBody: '목록 어디에도 더 이상 표시되지 않습니다. 휴지통에서 복원할 수 있습니다.',
-    folderTrashBody: '폴더 안의 플랜도 함께 이동하며, 복원하면 함께 돌아옵니다.',
-    renameFolder: '폴더 이름 변경',
-  },
-  newPlan: {
-    title: '새 플랜',
-    titleLabel: '제목',
-    titlePlaceholder: '정산 원장 이전',
-    descriptionLabel: '설명',
-    descriptionHint: '이 플랜이 무엇을 그리는지 한 줄로 적습니다. 목록에 표시됩니다.',
-    descriptionPlaceholder: '청구서가 원장에서 PDF로 나오기까지의 흐름.',
-    submit: '플랜 만들기',
-    createFirst: '첫 플랜 만들기',
   },
   projects: {
-    title: '프로젝트',
-    description: (projects: number, workspace: string) =>
-      projects === 0
-        ? `${workspace}에 아직 프로젝트가 없습니다.`
-        : `${workspace}에 프로젝트 ${projects}개가 있습니다.`,
-    newProject: '새 프로젝트',
-    empty: {
-      title: '아직 프로젝트가 없습니다',
-      body: '프로젝트는 만들고 있는 것 하나에 관한 플랜을 모아 둡니다. 대부분의 워크스페이스는 프로젝트 하나로 시작합니다.',
-      action: '첫 프로젝트 만들기',
-    },
-    project: '프로젝트',
-    plans: '플랜',
     trashBody: '안에 있는 플랜도 함께 이동합니다. 휴지통에서 프로젝트 전체를 복원할 수 있습니다.',
-    create: {
-      title: '새 프로젝트',
-      nameLabel: '이름',
-      nameHint: '주소는 이름을 바탕으로 만들어지며, 나중에 바뀌지 않습니다.',
-      namePlaceholder: '결제 시스템 개편',
-      descriptionLabel: '설명',
-      descriptionHint: '이 프로젝트의 목적을 한 줄로 적습니다. 목록에 표시됩니다.',
-      descriptionPlaceholder: '결제 기능을 모놀리스에서 분리합니다.',
-      submit: '프로젝트 만들기',
-    },
-  },
-  plans: {
-    title: '플랜',
-    description: (folders: number, plans: number) => {
-      if (plans === 0) {
-        return folders === 0
-          ? '이 프로젝트에 아직 그린 플랜이 없습니다.'
-          : `이 프로젝트에 폴더 ${folders}개가 있고, 아직 그린 플랜은 없습니다.`;
-      }
-      return `이 프로젝트에 ${folders === 0 ? '' : `폴더 ${folders}개, `}플랜 ${plans}개가 있습니다.`;
-    },
-    newFolder: '새 폴더',
-    empty: {
-      title: '아직 플랜이 없습니다',
-      body: '여기에서 직접 그리거나, AI 에이전트를 이 워크스페이스에 연결해 첫 플랜을 맡겨 보세요.',
-    },
-    createFolder: {
-      title: '새 폴더',
-      nameLabel: '이름',
-      nameHint: '프로젝트 안의 서랍 같은 공간입니다. 폴더 안에 폴더를 만들 수는 없습니다.',
-      namePlaceholder: '아키텍처',
-      submit: '폴더 만들기',
-    },
-  },
-  folder: {
-    title: '폴더',
-    missing: {
-      title: '폴더를 찾을 수 없습니다',
-      body: '삭제되었거나 다른 프로젝트의 폴더일 수 있습니다.',
-      back: (project: string) => `${josa(project, '으로')} 돌아가기`,
-    },
-    description: (plans: number) =>
-      plans === 0 ? '이 폴더에는 아직 플랜이 없습니다.' : `이 폴더에 플랜 ${plans}개가 있습니다.`,
-    moveFolderToTrash: '폴더를 휴지통으로 이동',
-    empty: {
-      title: '폴더가 비어 있습니다',
-      body: '여기에 플랜을 그리거나, 프로젝트에서 플랜을 옮겨 오세요.',
-    },
-  },
-  moveToFolder: {
-    title: (plan: string) => `${quoted(plan)} 이동`,
-    description: '이 프로젝트의 어느 폴더에 넣을지 고르세요.',
-    folder: '폴더',
-    topLevel: '최상위',
-    topLevelHint: '어느 폴더에도 넣지 않음',
-    submit: '이동',
   },
   projectSettings: {
     title: '프로젝트 설정',
     description: '이 프로젝트의 이름을 정하고, 필요 없으면 삭제합니다.',
-    openPlans: '플랜 목록 열기',
     name: {
       title: '이름',
       body: '이름을 바꿔도 주소는 그대로 유지되므로, 누군가 저장해 둔 링크도 계속 작동합니다.',

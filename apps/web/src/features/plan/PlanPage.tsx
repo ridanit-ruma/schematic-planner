@@ -1,23 +1,24 @@
 import { uniqueSlug, type PlanOp, type Position } from '@schematic/schema';
 import { ORIGIN_LAYOUT, ORIGIN_LOCAL, applyOps, commitLayout, readPlanDoc } from '@schematic/ydoc';
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { useStore } from 'zustand';
 
+import { useExplorer } from '@/components/explorer/explorer-context';
 import { Button } from '@/components/ui/button';
-import { Field, Input } from '@/components/ui/field';
+import { Input } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
 import { NotFound, Problem, Spinner } from '@/components/ui/feedback';
 import { useT } from '@/i18n';
 import { downloadExport, plans } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { useDocumentTitle } from '@/lib/use-document-title';
+import { usePlanVocabulary } from '@/lib/vocabulary';
 import { EdgeInspector } from './EdgeInspector';
 import { HistoryPanel } from './HistoryPanel';
 import { Inspector } from './Inspector';
-import { PlanCanvas } from './PlanCanvas';
-import { PlanSidebar } from './PlanSidebar';
+import { PlanCanvas, type PlanCanvasHandle } from './PlanCanvas';
 import { TitleBlock } from './TitleBlock';
 import { usePlanDocument } from './use-plan-document';
 import { usePlanUndo, useUndoKeys } from './use-undo';
@@ -27,27 +28,21 @@ export function PlanPage() {
   const user = useAuth((state) => state.user);
   const { connection, status, denied } = usePlanDocument(planId, user);
 
-  // Before the rail, because the rail is a list of this workspace's plans and
-  // this address is not in a workspace you can see.
   if (denied) return <NotFound subject="plan" />;
 
-  // The rail sits outside the document gate: opening a plan tears the previous
-  // connection down, and a rail inside would unmount and refetch itself every
-  // time somebody used it.
+  // Exactly the height of the pane, never more: React Flow draws into the box
+  // it is given, and a box that grows with its contents is a box of no height.
   return (
-    <div className="relative flex h-dvh min-h-0">
-      <PlanSidebar planId={planId} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        {connection === null ? (
-          <div className="grid flex-1 place-items-center">
-            <Spinner />
-          </div>
-        ) : (
-          <ReactFlowProvider>
-            <PlanWorkspace planId={planId} connection={connection} status={status} />
-          </ReactFlowProvider>
-        )}
-      </div>
+    <div className="relative flex h-full min-h-0 flex-col">
+      {connection === null ? (
+        <div className="grid flex-1 place-items-center">
+          <Spinner />
+        </div>
+      ) : (
+        <ReactFlowProvider>
+          <PlanWorkspace planId={planId} connection={connection} status={status} />
+        </ReactFlowProvider>
+      )}
     </div>
   );
 }
@@ -76,14 +71,17 @@ function PlanWorkspace({
   const comments = useStore(store, (state) => state.comments);
   const selectComment = useStore(store, (state) => state.selectComment);
 
-  const { screenToFlowPosition, setCenter } = useReactFlow();
+  // The project's statuses, kinds and tags: the cards are drawn with them and
+  // the inspector offers them.
+  const words = usePlanVocabulary(planId);
+  const setVocabulary = connection.bound.setVocabulary;
+  useEffect(() => setVocabulary(words.vocabulary), [setVocabulary, words.vocabulary]);
+
+  const { setCenter } = useReactFlow();
   const undo = usePlanUndo(doc);
   useUndoKeys(undo);
-  const [adding, setAdding] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  // Where a node asked for from the canvas should land. Null when the request
-  // came from the row, which has no place of its own to mean.
-  const [placing, setPlacing] = useState<Position | null>(null);
+  // Adding a node happens on the canvas: it is made there and named on the card.
+  const canvas = useRef<PlanCanvasHandle | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   // One panel at a time on the right: opening the history puts down whatever
   // was selected, and selecting something puts the history away.
@@ -96,6 +94,13 @@ function PlanWorkspace({
   const openNotes = useMemo(() => comments.filter((comment) => !comment.resolved), [comments]);
 
   useDocumentTitle(title === '' ? t.plan.page.untitled : title);
+
+  // The tree beside the canvas carries the plan's name too, and a rename on the
+  // canvas — yours or anybody else's — arrives here first.
+  const { renamePlan } = useExplorer();
+  useEffect(() => {
+    if (title !== '') renamePlan(planId, title);
+  }, [renamePlan, planId, title]);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selected)?.data.node ?? null,
@@ -145,41 +150,6 @@ function PlanWorkspace({
     selectComment(id);
   };
 
-  const addNode = (): void => {
-    const trimmed = newTitle.trim();
-    if (trimmed === '') return;
-    const slug = uniqueSlug(
-      trimmed,
-      nodes.map((node) => node.id),
-    );
-
-    // Where it was asked for, if it was asked for somewhere; otherwise where
-    // the person is looking rather than at the origin, where it would land
-    // under whatever is already there. Left unpinned, so Arrange is still free
-    // to tidy it into the graph.
-    const centre =
-      placing ??
-      screenToFlowPosition({
-        x: window.innerWidth / 2,
-        y: window.innerHeight / 2,
-      });
-
-    apply([
-      {
-        op: 'upsert_node',
-        node: {
-          slug,
-          title: trimmed,
-          position: { x: Math.round(centre.x - 130), y: Math.round(centre.y - 70) },
-        },
-      },
-    ]);
-    setNewTitle('');
-    setAdding(false);
-    setPlacing(null);
-    select(slug);
-  };
-
   const arrange = async (): Promise<void> => {
     // ELK is a large dependency and only the arrange button needs it, so it is
     // fetched on first use rather than shipped in the initial bundle.
@@ -227,10 +197,7 @@ function PlanWorkspace({
         }}
         status={status}
         readOnly={false}
-        onAddNode={() => {
-          setPlacing(null);
-          setAdding(true);
-        }}
+        onAddNode={() => canvas.current?.addNode()}
         onArrange={() => void arrange()}
         onExport={() => void exportZip()}
         onShare={() => void share()}
@@ -255,11 +222,10 @@ function PlanWorkspace({
             readOnly={false}
             onApplyOps={apply}
             undo={undo}
-            onAddNode={(at) => {
-              setPlacing(at);
-              setAdding(true);
-            }}
             onAddComment={addComment}
+            handle={canvas}
+            words={words}
+            onError={setError}
           />
         </div>
         {selectedNode !== null ? (
@@ -268,9 +234,11 @@ function PlanWorkspace({
             node={selectedNode}
             slugs={nodes.map((node) => node.id)}
             readOnly={false}
+            awareness={connection.awareness}
             onApplyOps={apply}
             onRenamed={select}
             onClose={() => select(null)}
+            words={words}
           />
         ) : selectedEdgeData !== null ? (
           <EdgeInspector
@@ -281,39 +249,13 @@ function PlanWorkspace({
             onClose={() => selectEdge(null)}
           />
         ) : historyOpen ? (
-          <HistoryPanel planId={planId} onClose={() => setHistoryOpen(false)} />
+          <HistoryPanel
+            planId={planId}
+            vocabulary={words.vocabulary}
+            onClose={() => setHistoryOpen(false)}
+          />
         ) : null}
       </div>
-
-      <Modal open={adding} onOpenChange={setAdding} title={t.plan.page.addNode}>
-        <form
-          className="space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            addNode();
-          }}
-        >
-          <Field label={t.plan.page.title} hint={t.plan.page.titleHint}>
-            {(id) => (
-              <Input
-                id={id}
-                autoFocus
-                value={newTitle}
-                onChange={(event) => setNewTitle(event.target.value)}
-                placeholder={t.plan.page.titlePlaceholder}
-              />
-            )}
-          </Field>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => setAdding(false)}>
-              {t.common.cancel}
-            </Button>
-            <Button type="submit" variant="primary">
-              {t.plan.page.addNode}
-            </Button>
-          </div>
-        </form>
-      </Modal>
 
       <Modal
         open={shareUrl !== null}

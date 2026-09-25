@@ -1,0 +1,1228 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`exporting a project that never touched its vocabulary > writes what it wrote before vocabularies existed 1`] = `
+{
+  "Box/README.md": "---
+slug: box
+title: Box
+kind: group
+status: blocked
+contains:
+  - task-done
+---
+
+# Box
+
+## Links
+
+- Holds [[Box/task done|task done]]
+",
+  "Box/task done.md": "---
+slug: task-done
+title: task done
+kind: task
+status: done
+---
+
+## Links
+
+- Inside [[Box/README|Box]]
+",
+  "README.md": "# Every value
+
+## Contents
+
+- [Box](Box/README.md) — \`blocked\`
+  - [task done](Box/task done.md) — \`done\`
+- [decision blocked](decision blocked.md) — \`blocked\`
+- [decision done](decision done.md) — \`done\`
+- [decision dropped](decision dropped.md) — \`dropped\`
+- [decision idea](decision idea.md)
+- [decision in_progress](decision in_progress.md) — \`in_progress\`
+- [decision planned](decision planned.md) — \`planned\`
+- [feature blocked](feature blocked.md) — \`blocked\`
+- [feature done](feature done.md) — \`done\`
+- [feature dropped](feature dropped.md) — \`dropped\`
+- [feature idea](feature idea.md)
+- [feature in_progress](feature in_progress.md) — \`in_progress\`
+- [feature planned](feature planned.md) — \`planned\`
+- [note blocked](note blocked.md) — \`blocked\`
+- [note done](note done.md) — \`done\`
+- [note dropped](note dropped.md) — \`dropped\`
+- [note idea](note idea.md)
+- [note in_progress](note in_progress.md) — \`in_progress\`
+- [note planned](note planned.md) — \`planned\`
+- [task blocked](task blocked.md) — \`blocked\`
+- [task dropped](task dropped.md) — \`dropped\`
+- [task idea](task idea.md)
+- [task in_progress](task in_progress.md) — \`in_progress\`
+- [task planned](task planned.md) — \`planned\`
+
+---
+
+Exported from Schematic Planner. \`plan.json\` holds the same content in machine-readable form.
+",
+  "decision blocked.md": "---
+slug: decision-blocked
+title: decision blocked
+kind: decision
+status: blocked
+---
+
+",
+  "decision done.md": "---
+slug: decision-done
+title: decision done
+kind: decision
+status: done
+---
+
+",
+  "decision dropped.md": "---
+slug: decision-dropped
+title: decision dropped
+kind: decision
+status: dropped
+---
+
+",
+  "decision idea.md": "---
+slug: decision-idea
+title: decision idea
+kind: decision
+status: idea
+---
+
+",
+  "decision in_progress.md": "---
+slug: decision-in-progress
+title: decision in_progress
+kind: decision
+status: in_progress
+---
+
+",
+  "decision planned.md": "---
+slug: decision-planned
+title: decision planned
+kind: decision
+status: planned
+---
+
+",
+  "feature blocked.md": "---
+slug: feature-blocked
+title: feature blocked
+kind: feature
+status: blocked
+---
+
+",
+  "feature done.md": "---
+slug: feature-done
+title: feature done
+kind: feature
+status: done
+---
+
+",
+  "feature dropped.md": "---
+slug: feature-dropped
+title: feature dropped
+kind: feature
+status: dropped
+---
+
+",
+  "feature idea.md": "---
+slug: feature-idea
+title: feature idea
+kind: feature
+status: idea
+---
+
+",
+  "feature in_progress.md": "---
+slug: feature-in-progress
+title: feature in_progress
+kind: feature
+status: in_progress
+---
+
+",
+  "feature planned.md": "---
+slug: feature-planned
+title: feature planned
+kind: feature
+status: planned
+---
+
+",
+  "note blocked.md": "---
+slug: note-blocked
+title: note blocked
+kind: note
+status: blocked
+---
+
+",
+  "note done.md": "---
+slug: note-done
+title: note done
+kind: note
+status: done
+---
+
+",
+  "note dropped.md": "---
+slug: note-dropped
+title: note dropped
+kind: note
+status: dropped
+---
+
+",
+  "note idea.md": "---
+slug: note-idea
+title: note idea
+kind: note
+status: idea
+---
+
+",
+  "note in_progress.md": "---
+slug: note-in-progress
+title: note in_progress
+kind: note
+status: in_progress
+---
+
+",
+  "note planned.md": "---
+slug: note-planned
+title: note planned
+kind: note
+status: planned
+---
+
+",
+  "plan.canvas": "{
+  "nodes": [
+    {
+      "id": "box",
+      "type": "group",
+      "label": "Box",
+      "x": 280,
+      "y": 760,
+      "width": 300,
+      "height": 136,
+      "color": "1"
+    },
+    {
+      "id": "task-done",
+      "type": "file",
+      "file": "Box/task done.md",
+      "x": 300,
+      "y": 800,
+      "width": 260,
+      "height": 76,
+      "color": "4"
+    },
+    {
+      "id": "decision-blocked",
+      "type": "file",
+      "file": "decision blocked.md",
+      "x": 600,
+      "y": 600,
+      "width": 260,
+      "height": 76,
+      "color": "1"
+    },
+    {
+      "id": "decision-done",
+      "type": "file",
+      "file": "decision done.md",
+      "x": 600,
+      "y": 800,
+      "width": 260,
+      "height": 76,
+      "color": "4"
+    },
+    {
+      "id": "decision-dropped",
+      "type": "file",
+      "file": "decision dropped.md",
+      "x": 600,
+      "y": 1000,
+      "width": 260,
+      "height": 76,
+      "color": "6"
+    },
+    {
+      "id": "decision-idea",
+      "type": "file",
+      "file": "decision idea.md",
+      "x": 600,
+      "y": 0,
+      "width": 260,
+      "height": 76
+    },
+    {
+      "id": "decision-in-progress",
+      "type": "file",
+      "file": "decision in_progress.md",
+      "x": 600,
+      "y": 400,
+      "width": 260,
+      "height": 76,
+      "color": "3"
+    },
+    {
+      "id": "decision-planned",
+      "type": "file",
+      "file": "decision planned.md",
+      "x": 600,
+      "y": 200,
+      "width": 260,
+      "height": 76,
+      "color": "5"
+    },
+    {
+      "id": "feature-blocked",
+      "type": "file",
+      "file": "feature blocked.md",
+      "x": 0,
+      "y": 600,
+      "width": 260,
+      "height": 76,
+      "color": "1"
+    },
+    {
+      "id": "feature-done",
+      "type": "file",
+      "file": "feature done.md",
+      "x": 0,
+      "y": 800,
+      "width": 260,
+      "height": 76,
+      "color": "4"
+    },
+    {
+      "id": "feature-dropped",
+      "type": "file",
+      "file": "feature dropped.md",
+      "x": 0,
+      "y": 1000,
+      "width": 260,
+      "height": 76,
+      "color": "6"
+    },
+    {
+      "id": "feature-idea",
+      "type": "file",
+      "file": "feature idea.md",
+      "x": 0,
+      "y": 0,
+      "width": 260,
+      "height": 76
+    },
+    {
+      "id": "feature-in-progress",
+      "type": "file",
+      "file": "feature in_progress.md",
+      "x": 0,
+      "y": 400,
+      "width": 260,
+      "height": 76,
+      "color": "3"
+    },
+    {
+      "id": "feature-planned",
+      "type": "file",
+      "file": "feature planned.md",
+      "x": 0,
+      "y": 200,
+      "width": 260,
+      "height": 76,
+      "color": "5"
+    },
+    {
+      "id": "note-blocked",
+      "type": "file",
+      "file": "note blocked.md",
+      "x": 900,
+      "y": 600,
+      "width": 260,
+      "height": 76,
+      "color": "1"
+    },
+    {
+      "id": "note-done",
+      "type": "file",
+      "file": "note done.md",
+      "x": 900,
+      "y": 800,
+      "width": 260,
+      "height": 76,
+      "color": "4"
+    },
+    {
+      "id": "note-dropped",
+      "type": "file",
+      "file": "note dropped.md",
+      "x": 900,
+      "y": 1000,
+      "width": 260,
+      "height": 76,
+      "color": "6"
+    },
+    {
+      "id": "note-idea",
+      "type": "file",
+      "file": "note idea.md",
+      "x": 900,
+      "y": 0,
+      "width": 260,
+      "height": 76
+    },
+    {
+      "id": "note-in-progress",
+      "type": "file",
+      "file": "note in_progress.md",
+      "x": 900,
+      "y": 400,
+      "width": 260,
+      "height": 76,
+      "color": "3"
+    },
+    {
+      "id": "note-planned",
+      "type": "file",
+      "file": "note planned.md",
+      "x": 900,
+      "y": 200,
+      "width": 260,
+      "height": 76,
+      "color": "5"
+    },
+    {
+      "id": "task-blocked",
+      "type": "file",
+      "file": "task blocked.md",
+      "x": 300,
+      "y": 600,
+      "width": 260,
+      "height": 76,
+      "color": "1"
+    },
+    {
+      "id": "task-dropped",
+      "type": "file",
+      "file": "task dropped.md",
+      "x": 300,
+      "y": 1000,
+      "width": 260,
+      "height": 76,
+      "color": "6"
+    },
+    {
+      "id": "task-idea",
+      "type": "file",
+      "file": "task idea.md",
+      "x": 300,
+      "y": 0,
+      "width": 260,
+      "height": 76
+    },
+    {
+      "id": "task-in-progress",
+      "type": "file",
+      "file": "task in_progress.md",
+      "x": 300,
+      "y": 400,
+      "width": 260,
+      "height": 76,
+      "color": "3"
+    },
+    {
+      "id": "task-planned",
+      "type": "file",
+      "file": "task planned.md",
+      "x": 300,
+      "y": 200,
+      "width": 260,
+      "height": 76,
+      "color": "5"
+    }
+  ],
+  "edges": [
+    {
+      "id": "contains:box>task-done",
+      "fromNode": "box",
+      "fromSide": "bottom",
+      "toNode": "task-done",
+      "toSide": "top"
+    }
+  ]
+}
+",
+  "plan.json": "{
+  "version": 1,
+  "title": "Every value",
+  "description": "",
+  "nodes": [
+    {
+      "slug": "feature-idea",
+      "kind": "feature",
+      "title": "feature idea",
+      "body": "",
+      "status": "idea",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "task-idea",
+      "kind": "task",
+      "title": "task idea",
+      "body": "",
+      "status": "idea",
+      "position": {
+        "x": 300,
+        "y": 0
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "decision-idea",
+      "kind": "decision",
+      "title": "decision idea",
+      "body": "",
+      "status": "idea",
+      "position": {
+        "x": 600,
+        "y": 0
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "note-idea",
+      "kind": "note",
+      "title": "note idea",
+      "body": "",
+      "status": "idea",
+      "position": {
+        "x": 900,
+        "y": 0
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "feature-planned",
+      "kind": "feature",
+      "title": "feature planned",
+      "body": "",
+      "status": "planned",
+      "position": {
+        "x": 0,
+        "y": 200
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "task-planned",
+      "kind": "task",
+      "title": "task planned",
+      "body": "",
+      "status": "planned",
+      "position": {
+        "x": 300,
+        "y": 200
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "decision-planned",
+      "kind": "decision",
+      "title": "decision planned",
+      "body": "",
+      "status": "planned",
+      "position": {
+        "x": 600,
+        "y": 200
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "note-planned",
+      "kind": "note",
+      "title": "note planned",
+      "body": "",
+      "status": "planned",
+      "position": {
+        "x": 900,
+        "y": 200
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "feature-in-progress",
+      "kind": "feature",
+      "title": "feature in_progress",
+      "body": "",
+      "status": "in_progress",
+      "position": {
+        "x": 0,
+        "y": 400
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "task-in-progress",
+      "kind": "task",
+      "title": "task in_progress",
+      "body": "",
+      "status": "in_progress",
+      "position": {
+        "x": 300,
+        "y": 400
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "decision-in-progress",
+      "kind": "decision",
+      "title": "decision in_progress",
+      "body": "",
+      "status": "in_progress",
+      "position": {
+        "x": 600,
+        "y": 400
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "note-in-progress",
+      "kind": "note",
+      "title": "note in_progress",
+      "body": "",
+      "status": "in_progress",
+      "position": {
+        "x": 900,
+        "y": 400
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "feature-blocked",
+      "kind": "feature",
+      "title": "feature blocked",
+      "body": "",
+      "status": "blocked",
+      "position": {
+        "x": 0,
+        "y": 600
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "task-blocked",
+      "kind": "task",
+      "title": "task blocked",
+      "body": "",
+      "status": "blocked",
+      "position": {
+        "x": 300,
+        "y": 600
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "decision-blocked",
+      "kind": "decision",
+      "title": "decision blocked",
+      "body": "",
+      "status": "blocked",
+      "position": {
+        "x": 600,
+        "y": 600
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "note-blocked",
+      "kind": "note",
+      "title": "note blocked",
+      "body": "",
+      "status": "blocked",
+      "position": {
+        "x": 900,
+        "y": 600
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "feature-done",
+      "kind": "feature",
+      "title": "feature done",
+      "body": "",
+      "status": "done",
+      "position": {
+        "x": 0,
+        "y": 800
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "task-done",
+      "kind": "task",
+      "title": "task done",
+      "body": "",
+      "status": "done",
+      "position": {
+        "x": 300,
+        "y": 800
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "decision-done",
+      "kind": "decision",
+      "title": "decision done",
+      "body": "",
+      "status": "done",
+      "position": {
+        "x": 600,
+        "y": 800
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "note-done",
+      "kind": "note",
+      "title": "note done",
+      "body": "",
+      "status": "done",
+      "position": {
+        "x": 900,
+        "y": 800
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "feature-dropped",
+      "kind": "feature",
+      "title": "feature dropped",
+      "body": "",
+      "status": "dropped",
+      "position": {
+        "x": 0,
+        "y": 1000
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "task-dropped",
+      "kind": "task",
+      "title": "task dropped",
+      "body": "",
+      "status": "dropped",
+      "position": {
+        "x": 300,
+        "y": 1000
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "decision-dropped",
+      "kind": "decision",
+      "title": "decision dropped",
+      "body": "",
+      "status": "dropped",
+      "position": {
+        "x": 600,
+        "y": 1000
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "note-dropped",
+      "kind": "note",
+      "title": "note dropped",
+      "body": "",
+      "status": "dropped",
+      "position": {
+        "x": 900,
+        "y": 1000
+      },
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "box",
+      "kind": "group",
+      "title": "Box",
+      "body": "",
+      "status": "blocked",
+      "position": null,
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "contains:box>task-done",
+      "kind": "contains",
+      "from": "box",
+      "to": "task-done",
+      "label": null,
+      "via": null,
+      "carries": null,
+      "labelPosition": null,
+      "waypoints": []
+    }
+  ],
+  "comments": [],
+  "id": "every-value",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+",
+  "task blocked.md": "---
+slug: task-blocked
+title: task blocked
+kind: task
+status: blocked
+---
+
+",
+  "task dropped.md": "---
+slug: task-dropped
+title: task dropped
+kind: task
+status: dropped
+---
+
+",
+  "task idea.md": "---
+slug: task-idea
+title: task idea
+kind: task
+status: idea
+---
+
+",
+  "task in_progress.md": "---
+slug: task-in-progress
+title: task in_progress
+kind: task
+status: in_progress
+---
+
+",
+  "task planned.md": "---
+slug: task-planned
+title: task planned
+kind: task
+status: planned
+---
+
+",
+}
+`;
+
+exports[`exporting a project that never touched its vocabulary > writes what it wrote before vocabularies existed 2`] = `
+{
+  "01-Foundation/01-Database.md": "---
+slug: database
+title: Database
+kind: task
+status: done
+tags:
+  - infra
+---
+
+## Links
+
+- Inside [[01-Foundation/README|Foundation]]
+",
+  "01-Foundation/02-Auth.md": "---
+slug: auth
+title: Auth
+kind: task
+status: in_progress
+depends_on:
+  - database
+---
+
+Email and password first.
+
+## Links
+
+- Inside [[01-Foundation/README|Foundation]]
+- Needs [[01-Foundation/01-Database|Database]] first
+",
+  "01-Foundation/README.md": "---
+slug: foundation
+title: Foundation
+kind: group
+status: idea
+contains:
+  - auth
+  - database
+---
+
+# Foundation
+
+## Links
+
+- Holds [[01-Foundation/02-Auth|Auth]]
+- Holds [[01-Foundation/01-Database|Database]]
+",
+  "02-Editor/Canvas.md": "---
+slug: canvas
+title: Canvas
+kind: task
+status: idea
+pinned: true
+position:
+  x: 120
+  'y': 40
+---
+
+## Links
+
+- Inside [[02-Editor/README|Editor]]
+",
+  "02-Editor/README.md": "---
+slug: editor
+title: Editor
+kind: group
+status: idea
+depends_on:
+  - foundation
+contains:
+  - canvas
+---
+
+# Editor
+
+## Links
+
+- Holds [[02-Editor/Canvas|Canvas]]
+- Needs [[01-Foundation/README|Foundation]] first
+",
+  "README.md": "# Schematic Planner
+
+The plan for the planner.
+
+## Contents
+
+- [Foundation](01-Foundation/README.md)
+  - [Database](01-Foundation/01-Database.md) — \`done\`
+  - [Auth](01-Foundation/02-Auth.md) — \`in_progress\`
+- [Editor](02-Editor/README.md)
+  - [Canvas](02-Editor/Canvas.md)
+
+---
+
+Exported from Schematic Planner. \`plan.json\` holds the same content in machine-readable form.
+",
+  "plan.canvas": "{
+  "nodes": [
+    {
+      "id": "foundation",
+      "type": "group",
+      "label": "Foundation",
+      "x": 380,
+      "y": -40,
+      "width": 300,
+      "height": 336
+    },
+    {
+      "id": "database",
+      "type": "file",
+      "file": "01-Foundation/01-Database.md",
+      "x": 400,
+      "y": 0,
+      "width": 260,
+      "height": 76,
+      "color": "4"
+    },
+    {
+      "id": "auth",
+      "type": "file",
+      "file": "01-Foundation/02-Auth.md",
+      "x": 400,
+      "y": 200,
+      "width": 260,
+      "height": 76,
+      "color": "3"
+    },
+    {
+      "id": "editor",
+      "type": "group",
+      "label": "Editor",
+      "x": 100,
+      "y": 0,
+      "width": 300,
+      "height": 136
+    },
+    {
+      "id": "canvas",
+      "type": "file",
+      "file": "02-Editor/Canvas.md",
+      "x": 120,
+      "y": 40,
+      "width": 260,
+      "height": 76
+    }
+  ],
+  "edges": [
+    {
+      "id": "contains:foundation>database",
+      "fromNode": "foundation",
+      "fromSide": "bottom",
+      "toNode": "database",
+      "toSide": "top"
+    },
+    {
+      "id": "contains:foundation>auth",
+      "fromNode": "foundation",
+      "fromSide": "bottom",
+      "toNode": "auth",
+      "toSide": "top"
+    },
+    {
+      "id": "contains:editor>canvas",
+      "fromNode": "editor",
+      "fromSide": "bottom",
+      "toNode": "canvas",
+      "toSide": "top"
+    },
+    {
+      "id": "depends_on:auth>database",
+      "fromNode": "database",
+      "fromSide": "right",
+      "toNode": "auth",
+      "toSide": "left"
+    },
+    {
+      "id": "depends_on:editor>foundation",
+      "fromNode": "foundation",
+      "fromSide": "right",
+      "toNode": "editor",
+      "toSide": "left"
+    }
+  ]
+}
+",
+  "plan.json": "{
+  "version": 1,
+  "title": "Schematic Planner",
+  "description": "The plan for the planner.",
+  "nodes": [
+    {
+      "slug": "foundation",
+      "kind": "group",
+      "title": "Foundation",
+      "body": "",
+      "status": "idea",
+      "position": null,
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "database",
+      "kind": "task",
+      "title": "Database",
+      "body": "",
+      "status": "done",
+      "position": null,
+      "pinned": false,
+      "size": null,
+      "tags": [
+        "infra"
+      ],
+      "meta": {}
+    },
+    {
+      "slug": "auth",
+      "kind": "task",
+      "title": "Auth",
+      "body": "Email and password first.",
+      "status": "in_progress",
+      "position": null,
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "editor",
+      "kind": "group",
+      "title": "Editor",
+      "body": "",
+      "status": "idea",
+      "position": null,
+      "pinned": false,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    },
+    {
+      "slug": "canvas",
+      "kind": "task",
+      "title": "Canvas",
+      "body": "",
+      "status": "idea",
+      "position": {
+        "x": 120,
+        "y": 40
+      },
+      "pinned": true,
+      "size": null,
+      "tags": [],
+      "meta": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "contains:foundation>database",
+      "kind": "contains",
+      "from": "foundation",
+      "to": "database",
+      "label": null,
+      "via": null,
+      "carries": null,
+      "labelPosition": null,
+      "waypoints": []
+    },
+    {
+      "id": "contains:foundation>auth",
+      "kind": "contains",
+      "from": "foundation",
+      "to": "auth",
+      "label": null,
+      "via": null,
+      "carries": null,
+      "labelPosition": null,
+      "waypoints": []
+    },
+    {
+      "id": "contains:editor>canvas",
+      "kind": "contains",
+      "from": "editor",
+      "to": "canvas",
+      "label": null,
+      "via": null,
+      "carries": null,
+      "labelPosition": null,
+      "waypoints": []
+    },
+    {
+      "id": "depends_on:auth>database",
+      "kind": "depends_on",
+      "from": "auth",
+      "to": "database",
+      "label": null,
+      "via": null,
+      "carries": null,
+      "labelPosition": null,
+      "waypoints": []
+    },
+    {
+      "id": "depends_on:editor>foundation",
+      "kind": "depends_on",
+      "from": "editor",
+      "to": "foundation",
+      "label": null,
+      "via": null,
+      "carries": null,
+      "labelPosition": null,
+      "waypoints": []
+    }
+  ],
+  "comments": [],
+  "id": "plan-1",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+",
+}
+`;

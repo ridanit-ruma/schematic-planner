@@ -4,6 +4,8 @@ export const canvas: Messages['canvas'] = {
   canvas: {
     menu: {
       addNode: '在此新增節點',
+      tidyUp: '整理間距',
+      duplicate: '建立副本',
       noteOnNode: '在這個節點上留言',
       noteHere: '在這裡留言',
       groupNodes: (count: number) => `將 ${count} 個節點組成群組`,
@@ -29,28 +31,17 @@ export const canvas: Messages['canvas'] = {
       snappingTo: (step: number) => `對齊 ${step}px 格線`,
       notSnapping: '未對齊格線',
     },
+    card: {
+      untitled: '未命名',
+      title: '節點標題',
+    },
+    spacing: {
+      handle: '拖曳以調整間距',
+    },
+    paste: {
+      notLoaded: '此專案的狀態和類型尚未載入，因此沒有貼上。請稍後再試。',
+      wordsRefused: '無法將複製的狀態和類型加入此專案，因此沒有貼上。',
+    },
     readingFrom: (by: string, from: string) => `${by} 正從 ${from} 開始讀取`,
-  },
-  sidebar: {
-    showPlans: '顯示計畫',
-    hidePlans: '隱藏計畫',
-    leaveFor: (workspace: string) => `返回 ${workspace}`,
-    unavailable: '無法載入計畫',
-    nothingToAddTo: '沒有可新增的位置',
-    newFolder: '新增資料夾',
-    newPlan: '新增計畫',
-    newPlanHere: '在此新增計畫',
-    renameFolder: '重新命名資料夾',
-    settings: '設定',
-    moveToTrash: '移到垃圾桶',
-    share: '分享',
-    export: '匯出',
-    planSettings: '計畫設定',
-    noPlans: '還沒有計畫',
-    emptyFolder: '空的',
-    untitledPlan: '未命名計畫',
-    name: '名稱',
-    planPlaceholder: '結帳流程',
-    folderPlaceholder: '系統架構',
   },
 };

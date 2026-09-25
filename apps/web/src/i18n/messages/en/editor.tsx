@@ -1,0 +1,46 @@
+/** The node body's block editor. */
+export const editor = {
+  hint: 'Type / for a block, or write Markdown: # heading, - list, [] to-do. Agents and export read it as Markdown.',
+  placeholder: 'Write, or type / for blocks',
+  summaryPlaceholder: 'Toggle',
+  label: 'Detail',
+  slash: {
+    label: 'Insert a block',
+    noMatch: 'No block by that name',
+  },
+  blocks: {
+    paragraph: 'Text',
+    heading1: 'Heading 1',
+    heading2: 'Heading 2',
+    heading3: 'Heading 3',
+    bulletList: 'Bulleted list',
+    orderedList: 'Numbered list',
+    taskList: 'To-do list',
+    quote: 'Quote',
+    codeBlock: 'Code',
+    divider: 'Divider',
+    table: 'Table',
+    toggle: 'Toggle',
+    callout: 'Callout',
+  },
+  callout: {
+    type: 'Callout type',
+    title: 'Title',
+    variants: {
+      note: 'Note',
+      tip: 'Tip',
+      warning: 'Warning',
+      danger: 'Danger',
+    },
+  },
+  table: {
+    addRow: 'Add row',
+    addColumn: 'Add column',
+    deleteRow: 'Delete row',
+    deleteColumn: 'Delete column',
+    deleteTable: 'Delete table',
+  },
+  drag: 'Drag to move this block',
+  raw: 'Markdown',
+  rawHint: 'Kept exactly as written: the editor has no block for this Markdown.',
+};

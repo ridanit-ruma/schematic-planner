@@ -73,6 +73,9 @@ export function useWheelScroll(
     if (surface === null) return;
 
     const onWheel = (event: WheelEvent): void => {
+      // Ctrl or ⌘ with the wheel, and a pinch (which the browser reports as a
+      // Ctrl wheel), is a zoom wherever the pointer is.
+      if (event.ctrlKey || event.metaKey) return;
       const box = scroller.current;
       if (box === null) return;
       const by = wheelPixels(event, box);

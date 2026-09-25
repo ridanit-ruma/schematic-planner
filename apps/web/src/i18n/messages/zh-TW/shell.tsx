@@ -1,13 +1,6 @@
 import type { Messages } from '../en';
 
 export const shell: Messages['shell'] = {
-  rail: {
-    recent: '最近',
-    projects: '專案',
-    members: '成員',
-    settings: '設定',
-    trash: '垃圾桶',
-  },
   account: {
     menu: '帳號',
     you: '你',
@@ -15,15 +8,6 @@ export const shell: Messages['shell'] = {
     agentKeys: 'AI 代理金鑰',
     instance: '站台管理',
     signOut: '登出',
-  },
-  crumbs: {
-    planSettings: '計畫設定',
-    recent: '最近',
-    account: '帳號',
-    projects: '專案',
-    members: '成員',
-    settings: '設定',
-    trash: '垃圾桶',
   },
   workspaceSwitcher: {
     label: (name: string) => `${name}：切換工作區`,

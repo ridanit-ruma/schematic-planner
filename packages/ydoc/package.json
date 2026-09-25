@@ -31,6 +31,7 @@
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },
   "dependencies": {
+    "@schematic/body": "workspace:*",
     "@schematic/schema": "workspace:*",
     "yjs": "catalog:"
   },

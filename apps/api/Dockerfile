@@ -17,6 +17,7 @@ COPY packages/schema/package.json ./packages/schema/
 COPY packages/exporter/package.json ./packages/exporter/
 COPY packages/layout/package.json ./packages/layout/
 COPY packages/ydoc/package.json ./packages/ydoc/
+COPY packages/body/package.json ./packages/body/
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 COPY apps/www/package.json ./apps/www/

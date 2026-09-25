@@ -19,12 +19,30 @@ const item =
  * where you asked rather than wherever the viewport happens to be centred.
  * Everything here is also reachable another way; nothing is hidden in it.
  */
-export function ContextMenu({ children, menu }: { children: ReactNode; menu: ReactNode }) {
+export function ContextMenu({
+  children,
+  menu,
+  returnFocus = true,
+}: {
+  children: ReactNode;
+  menu: ReactNode;
+  /**
+   * Whether closing the menu puts focus back where it was. Off for a menu whose
+   * items open a field of their own, which the returning focus would blur the
+   * moment it appeared.
+   */
+  returnFocus?: boolean;
+}) {
   return (
     <Primitive.Root>
       <Primitive.Trigger asChild>{children}</Primitive.Trigger>
       <Primitive.Portal>
-        <Primitive.Content className={content}>{menu}</Primitive.Content>
+        <Primitive.Content
+          className={content}
+          onCloseAutoFocus={returnFocus ? undefined : (event) => event.preventDefault()}
+        >
+          {menu}
+        </Primitive.Content>
       </Primitive.Portal>
     </Primitive.Root>
   );
@@ -74,7 +92,15 @@ export function ContextSub({ label, children }: { label: ReactNode; children: Re
         <ChevronRight className="size-3.5 text-ink-faint" />
       </Primitive.SubTrigger>
       <Primitive.Portal>
-        <Primitive.SubContent className={content} sideOffset={2} alignOffset={-4}>
+        <Primitive.SubContent
+          className={cn(
+            content,
+            // A long list of places scrolls rather than running off the screen.
+            'max-h-[var(--radix-context-menu-content-available-height)] overflow-y-auto',
+          )}
+          sideOffset={2}
+          alignOffset={-4}
+        >
           {children}
         </Primitive.SubContent>
       </Primitive.Portal>

@@ -1,4 +1,4 @@
-import { planEdgeKinds, planNodeKinds, planNodeStatuses, slugSchema } from '@schematic/schema';
+import { planEdgeKinds, slugSchema, vocabularyValueSchema } from '@schematic/schema';
 import { z } from 'zod';
 
 /**
@@ -68,8 +68,11 @@ const projectArg = z
 const folderArg = z
   .string()
   .min(1)
-  .max(80)
-  .describe('Folder name, as list_folders gives it. Folders do not nest');
+  .max(400)
+  .describe(
+    'Folder path from the project top level, like Specs/Billing, as list_folders gives it. ' +
+      'A bare name works when only one folder in the project has it',
+  );
 
 export const listProjectsShape = { workspace: workspaceArg };
 export const listPlansShape = { workspace: workspaceArg };
@@ -90,7 +93,10 @@ export const createPlanShape = {
   ),
   folder: folderArg
     .optional()
-    .describe('Which drawer of the project to file it in. Omitted, the top level'),
+    .describe(
+      'Which drawer of the project to file it in, by path (Specs/Billing) or a name only one ' +
+        'folder has. Omitted, the top level',
+    ),
   description: z.string().max(2000).default(''),
   sourceSpecIds: z
     .array(z.string().min(1))
@@ -210,10 +216,22 @@ export const planHistoryShape = {
 /** Every field but the slug is optional: an upsert merges into what is there. */
 const agentNodePatchSchema = z.object({
   slug: slugSchema,
-  kind: z.enum(planNodeKinds).optional(),
+  // Any string, because a project defines its own. The server checks it
+  // against the project and names the valid ones when it is not there.
+  kind: vocabularyValueSchema
+    .optional()
+    .describe(
+      "A kind from the plan's project, by id: get_plan lists them. Built in: feature, task, " +
+        'decision, note (not work), group (a box around others). New nodes are task',
+    ),
   title: z.string().min(1).max(200).optional(),
   body: z.string().max(100_000).optional(),
-  status: z.enum(planNodeStatuses).optional(),
+  status: vocabularyValueSchema
+    .optional()
+    .describe(
+      "A status from the plan's project, by id: get_plan lists them. Built in: idea, planned, " +
+        'in_progress, blocked, done, dropped. New nodes are idea',
+    ),
   tags: z.array(z.string().min(1).max(40)).max(20).optional(),
   meta: z
     .record(z.string().min(1).max(64), z.string().max(500))
@@ -347,14 +365,25 @@ export const deletePlanShape = {
 export const listFoldersShape = { workspace: workspaceArg, projectSlug: projectArg };
 
 export const createFolderShape = {
-  name: z.string().min(1).max(80).describe('What to call the drawer'),
+  name: z
+    .string()
+    .min(1)
+    .max(400)
+    .describe(
+      'What to call the drawer, or a path like Specs/Billing to make it inside another. ' +
+        'Any folder on the way that is missing is made too',
+    ),
   workspace: workspaceArg,
   projectSlug: projectArg,
 };
 
 export const renameFolderShape = {
   folder: folderArg,
-  to: z.string().min(1).max(80).describe('The new name'),
+  to: z
+    .string()
+    .min(1)
+    .max(80)
+    .describe('The new name: a name, not a path, because renaming does not move a folder'),
   workspace: workspaceArg,
   projectSlug: projectArg,
 };
@@ -364,7 +393,10 @@ export const deleteFolderShape = {
   confirmName: z
     .string()
     .min(1)
-    .describe("The folder's exact name. Required so a wrong name cannot take the wrong drawer"),
+    .describe(
+      "The folder's exact name, the last part of its path. Required so a wrong path cannot " +
+        'take the wrong drawer',
+    ),
   workspace: workspaceArg,
   projectSlug: projectArg,
 };
@@ -382,5 +414,8 @@ export const movePlanShape = {
   projectSlug: projectArg,
   folder: folderArg
     .nullish()
-    .describe('Which drawer to file it in. Pass null for the project top level'),
+    .describe(
+      'Which drawer to file it in, by path (Specs/Billing) or a name only one folder has. ' +
+        'Pass null for the project top level',
+    ),
 };

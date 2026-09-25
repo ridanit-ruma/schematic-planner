@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../common/prisma.service.js';
+import { isTrashed } from '../folders/folder-tree.js';
 import { atLeast, type Role } from './roles.js';
 
 export interface ProjectAccess {
@@ -95,14 +96,19 @@ export class AccessService {
       where: { id: folderId },
       select: {
         id: true,
+        parentId: true,
         deletedAt: true,
         project: { select: { id: true, workspaceId: true, deletedAt: true } },
       },
     });
     if (folder === null) throw new NotFoundException('Folder not found');
-    // A folder under a trashed project is in the trash with it, even though
-    // only the project carries the mark.
-    const trashed = folder.deletedAt !== null || folder.project.deletedAt !== null;
+    // A folder under a trashed project or a trashed folder is in the trash with
+    // it, even though only the container carries the mark.
+    const trashed =
+      folder.deletedAt !== null ||
+      folder.project.deletedAt !== null ||
+      (options.includeTrashed !== true &&
+        (await this.underTrashedFolder(folder.project.id, folder.id, folder.parentId)));
     if (trashed && options.includeTrashed !== true) throw new NotFoundException('Folder not found');
 
     const role = await this.requireWorkspace(userId, folder.project.workspaceId, required).catch(
@@ -130,7 +136,7 @@ export class AccessService {
       select: {
         id: true,
         deletedAt: true,
-        folder: { select: { deletedAt: true } },
+        folder: { select: { id: true, parentId: true, deletedAt: true } },
         project: { select: { id: true, workspaceId: true, deletedAt: true } },
       },
     });
@@ -140,7 +146,10 @@ export class AccessService {
     const trashed =
       plan.deletedAt !== null ||
       plan.folder?.deletedAt != null ||
-      plan.project.deletedAt !== null;
+      plan.project.deletedAt !== null ||
+      (options.includeTrashed !== true &&
+        plan.folder !== null &&
+        (await this.underTrashedFolder(plan.project.id, plan.folder.id, plan.folder.parentId)));
     if (trashed && options.includeTrashed !== true) throw new NotFoundException('Plan not found');
 
     const role = await this.requireWorkspace(userId, plan.project.workspaceId, required).catch(
@@ -155,5 +164,25 @@ export class AccessService {
       workspaceId: plan.project.workspaceId,
       role,
     };
+  }
+
+  /**
+   * Whether a folder's ancestors put it in the trash.
+   *
+   * Only asked when there are ancestors, so a plan at the top level or in a
+   * top-level folder — every plan filed before folders nested — costs no more
+   * than it did.
+   */
+  private async underTrashedFolder(
+    projectId: string,
+    folderId: string,
+    parentId: string | null,
+  ): Promise<boolean> {
+    if (parentId === null) return false;
+    const folders = await this.prisma.folder.findMany({
+      where: { projectId },
+      select: { id: true, parentId: true, deletedAt: true },
+    });
+    return isTrashed(folders, folderId);
   }
 }

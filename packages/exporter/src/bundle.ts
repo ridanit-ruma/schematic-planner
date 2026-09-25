@@ -1,4 +1,10 @@
-import { buildPlanGraph, type PlanDoc } from '@schematic/schema';
+import {
+  DEFAULT_STATUS,
+  DEFAULT_VOCABULARY,
+  buildPlanGraph,
+  type PlanDoc,
+  type Vocabulary,
+} from '@schematic/schema';
 
 import { toCanvas } from './canvas.js';
 import { linkText, oneLine } from './inline.js';
@@ -21,6 +27,11 @@ export interface ExportOptions {
   readonly canvas?: boolean;
   /** Emit `plan.json`, the machine-readable original. Default true. */
   readonly planJson?: boolean;
+  /**
+   * The project's vocabulary, for the colours `plan.canvas` gives each status.
+   * Front matter writes ids either way. Defaults to the built-in vocabulary.
+   */
+  readonly vocabulary?: Vocabulary;
 }
 
 /**
@@ -54,7 +65,8 @@ function tableOfContents(
       const path = fileOf.get(slug);
       if (node === undefined || path === undefined) continue;
 
-      const status = node.status === 'idea' ? '' : ` — \`${node.status}\``;
+      // A node nobody has given a status says nothing about one.
+      const status = node.status === DEFAULT_STATUS ? '' : ` — \`${node.status}\``;
       lines.push(`${'  '.repeat(depth)}- [${linkText(node.title)}](${path})${status}`);
       walk(childrenInOrder.get(slug) ?? [], depth + 1);
     }
@@ -120,7 +132,11 @@ export function exportPlan(doc: PlanDoc, options: ExportOptions = {}): ExportBun
   if (options.canvas !== false) {
     files.push({
       path: 'plan.canvas',
-      content: `${JSON.stringify(toCanvas(doc, graph, fileOf), null, 2)}\n`,
+      content: `${JSON.stringify(
+        toCanvas(doc, graph, fileOf, options.vocabulary ?? DEFAULT_VOCABULARY),
+        null,
+        2,
+      )}\n`,
     });
   }
 

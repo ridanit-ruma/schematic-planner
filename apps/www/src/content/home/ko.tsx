@@ -14,16 +14,17 @@ export const meta: PageMeta = {
     '글로 쓴 계획을 나와 AI 에이전트가 함께 편집하는 그래프로 바꾸고, Markdown 파일과 Obsidian Canvas로 내보냅니다. 오픈 소스이며 직접 호스팅할 수 있습니다.',
 };
 
-const AGENT_CALL = `create_plan({
-  title: "Billing rework",
-  nodes: [
-    { slug: "ledger-schema", title: "Ledger schema" },
-    { slug: "pricing-rules", title: "Pricing rules" },
-    { slug: "render-pdf",    title: "Render PDF" }
-  ],
-  edges: [
-    { from: "pricing-rules", to: "ledger-schema" },
-    { from: "render-pdf",    to: "pricing-rules" }
+const AGENT_CALL = `create_plan({ title: "Billing rework" })
+
+apply_ops({
+  planId: "…",
+  ops: [
+    { op: "upsert_node",
+      node: { slug: "pricing-rules", title: "Pricing rules" } },
+    { op: "upsert_node",
+      node: { slug: "render-pdf", title: "Render PDF" } },
+    { op: "upsert_edge",
+      edge: { from: "pricing-rules", to: "render-pdf" } }
   ]
 })`;
 
@@ -117,8 +118,8 @@ export default function Home() {
           <div>
             <h2 className="text-xl font-medium tracking-[-0.02em] text-ink">에이전트가 보는 것</h2>
             <p className="mt-3 max-w-[52ch] text-base leading-[1.65] text-ink-muted">
-              URL 하나와 키 하나로 도구 열한 개를 쓸 수 있습니다. 설치할 것도, 서버와 버전을 맞춰 둘
-              것도 없습니다. 플랜 전체가 호출 한 번으로 들어오고, 그 뒤의 모든 변경은 여러 변경을
+              URL 하나와 키 하나로 도구 스물한 개를 쓸 수 있습니다. 설치할 것도, 서버와 버전을 맞춰
+              둘 것도 없습니다. 호출 한 번으로 플랜을 열고, 그 안에 그리는 모든 것은 여러 변경을
               묶어 원자적으로 처리하는 단 하나의 통로를 거칩니다. 그래서 노드 마흔 개가 하나씩
               느릿느릿 기어 나오는 대신 캔버스에 한꺼번에 나타납니다.
             </p>

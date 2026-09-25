@@ -10,104 +10,16 @@ export const workspaces: Messages['workspaces'] = {
     VIEWER: '查看者',
   },
   list: {
-    name: '名称',
-    holds: '内容',
-    updated: '更新时间',
     actions: '操作',
-    settings: '设置',
-    moveToFolder: '移到文件夹…',
     moveToTrash: '移到回收站',
-    nodeCount: (n: number) => `${n} 个节点`,
-    planCount: (n: number) => `${n} 个计划`,
     confirmTrash: (name: string) => `将“${name}”移到回收站？`,
-    planTrashBody: '它将不再出现在任何列表中。你可以从回收站恢复它。',
-    folderTrashBody: '其中的计划会一起移走，恢复时也会一起回来。',
-    renameFolder: '重命名文件夹',
-  },
-  newPlan: {
-    title: '新建计划',
-    titleLabel: '标题',
-    titlePlaceholder: '账本迁移',
-    descriptionLabel: '描述',
-    descriptionHint: '这个计划画的是什么。一行即可，会显示在列表中。',
-    descriptionPlaceholder: '发票如何从账本生成 PDF。',
-    submit: '创建计划',
-    createFirst: '创建第一个计划',
   },
   projects: {
-    title: '项目',
-    description: (projects: number, workspace: string) =>
-      projects === 0 ? `${workspace} 中还没有项目。` : `${workspace} 中有 ${projects} 个项目。`,
-    newProject: '新建项目',
-    empty: {
-      title: '还没有项目',
-      body: '一个项目汇集你正在构建的某样东西的所有计划。大多数工作区从一个项目开始。',
-      action: '创建第一个项目',
-    },
-    project: '项目',
-    plans: '计划',
     trashBody: '其中的计划会一起移走。你可以从回收站恢复整个项目。',
-    create: {
-      title: '新建项目',
-      nameLabel: '名称',
-      nameHint: '地址将根据名称生成，之后不会改变。',
-      namePlaceholder: '计费系统重构',
-      descriptionLabel: '描述',
-      descriptionHint: '这个项目是做什么的。一行即可，会显示在列表中。',
-      descriptionPlaceholder: '把计费功能从单体应用中拆出来。',
-      submit: '创建项目',
-    },
-  },
-  plans: {
-    title: '计划',
-    description: (folders: number, plans: number) =>
-      folders === 0
-        ? plans === 0
-          ? '此项目中还没有画任何计划。'
-          : `此项目中有 ${plans} 个计划。`
-        : plans === 0
-          ? `此项目中有 ${folders} 个文件夹，还没有画任何计划。`
-          : `此项目中有 ${folders} 个文件夹、${plans} 个计划。`,
-    newFolder: '新建文件夹',
-    empty: {
-      title: '还没有计划',
-      body: '在这里画一个，或者让 AI 智能体连接到这个工作区，替你创建第一个计划。',
-    },
-    createFolder: {
-      title: '新建文件夹',
-      nameLabel: '名称',
-      nameHint: '用于在项目内归类计划。文件夹不能嵌套。',
-      namePlaceholder: '架构',
-      submit: '创建文件夹',
-    },
-  },
-  folder: {
-    title: '文件夹',
-    missing: {
-      title: '找不到此文件夹',
-      body: '它可能已被删除，或者属于其他项目。',
-      back: (project: string) => `返回 ${project}`,
-    },
-    description: (plans: number) =>
-      plans === 0 ? '此文件夹中还没有计划。' : `此文件夹中有 ${plans} 个计划。`,
-    moveFolderToTrash: '将文件夹移到回收站',
-    empty: {
-      title: '此文件夹是空的',
-      body: '在这里画一个计划，或者从项目中移入一个。',
-    },
-  },
-  moveToFolder: {
-    title: (plan: string) => `移动“${plan}”`,
-    description: '要将它归入此项目的哪个文件夹。',
-    folder: '文件夹',
-    topLevel: '顶层',
-    topLevelHint: '不在任何文件夹中',
-    submit: '移动',
   },
   projectSettings: {
     title: '项目设置',
     description: '这个项目的名称，以及如何处置它。',
-    openPlans: '打开计划列表',
     name: {
       title: '名称',
       body: '地址保持不变，这样即使改了名，别人保存的链接也依然有效。',

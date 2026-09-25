@@ -5,6 +5,8 @@ export const canvas: Messages['canvas'] = {
   canvas: {
     menu: {
       addNode: '여기에 노드 추가',
+      tidyUp: '간격 고르게 맞추기',
+      duplicate: '복제',
       noteOnNode: '이 노드에 댓글 달기',
       noteHere: '여기에 댓글 달기',
       groupNodes: (count: number) => `노드 ${count}개를 그룹으로 묶기`,
@@ -30,29 +32,19 @@ export const canvas: Messages['canvas'] = {
       snappingTo: (step: number) => `${step}px 격자에 맞추는 중`,
       notSnapping: '격자에 맞추지 않음',
     },
+    card: {
+      untitled: '제목 없음',
+      title: '노드 제목',
+    },
+    spacing: {
+      handle: '끌어서 간격 조정',
+    },
+    paste: {
+      notLoaded:
+        '이 프로젝트의 상태와 종류를 아직 불러오지 못해 붙여넣지 않았습니다. 잠시 후 다시 시도해 주세요.',
+      wordsRefused: '복사한 상태와 종류를 이 프로젝트에 추가하지 못해 붙여넣지 않았습니다.',
+    },
     readingFrom: (by: string, from: string) =>
       `${josa(by, '이')} ${quoted(from)}부터 읽고 있습니다`,
-  },
-  sidebar: {
-    showPlans: '플랜 목록 보기',
-    hidePlans: '플랜 목록 숨기기',
-    leaveFor: (workspace: string) => `${josa(workspace, '으로')} 돌아가기`,
-    unavailable: '플랜을 불러올 수 없음',
-    nothingToAddTo: '추가할 위치가 없습니다',
-    newFolder: '새 폴더',
-    newPlan: '새 플랜',
-    newPlanHere: '여기에 새 플랜',
-    renameFolder: '폴더 이름 변경',
-    settings: '설정',
-    moveToTrash: '휴지통으로 이동',
-    share: '공유',
-    export: '내보내기',
-    planSettings: '플랜 설정',
-    noPlans: '아직 플랜이 없습니다',
-    emptyFolder: '비어 있음',
-    untitledPlan: '제목 없는 플랜',
-    name: '이름',
-    planPlaceholder: '결제 흐름',
-    folderPlaceholder: '아키텍처',
   },
 };

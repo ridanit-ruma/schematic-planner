@@ -43,7 +43,6 @@ export const plan: Messages['plan'] = {
     tags: '标签',
     tagsHint: '用逗号分隔',
     detail: '详情',
-    detailHint: '支持 Markdown，在画布上按 Markdown 渲染',
     nothingYet: '暂无内容',
     deleteNode: '删除节点',
     deleteNodeNote: '删除此节点及其上的所有连接。',
@@ -155,10 +154,6 @@ export const plan: Messages['plan'] = {
   },
   page: {
     untitled: '未命名计划',
-    addNode: '添加节点',
-    title: '标题',
-    titleHint: '标识符将根据标题生成，之后可以修改。',
-    titlePlaceholder: '身份验证',
     shareTitle: '分享此计划',
     shareDescription: '任何拥有此链接的人都可以查看计划并下载导出文件，但无法修改。',
     stopSharing: '停止分享',

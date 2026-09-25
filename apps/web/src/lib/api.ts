@@ -81,22 +81,43 @@ export interface PlanSummary {
 export interface FolderSummary {
   id: string;
   name: string;
+  /** The folder it sits in, or null at the project's top level. */
+  parentId: string | null;
+  /** Names from the project's top level down to this folder, its own last. */
+  path: string[];
+  /** Plans filed directly in it, not in the folders below it. */
   planCount: number;
   updatedAt: string;
 }
 
-/** The workspace tree around one plan, used by the switcher on the canvas. */
-export interface PlanNavigation {
-  workspace: { id: string; slug: string; name: string };
+/** A folder as `folders.create` and `folders.update` answer it. */
+export interface FolderRecord {
+  id: string;
+  name: string;
   projectId: string;
+  parentId: string | null;
+}
+
+/**
+ * A whole workspace as the explorer draws it: projects, their folders (nested
+ * through `parentId`) and the plans filed in them, with nothing from the trash.
+ */
+export interface WorkspaceNavigation {
+  workspace: { id: string; slug: string; name: string; role: Role };
   projects: {
     id: string;
     slug: string;
     name: string;
-    folders: { id: string; name: string }[];
+    /** `parentId` is null for a folder at the project's own top level. */
+    folders: { id: string; name: string; parentId: string | null }[];
     /** `folderId` is null for a plan at the project's own top level. */
     plans: { id: string; title: string; updatedAt: string; folderId: string | null }[];
   }[];
+}
+
+/** The workspace tree around one plan, with the project that plan is in. */
+export interface PlanNavigation extends WorkspaceNavigation {
+  projectId: string;
 }
 
 /** One line on the screen the application opens on. */
@@ -118,6 +139,8 @@ export interface TrashItem {
   id: string;
   name: string;
   where: string;
+  /** For a plan or a folder: its project and the folders above it, top down. */
+  location: { project: string; folders: string[] } | null;
   deletedAt: string;
   by: { name: string; avatarUrl: string | null } | null;
   /** Still answering a public share link, which this is the only place to stop. */
@@ -177,44 +200,154 @@ export class ApiError extends Error {
  */
 let accessToken: string | null = null;
 let refreshing: Promise<boolean> | null = null;
+let renewal: ReturnType<typeof setTimeout> | undefined;
+let sessionLost: () => void = () => undefined;
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
+  scheduleRenewal();
 }
 
 export function currentAccessToken(): string | null {
   return accessToken;
 }
 
+/**
+ * Called when the server has said the session is over — the refresh cookie is
+ * missing, expired or revoked — so the screen can stop claiming to be signed
+ * in. Carrying on instead sent every later request with no token at all, and
+ * the person met "Missing access token" and a canvas that said the plan was
+ * not there.
+ */
+export function onSessionLost(handler: () => void): void {
+  sessionLost = handler;
+}
+
+/** Renew this long before the access token runs out, at most. */
+const RENEW_AHEAD_MS = 60_000;
+/** After a renewal the server could not answer, try again this much later: well inside
+ * the grace period in which the server still takes a cookie whose answer was lost. */
+const RETRY_RENEWAL_MS = 10_000;
+
+/** Never renew sooner than this after a token arrives, whatever it claims. */
+const MIN_RENEWAL_MS = 5_000;
+
+/**
+ * How long after an access token arrives it should be renewed, or null when it
+ * cannot be read: a minute before it expires, or halfway through its life when
+ * it lives less than two minutes.
+ *
+ * Measured from its lifetime (`exp - iat`, both the server's clock) rather than
+ * from `exp` against this machine's clock, so a clock that is wrong cannot make
+ * every token look expired on arrival and renew it in a loop.
+ */
+export function renewalDelay(token: string): number | null {
+  const payload = token.split('.')[1];
+  if (payload === undefined) return null;
+  try {
+    const claims = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as {
+      exp?: unknown;
+      iat?: unknown;
+    };
+    if (typeof claims.exp !== 'number' || typeof claims.iat !== 'number') return null;
+    const lifetime = (claims.exp - claims.iat) * 1000;
+    return Math.max(MIN_RENEWAL_MS, lifetime - Math.min(RENEW_AHEAD_MS, lifetime / 2));
+  } catch {
+    return null;
+  }
+}
+
+/** When the token in hand is due for renewal, by this machine's clock. */
+let renewAt = Infinity;
+
+/**
+ * Renewing ahead of expiry rather than after a 401 means a tab left open does
+ * not come back holding a dead token, and the collaboration socket, which is
+ * only authenticated when it connects, always has a live one to reconnect with.
+ */
+function scheduleRenewal(): void {
+  clearTimeout(renewal);
+  renewal = undefined;
+  renewAt = Infinity;
+  if (accessToken === null) return;
+  const delay = renewalDelay(accessToken);
+  if (delay === null) return;
+  renewAt = Date.now() + delay;
+  renewal = setTimeout(() => void refreshAccessToken(), delay);
+}
+
+/*
+ * A hidden tab's timers are throttled and a sleeping machine's do not run at
+ * all, so coming back is also a moment to check.
+ */
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || accessToken === null) return;
+    if (Date.now() >= renewAt) void refreshAccessToken();
+  });
+}
+
+type RefreshOutcome = 'renewed' | 'lost' | 'unavailable';
+
+async function exchangeCookie(): Promise<RefreshOutcome> {
+  for (let attempt = 0; ; attempt += 1) {
+    let response: Response | null = null;
+    try {
+      response = await fetch(`${config.apiUrl}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // The request may or may not have reached the server. If it did, the
+      // server rotated the cookie and the answer is gone with the connection;
+      // its grace period takes the old cookie once more, so asking again is safe.
+    }
+    if (response?.ok === true) {
+      const body = (await response.json()) as { accessToken: string };
+      setAccessToken(body.accessToken);
+      return 'renewed';
+    }
+    // Only the API's own answer that there is no session ends it. Being turned
+    // away for asking too often, a server that is down, or something in front
+    // of it answering instead is not the same as not being signed in, and
+    // treating them alike signed people out of perfectly good sessions.
+    if (response?.status === 401) return 'lost';
+    if (attempt >= 1) return 'unavailable';
+    const after = Number(response?.headers.get('retry-after'));
+    await new Promise((resolve) =>
+      setTimeout(
+        resolve,
+        Math.min(Number.isFinite(after) && after > 0 ? after * 1000 : 1000, 5000),
+      ),
+    );
+  }
+}
+
+/**
+ * One refresh at a time, in this tab and across every tab of this origin.
+ *
+ * Rotation spends the cookie: two requests presenting the same one race, and
+ * the one that loses is told the session is over. Within a tab the in-flight
+ * promise is shared; across tabs a Web Lock queues them, so the second tab
+ * presents the cookie the first one was just given.
+ */
 async function refreshAccessToken(): Promise<boolean> {
-  // Single-flight: a page that fires several requests at once must not send
-  // several refreshes, because rotation would invalidate its own new token.
   refreshing ??= (async () => {
     try {
-      for (let attempt = 0; ; attempt += 1) {
-        const response = await fetch(`${config.apiUrl}/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-        });
-        if (response.ok) {
-          const body = (await response.json()) as { accessToken: string };
-          accessToken = body.accessToken;
-          return true;
-        }
-
-        // Being turned away for asking too often is not the same as not being
-        // signed in. Treating the two alike put people on the sign-in screen
-        // holding a session that was still perfectly good.
-        const busy = response.status === 429 || response.status >= 500;
-        if (!busy || attempt >= 1) {
-          if (!busy) accessToken = null;
-          return false;
-        }
-        const after = Number(response.headers.get('retry-after'));
-        await new Promise((resolve) =>
-          setTimeout(resolve, Math.min(Number.isFinite(after) ? after * 1000 : 1000, 5000)),
-        );
+      const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
+      const outcome =
+        locks === undefined
+          ? await exchangeCookie()
+          : await locks.request('schematic-refresh', exchangeCookie);
+      if (outcome === 'lost') {
+        setAccessToken(null);
+        sessionLost();
+      } else if (outcome === 'unavailable' && accessToken !== null) {
+        // Nothing was decided, so the session is still there to renew.
+        clearTimeout(renewal);
+        renewal = setTimeout(() => void refreshAccessToken(), RETRY_RENEWAL_MS);
       }
+      return outcome === 'renewed';
     } finally {
       refreshing = null;
     }
@@ -326,6 +459,8 @@ export const workspaces = {
   previewInvite: (token: string) => api<InvitePreview>(`/invites/${token}`),
   declineInvite: (token: string) =>
     api<{ ok: true }>(`/invites/${token}/decline`, { method: 'POST' }),
+  /** Every project, folder and plan in the workspace, for the explorer. */
+  navigation: (id: string) => api<WorkspaceNavigation>(`/workspaces/${id}/navigation`),
 };
 
 export const projects = {
@@ -389,18 +524,29 @@ export const account = {
     }),
 };
 
-/** Drawers inside a project. They do not nest: project > folder > plan. */
+/**
+ * Drawers inside a project, which may hold drawers of their own. Names are
+ * unique among siblings: a clash answers 409, a move into itself 400.
+ */
 export const folders = {
+  /** Every folder outside the trash, in tree order. */
   list: (projectId: string) => api<FolderSummary[]>(`/projects/${projectId}/folders`),
-  create: (projectId: string, name: string) =>
-    api<{ id: string; name: string; projectId: string }>(`/projects/${projectId}/folders`, {
+  /** `parentId` null, or left out, makes it at the project's top level. */
+  create: (projectId: string, name: string, parentId: string | null = null) =>
+    api<FolderRecord>(`/projects/${projectId}/folders`, {
       method: 'POST',
-      ...json({ name }),
+      ...json({ name, parentId }),
     }),
   rename: (id: string, name: string) =>
-    api<{ id: string; name: string; projectId: string }>(`/folders/${id}`, {
+    api<FolderRecord>(`/folders/${id}`, {
       method: 'PATCH',
       ...json({ name }),
+    }),
+  /** Into another folder of the same project, or to its top level with null. */
+  move: (id: string, parentId: string | null) =>
+    api<FolderRecord>(`/folders/${id}`, {
+      method: 'PATCH',
+      ...json({ parentId }),
     }),
   remove: (id: string) => api<{ ok: true }>(`/folders/${id}`, { method: 'DELETE' }),
 };

@@ -1,7 +1,9 @@
 import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } from '@xyflow/react';
 import {
   DEFAULT_GROUP_SIZE,
+  DEFAULT_VOCABULARY,
   buildPlanGraph,
+  categoryOf,
   cardBounds,
   cardHeight,
   containmentDepth,
@@ -9,6 +11,7 @@ import {
   isGroup,
   type Box,
   type Rect,
+  type Vocabulary,
 } from '@schematic/schema';
 import type { PlanComment, PlanDoc, PlanEdge, PlanNode, Position } from '@schematic/schema';
 import {
@@ -19,6 +22,7 @@ import {
   edgesMap,
   nodesMap,
   readPlanDoc,
+  toggleNodeTask,
   type Presence,
   type Reading,
 } from '@schematic/ydoc';
@@ -150,6 +154,12 @@ export interface PlanState {
    */
   editable: boolean;
   setEditable: (editable: boolean) => void;
+  /**
+   * The project's statuses, kinds and tags, which every card is drawn with.
+   * Here rather than passed down because React Flow hands a node its data and
+   * nothing else. The defaults until the project's own arrive.
+   */
+  vocabulary: Vocabulary;
   /** The bends a line has been dragged through, on the grid if one is on. */
   routeEdge: (
     id: string,
@@ -167,6 +177,8 @@ export interface PlanState {
   /** Bounds a person has dragged a group's corner to. */
   resizeNode: (slug: string, size: { width: number; height: number }) => void;
   sizeNode: (slug: string, size: { width: number; height: number }) => void;
+  /** Ticks or unticks a to-do in a node's body, counted as the card draws them. */
+  toggleTask: (slug: string, index: number) => void;
   selectEdge: (id: string | null) => void;
   selectComment: (id: string | null) => void;
 }
@@ -220,14 +232,23 @@ function toFlowNode(
  * colour would be the only mark on the canvas that means whatever its author
  * privately decided.
  */
-function toFlowEdge(edge: PlanEdge, from: PlanNode | undefined): PlanFlowEdge {
+function toFlowEdge(
+  edge: PlanEdge,
+  from: PlanNode | undefined,
+  vocabulary: Vocabulary,
+): PlanFlowEdge {
   // Dependencies point from what is needed to what needs it, so the arrows read
   // in build order — the same direction the export numbers files in. A flow is
   // drawn the way it actually moves, which is the whole of what it says.
   const [source, target] = edge.kind === 'depends_on' ? [edge.to, edge.from] : [edge.from, edge.to];
   // The writing on the line is drawn by PlanEdgeLine, which knows where layout
   // put it. Handing React Flow a `label` as well would draw a second one.
-  const stopped = edge.kind === 'flows_to' && from?.status === 'blocked';
+  // What a status means, not what it is called: a project's own "Waiting on
+  // legal" stops a flow the way the built-in Blocked does.
+  const stopped =
+    edge.kind === 'flows_to' &&
+    from !== undefined &&
+    categoryOf(vocabulary, from.status) === 'blocked';
   return { id: edge.id, source, target, type: 'plan', data: { edge, stopped } };
 }
 
@@ -250,6 +271,7 @@ function sizeOfCard(state: PlanState, slug: string, width: number): Box | null {
 export function createPlanStore(doc: Y.Doc) {
   const store = createStore<PlanState>((set, get) => ({
     editable: false,
+    vocabulary: DEFAULT_VOCABULARY,
     nodes: [],
     edges: [],
     title: '',
@@ -371,6 +393,7 @@ export function createPlanStore(doc: Y.Doc) {
       set({ sizing: { ...get().sizing, [slug]: stored } });
       refresh();
     },
+    toggleTask: (slug, index) => toggleNodeTask(doc, slug, index, ORIGIN_LOCAL),
     resizeNode: (slug, size) => {
       // A card is dragged by one edge and only its width is a person's to
       // choose; the height that width comes to is written beside it so that
@@ -616,7 +639,7 @@ export function createPlanStore(doc: Y.Doc) {
       nodes: nextNodes,
       edges: plan.edges
         .filter((edge) => !(edge.kind === 'contains' && drawnAsBoundary.has(edge.from)))
-        .map((edge) => toFlowEdge(edge, byslug.get(edge.from))),
+        .map((edge) => toFlowEdge(edge, byslug.get(edge.from), store.getState().vocabulary)),
       comments: plan.comments,
       title: plan.title,
       description: plan.description,
@@ -677,6 +700,12 @@ export function createPlanStore(doc: Y.Doc) {
     store,
     doc,
     refresh,
+    /** The project's words arrived or changed: the cards redraw, and the lines out of what has stopped. */
+    setVocabulary: (vocabulary: Vocabulary): void => {
+      if (store.getState().vocabulary === vocabulary) return;
+      store.setState({ vocabulary });
+      refresh(new Set());
+    },
     destroy: () => {
       clearTimeout(settle);
       nodes.unobserveDeep(onNodes);

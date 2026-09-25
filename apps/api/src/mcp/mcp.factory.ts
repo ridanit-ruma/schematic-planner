@@ -16,6 +16,7 @@ import { FoldersService } from '../folders/folders.service.js';
 import { APP_CONFIG, type AppConfig } from '../config/env.js';
 import { PlansService } from '../plans/plans.service.js';
 import { ProjectsService } from '../projects/projects.service.js';
+import { VocabularyService } from '../projects/vocabulary.service.js';
 import { WorkspacesService } from '../workspaces/workspaces.service.js';
 import type { McpIdentity } from '../auth/api-key.service.js';
 import { agentAuthor, signComments } from './authorship.js';
@@ -28,8 +29,10 @@ import {
   renderPlan,
   renderPlanList,
   renderTrace,
+  renderVocabulary,
   type Found,
 } from './render.js';
+import { checkVocabulary } from './vocabulary-check.js';
 import {
   applyOpsShape,
   createFolderShape,
@@ -52,7 +55,13 @@ import {
   renameFolderShape,
   searchShape,
 } from './mcp.schemas.js';
-import { chooseFolder, reachable, resolveWorkspace } from './workspace-scope.js';
+import {
+  chooseFolder,
+  folderPaths,
+  pathParts,
+  reachable,
+  resolveWorkspace,
+} from './workspace-scope.js';
 
 const text = (value: string) => ({ content: [{ type: 'text' as const, text: value }] });
 const failure = (value: string) => ({ ...text(value), isError: true });
@@ -101,6 +110,7 @@ export class McpFactory {
     private readonly workspaces: WorkspacesService,
     private readonly collab: CollabService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly vocabulary: VocabularyService,
   ) {}
 
   /**
@@ -201,7 +211,11 @@ export class McpFactory {
             listing.push({
               workspace: target.slug,
               project: project.slug,
-              folders: drawers.map((drawer) => ({ id: drawer.id, name: drawer.name })),
+              folders: drawers.map((drawer) => ({
+                id: drawer.id,
+                name: drawer.name,
+                parentId: drawer.parentId,
+              })),
               plans: plans.map((plan) => ({
                 id: plan.id,
                 title: plan.title,
@@ -310,13 +324,15 @@ export class McpFactory {
       },
       async ({ planId, view }) => {
         try {
-          const [doc, revision, provenance] = await Promise.all([
+          const [doc, revision, provenance, vocabulary] = await Promise.all([
             this.plans.read(identity.userId, planId),
             this.plans.revision(planId),
             this.plans.provenance(identity.userId, planId),
+            this.vocabulary.ofPlan(planId),
           ]);
           return text(
-            `${renderPlan(doc, view)}\n\n${renderProvenance(provenance)}Revision: ${revision}`,
+            `${renderPlan(doc, view, vocabulary)}\n\n${renderVocabulary(vocabulary)}\n\n` +
+              `${renderProvenance(provenance)}Revision: ${revision}`,
           );
         } catch (error) {
           return failure(reason(error));
@@ -359,7 +375,9 @@ export class McpFactory {
                 this.plans.list(identity.userId, project.id),
                 this.folders.list(identity.userId, project.id),
               ]);
-              const drawerName = new Map(drawers.map((drawer) => [drawer.id, drawer.name]));
+              const drawerName = new Map(
+                folderPaths(drawers).map((drawer) => [drawer.id, drawer.path]),
+              );
 
               for (const summary of plans) {
                 // Every plan is decoded to look inside it, so the work is
@@ -418,8 +436,11 @@ export class McpFactory {
       },
       async ({ planId, limit }) => {
         try {
-          const doc = await this.plans.read(identity.userId, planId);
-          return text(renderNext(doc, limit));
+          const [doc, vocabulary] = await Promise.all([
+            this.plans.read(identity.userId, planId),
+            this.vocabulary.ofPlan(planId),
+          ]);
+          return text(renderNext(doc, limit, vocabulary));
         } catch (error) {
           return failure(reason(error));
         }
@@ -536,10 +557,12 @@ export class McpFactory {
           if (sourceSpecIds !== undefined && sourceSpecIds.length > 0) {
             await this.plans.setSources(identity.userId, doc.id, sourceSpecIds);
           }
+          const vocabulary = await this.vocabulary.ofProject(projectId);
           return text(
             `Created plan ${doc.id}, empty.\n` +
               `Open it at ${this.planUrl(doc.id)}\n` +
-              `Draw into it with apply_ops and this id, a few nodes at a time.`,
+              `Draw into it with apply_ops and this id, a few nodes at a time.\n\n` +
+              renderVocabulary(vocabulary),
           );
         } catch (error) {
           return failure(reason(error));
@@ -575,8 +598,8 @@ export class McpFactory {
       {
         title: 'List folders',
         description:
-          'The drawers inside a project, and how many plans are in each. A folder does not ' +
-          'nest, and a plan does not have to be in one.',
+          'The drawers inside a project, by path (Specs/Billing), and how many plans are filed ' +
+          'directly in each. Folders nest, and a plan does not have to be in one.',
         inputSchema: listFoldersShape,
       },
       async ({ workspace, projectSlug }) => {
@@ -587,7 +610,9 @@ export class McpFactory {
             return text('No folders in this project. Everything sits at its top level.');
           }
           return text(
-            drawers.map((drawer) => `${drawer.name} — ${drawer.planCount} plans`).join('\n'),
+            drawers
+              .map((drawer) => `${drawer.path.join('/')} — ${drawer.planCount} plans`)
+              .join('\n'),
           );
         } catch (error) {
           return failure(reason(error));
@@ -600,23 +625,29 @@ export class McpFactory {
       {
         title: 'Create a folder',
         description:
-          'A drawer inside a project, for grouping plans that belong together. Folders do not ' +
-          'nest. Asking for one that is already there gives back the one that is there rather ' +
-          'than making a second of the same name.',
+          'A drawer inside a project, for grouping plans that belong together. Folders nest: ' +
+          'give a path like Specs/Billing to make one inside another, and any folder on the way ' +
+          'that is missing is made too. Asking for one that is already there gives back the ' +
+          'one that is there rather than making a second of the same name.',
         inputSchema: createFolderShape,
       },
       async ({ name, workspace, projectSlug }) => {
         try {
           const { projectId } = await this.resolveProject(identity, workspace, projectSlug);
-          const drawers = await this.folders.list(identity.userId, projectId);
-          const already = drawers.find(
-            (drawer) => drawer.name.trim().toLowerCase() === name.trim().toLowerCase(),
-          );
-          if (already !== undefined) {
-            return text(`"${already.name}" is already there, holding ${already.planCount} plans.`);
+          const parts = pathParts(name);
+          if (parts.length === 0) return failure('Name the folder to make.');
+          const long = parts.find((part) => part.length > 80);
+          if (long !== undefined) {
+            return failure(`"${long}" is too long for a folder name; keep it to 80 characters.`);
           }
-          const made = await this.folders.create(identity.userId, projectId, { name });
-          return text(`Created folder "${made.name}". File plans in it with move_plan.`);
+
+          const { made } = await this.folders.ensurePath(identity.userId, projectId, parts);
+          const path = parts.join('/');
+          if (made.length === 0) return text(`"${path}" is already there.`);
+          return text(
+            `Created ${made.map((one) => `"${one}"`).join(', then ')}, so "${path}" is there now. ` +
+              'File plans in it with move_plan.',
+          );
         } catch (error) {
           return failure(reason(error));
         }
@@ -627,15 +658,22 @@ export class McpFactory {
       'rename_folder',
       {
         title: 'Rename a folder',
-        description: 'Changes what a drawer is called. Nothing inside it moves.',
+        description:
+          'Changes what a drawer is called. Nothing inside it moves, and it stays where it is.',
         inputSchema: renameFolderShape,
       },
       async ({ folder, to, workspace, projectSlug }) => {
         try {
           const { projectId } = await this.resolveProject(identity, workspace, projectSlug);
+          if (to.includes('/')) {
+            return failure(
+              'A folder name cannot hold a slash: it is how paths are written. Renaming does ' +
+                'not move a folder.',
+            );
+          }
           const chosen = chooseFolder(await this.folders.list(identity.userId, projectId), folder);
           const renamed = await this.folders.update(identity.userId, chosen.id, { name: to });
-          return text(`"${chosen.name}" is now "${renamed.name}".`);
+          return text(`"${chosen.path}" is now "${renamed.name}".`);
         } catch (error) {
           return failure(reason(error));
         }
@@ -647,9 +685,9 @@ export class McpFactory {
       {
         title: 'Delete a folder',
         description:
-          'Moves a folder to the workspace trash, and the plans filed in it go with it — a ' +
-          'person can restore the folder and get them back. The exact name must be given as ' +
-          'well, so a wrong name cannot take the wrong drawer.',
+          'Moves a folder to the workspace trash, and the folders and plans inside it go with ' +
+          'it — a person can restore the folder and get all of it back. The exact name must be ' +
+          'given as well, so a wrong path cannot take the wrong drawer.',
         inputSchema: deleteFolderShape,
         annotations: { destructiveHint: true },
       },
@@ -664,7 +702,7 @@ export class McpFactory {
           }
           await this.folders.remove(identity.userId, chosen.id);
           return text(
-            `Moved "${chosen.name}" to the trash, with the plans in it. ` +
+            `Moved "${chosen.path}" to the trash, with everything in it. ` +
               'A person can restore it from there.',
           );
         } catch (error) {
@@ -703,13 +741,13 @@ export class McpFactory {
               : chooseFolder(
                   await this.folders.list(identity.userId, destination.projectId),
                   folder,
-                ).id;
+                );
 
-          await this.plans.move(identity.userId, planId, destination.projectId, filed);
+          await this.plans.move(identity.userId, planId, destination.projectId, filed?.id ?? null);
 
           const crossed = destination.workspaceSlug !== where.workspace.slug;
           return text(
-            `Moved. It is now ${filed === null ? 'at the top level of' : `in "${folder}" in`} ` +
+            `Moved. It is now ${filed === null ? 'at the top level of' : `in "${filed.path}" in`} ` +
               `that project.${crossed ? ' Any share link it had has been dropped.' : ''}`,
           );
         } catch (error) {
@@ -777,17 +815,25 @@ export class McpFactory {
           // nothing an agent could put in an author field that is worth
           // trusting, and the server already knows whose key this is.
           const signed = signComments(planOpsSchema.parse(ops), agentAuthor(identity.name));
+          // Kinds and statuses are the project's words, so they are checked
+          // against the project before anything is written.
+          const [before, vocabulary] = await Promise.all([
+            this.plans.read(identity.userId, planId),
+            this.vocabulary.ofPlan(planId),
+          ]);
+          const checked = checkVocabulary(signed, before, vocabulary);
+          if (!checked.ok) return failure(checked.message);
           const doc = await this.plans.applyOps(
             identity.userId,
             planId,
-            signed,
+            checked.ops,
             { userId: identity.userId, apiKeyId: identity.keyId },
             expectedRevision,
           );
           const revision = await this.plans.revision(planId);
-          const doubled = doubledFlows(doc, signed);
+          const doubled = doubledFlows(doc, checked.ops);
           return text(
-            `Applied ${ops.length} operation(s).\n\n${doubled}${renderPlan(doc, 'outline')}` +
+            `Applied ${ops.length} operation(s).\n\n${doubled}${renderPlan(doc, 'outline', vocabulary)}` +
               `\n\nRevision: ${revision}`,
           );
         } catch (error) {

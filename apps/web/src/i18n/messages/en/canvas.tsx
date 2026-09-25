@@ -2,6 +2,8 @@ export const canvas = {
   canvas: {
     menu: {
       addNode: 'Add node here',
+      tidyUp: 'Tidy up',
+      duplicate: 'Duplicate',
       noteOnNode: 'Leave a note on this node',
       noteHere: 'Leave a note here',
       groupNodes: (count: number) => (count === 1 ? 'Group 1 node' : `Group ${count} nodes`),
@@ -29,28 +31,19 @@ export const canvas = {
       snappingTo: (step: number) => `Snapping to a ${step}px grid`,
       notSnapping: 'Not snapping to the grid',
     },
+    card: {
+      untitled: 'Untitled',
+      title: 'Node title',
+    },
+    spacing: {
+      handle: 'Drag to change the spacing',
+    },
+    paste: {
+      notLoaded:
+        "This project's statuses and kinds have not loaded yet, so nothing was pasted. Try again in a moment.",
+      wordsRefused:
+        'The copied statuses and kinds could not be added to this project, so nothing was pasted.',
+    },
     readingFrom: (by: string, from: string) => `${by} is reading from ${from}`,
-  },
-  sidebar: {
-    showPlans: 'Show plans',
-    hidePlans: 'Hide plans',
-    leaveFor: (workspace: string) => `Leave for ${workspace}`,
-    unavailable: 'Plans unavailable',
-    nothingToAddTo: 'Nothing to add to',
-    newFolder: 'New folder',
-    newPlan: 'New plan',
-    newPlanHere: 'New plan here',
-    renameFolder: 'Rename folder',
-    settings: 'Settings',
-    moveToTrash: 'Move to trash',
-    share: 'Share',
-    export: 'Export',
-    planSettings: 'Plan settings',
-    noPlans: 'No plans yet',
-    emptyFolder: 'Empty',
-    untitledPlan: 'Untitled plan',
-    name: 'Name',
-    planPlaceholder: 'Checkout flow',
-    folderPlaceholder: 'Architecture',
   },
 };
