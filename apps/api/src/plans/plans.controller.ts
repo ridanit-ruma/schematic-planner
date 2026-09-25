@@ -90,6 +90,12 @@ export class PlansController {
     return this.plans.navigation(user.id, id);
   }
 
+  /** The whole tree of a workspace, for the explorer, with no plan open. */
+  @Get('workspaces/:workspaceId/navigation')
+  workspaceNavigation(@CurrentUser() user: AuthUser, @Param('workspaceId') workspaceId: string) {
+    return this.plans.workspaceNavigation(user.id, workspaceId);
+  }
+
   /** Who changed what, newest first. */
   @Get('plans/:id/changes')
   changes(@CurrentUser() user: AuthUser, @Param('id') id: string, @Query('limit') limit?: string) {

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { customAlphabet } from 'nanoid';
 
 import { PrismaService } from '../common/prisma.service.js';
+import { hiddenFolderIds, outsideFolders } from '../folders/folder-tree.js';
 import { AccessService } from '../workspaces/access.service.js';
 import type { CreateProjectInput, UpdateProjectInput } from './projects.dto.js';
 
@@ -20,13 +21,14 @@ export class ProjectsService {
 
   async list(userId: string, workspaceId: string) {
     await this.access.requireWorkspace(userId, workspaceId, 'VIEWER');
+    const hidden = await hiddenFolderIds(this.prisma, { project: { workspaceId } });
     const projects = await this.prisma.project.findMany({
       where: { workspaceId, deletedAt: null },
       include: {
         _count: {
           select: {
             plans: {
-              where: { deletedAt: null, OR: [{ folderId: null }, { folder: { deletedAt: null } }] },
+              where: { deletedAt: null, ...outsideFolders(hidden) },
             },
           },
         },

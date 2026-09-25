@@ -68,8 +68,11 @@ const projectArg = z
 const folderArg = z
   .string()
   .min(1)
-  .max(80)
-  .describe('Folder name, as list_folders gives it. Folders do not nest');
+  .max(400)
+  .describe(
+    'Folder path from the project top level, like Specs/Billing, as list_folders gives it. ' +
+      'A bare name works when only one folder in the project has it',
+  );
 
 export const listProjectsShape = { workspace: workspaceArg };
 export const listPlansShape = { workspace: workspaceArg };
@@ -90,7 +93,10 @@ export const createPlanShape = {
   ),
   folder: folderArg
     .optional()
-    .describe('Which drawer of the project to file it in. Omitted, the top level'),
+    .describe(
+      'Which drawer of the project to file it in, by path (Specs/Billing) or a name only one ' +
+        'folder has. Omitted, the top level',
+    ),
   description: z.string().max(2000).default(''),
   sourceSpecIds: z
     .array(z.string().min(1))
@@ -347,14 +353,25 @@ export const deletePlanShape = {
 export const listFoldersShape = { workspace: workspaceArg, projectSlug: projectArg };
 
 export const createFolderShape = {
-  name: z.string().min(1).max(80).describe('What to call the drawer'),
+  name: z
+    .string()
+    .min(1)
+    .max(400)
+    .describe(
+      'What to call the drawer, or a path like Specs/Billing to make it inside another. ' +
+        'Any folder on the way that is missing is made too',
+    ),
   workspace: workspaceArg,
   projectSlug: projectArg,
 };
 
 export const renameFolderShape = {
   folder: folderArg,
-  to: z.string().min(1).max(80).describe('The new name'),
+  to: z
+    .string()
+    .min(1)
+    .max(80)
+    .describe('The new name: a name, not a path, because renaming does not move a folder'),
   workspace: workspaceArg,
   projectSlug: projectArg,
 };
@@ -364,7 +381,10 @@ export const deleteFolderShape = {
   confirmName: z
     .string()
     .min(1)
-    .describe("The folder's exact name. Required so a wrong name cannot take the wrong drawer"),
+    .describe(
+      "The folder's exact name, the last part of its path. Required so a wrong path cannot " +
+        'take the wrong drawer',
+    ),
   workspace: workspaceArg,
   projectSlug: projectArg,
 };
@@ -382,5 +402,8 @@ export const movePlanShape = {
   projectSlug: projectArg,
   folder: folderArg
     .nullish()
-    .describe('Which drawer to file it in. Pass null for the project top level'),
+    .describe(
+      'Which drawer to file it in, by path (Specs/Billing) or a name only one folder has. ' +
+        'Pass null for the project top level',
+    ),
 };

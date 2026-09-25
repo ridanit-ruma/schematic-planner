@@ -321,7 +321,8 @@ export interface ListedProject {
  * Indented by where a plan is filed, because an agent that cannot see folders
  * cannot use them: it piles everything at the top level of a project and makes
  * a second folder of a name that already exists. An empty folder is listed for
- * the same reason.
+ * the same reason. A folder inside another is indented under it, its folders
+ * before its plans.
  */
 export function renderPlanList(
   projects: readonly ListedProject[],
@@ -338,11 +339,26 @@ export function renderPlanList(
       lines.push(`${indent}  id ${plan.id}`);
     };
 
-    for (const folder of entry.folders) {
-      lines.push(`  ${folder.name}`);
-      for (const plan of entry.plans.filter((held) => held.folderId === folder.id)) {
-        write(plan, '    ');
+    // A folder whose parent is not in the listing is drawn at the top rather
+    // than lost.
+    const known = new Set(entry.folders.map((folder) => folder.id));
+    const parentOf = (folder: NamedFolder): string | null =>
+      folder.parentId != null && known.has(folder.parentId) ? folder.parentId : null;
+    const drawn = new Set<string>();
+    const drawFolder = (folder: NamedFolder, indent: string): void => {
+      if (drawn.has(folder.id)) return;
+      drawn.add(folder.id);
+      lines.push(`${indent}${folder.name}`);
+      for (const inner of entry.folders.filter((child) => parentOf(child) === folder.id)) {
+        drawFolder(inner, `${indent}  `);
       }
+      for (const plan of entry.plans.filter((held) => held.folderId === folder.id)) {
+        write(plan, `${indent}  `);
+      }
+    };
+
+    for (const folder of entry.folders.filter((candidate) => parentOf(candidate) === null)) {
+      drawFolder(folder, '  ');
     }
     for (const plan of entry.plans.filter((held) => held.folderId === null)) {
       write(plan, '  ');

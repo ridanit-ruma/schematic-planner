@@ -38,7 +38,9 @@ import {
 import { randomToken } from '../common/crypto.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { CollabService } from '../collab/collab.service.js';
+import { hiddenFolderIds, outsideFolders } from '../folders/folder-tree.js';
 import { AccessService } from '../workspaces/access.service.js';
+import type { Role } from '../workspaces/roles.js';
 import { PlanDocumentsService, type ChangeActor } from './plan-documents.service.js';
 import type { CreatePlanInput, LayoutInput, ShareInput, UpdatePlanInput } from './plans.dto.js';
 
@@ -99,17 +101,27 @@ export interface RecentPlan {
   } | null;
 }
 
-export interface PlanNavigation {
-  workspace: { id: string; slug: string; name: string };
-  projectId: string;
+/**
+ * A whole workspace as the explorer draws it: projects, the folders in each
+ * (nested through `parentId`), and the plans filed in them. Nothing in the
+ * trash, and nothing under something in the trash.
+ */
+export interface WorkspaceNavigation {
+  workspace: { id: string; slug: string; name: string; role: Role };
   projects: {
     id: string;
     slug: string;
     name: string;
-    folders: { id: string; name: string }[];
+    /** `parentId` is null for a folder at the project's own top level. */
+    folders: { id: string; name: string; parentId: string | null }[];
     /** `folderId` is null for a plan at the project's own top level. */
     plans: { id: string; title: string; updatedAt: Date; folderId: string | null }[];
   }[];
+}
+
+/** The same tree, found from one plan, with the project that plan is in. */
+export interface PlanNavigation extends WorkspaceNavigation {
+  projectId: string;
 }
 
 @Injectable()
@@ -123,12 +135,9 @@ export class PlansService {
 
   async list(userId: string, projectId: string): Promise<PlanSummary[]> {
     await this.access.requireProject(userId, projectId, 'VIEWER');
+    const hidden = await hiddenFolderIds(this.prisma, { projectId });
     const plans = await this.prisma.plan.findMany({
-      where: {
-        projectId,
-        deletedAt: null,
-        OR: [{ folderId: null }, { folder: { deletedAt: null } }],
-      },
+      where: { projectId, deletedAt: null, ...outsideFolders(hidden) },
       orderBy: { updatedAt: 'desc' },
     });
 
@@ -156,10 +165,13 @@ export class PlansService {
     const workspaceIds = memberships.map((membership) => membership.workspaceId);
     if (workspaceIds.length === 0) return [];
 
+    const hidden = await hiddenFolderIds(this.prisma, {
+      project: { workspaceId: { in: workspaceIds } },
+    });
     const rows = await this.prisma.plan.findMany({
       where: {
         deletedAt: null,
-        OR: [{ folderId: null }, { folder: { deletedAt: null } }],
+        ...outsideFolders(hidden),
         project: { deletedAt: null, workspaceId: { in: workspaceIds } },
       },
       orderBy: { updatedAt: 'desc' },
@@ -237,16 +249,23 @@ export class PlansService {
     ]);
   }
 
+  /** The tree around one plan, for callers that know only the plan. */
   async navigation(userId: string, planId: string): Promise<PlanNavigation> {
     const access = await this.access.requirePlan(userId, planId, 'VIEWER');
+    const tree = await this.workspaceNavigation(userId, access.workspaceId);
+    return { ...tree, projectId: access.projectId };
+  }
 
-    const [workspace, projects] = await Promise.all([
+  async workspaceNavigation(userId: string, workspaceId: string): Promise<WorkspaceNavigation> {
+    const role = await this.access.requireWorkspace(userId, workspaceId, 'VIEWER');
+
+    const [workspace, projects, hidden] = await Promise.all([
       this.prisma.workspace.findUniqueOrThrow({
-        where: { id: access.workspaceId },
+        where: { id: workspaceId },
         select: { id: true, slug: true, name: true },
       }),
       this.prisma.project.findMany({
-        where: { workspaceId: access.workspaceId, deletedAt: null },
+        where: { workspaceId, deletedAt: null },
         orderBy: { name: 'asc' },
         select: {
           id: true,
@@ -255,22 +274,30 @@ export class PlansService {
           // No node counts here: the snapshot is the whole document, and
           // selecting it would load every plan in the workspace to list names.
           folders: {
-            where: { deletedAt: null },
             orderBy: { name: 'asc' },
-            select: { id: true, name: true },
+            select: { id: true, name: true, parentId: true },
           },
-          // A plan in a trashed folder is in the trash with it and carries no
-          // mark of its own, so the folder has to be asked about here too.
           plans: {
-            where: { deletedAt: null, OR: [{ folderId: null }, { folder: { deletedAt: null } }] },
+            where: { deletedAt: null },
             orderBy: { updatedAt: 'desc' },
             select: { id: true, title: true, updatedAt: true, folderId: true },
           },
         },
       }),
+      hiddenFolderIds(this.prisma, { project: { workspaceId } }),
     ]);
 
-    return { workspace, projectId: access.projectId, projects };
+    // A folder or plan below a trashed folder is in the trash with it and
+    // carries no mark of its own, so both are filtered by the same set.
+    const gone = new Set(hidden);
+    return {
+      workspace: { ...workspace, role },
+      projects: projects.map((project) => ({
+        ...project,
+        folders: project.folders.filter((folder) => !gone.has(folder.id)),
+        plans: project.plans.filter((plan) => plan.folderId === null || !gone.has(plan.folderId)),
+      })),
+    };
   }
 
   async create(

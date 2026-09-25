@@ -165,6 +165,24 @@ describe('renderPlanList', () => {
   it('says so when there is nothing at all', () => {
     expect(renderPlanList([], url)).toMatch(/no plans/i);
   });
+
+  it('indents a folder inside another under it, with its plans below that', () => {
+    const nested = [
+      {
+        workspace: 'demo',
+        project: 'billing',
+        folders: [
+          { id: 'f1', name: 'Specs', parentId: null },
+          { id: 'f2', name: 'Invoices', parentId: 'f1' },
+        ],
+        plans: [{ id: 'p1', title: 'Invoice rendering', nodeCount: 3, folderId: 'f2' }],
+      },
+    ];
+    const lines = renderPlanList(nested, url).split('\n');
+    expect(lines[1]).toBe('  Specs');
+    expect(lines[2]).toBe('    Invoices');
+    expect(lines[3]?.startsWith('      Invoice rendering')).toBe(true);
+  });
 });
 
 describe('renderNodes', () => {

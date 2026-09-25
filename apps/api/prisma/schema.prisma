@@ -167,26 +167,36 @@ model Invite {
 /// flat list of them stops being navigable at about a dozen, which is the same
 /// reason the project level exists above it.
 ///
-/// Folders do not nest. `project > folder > plan` is the depth people asked for,
-/// and each level beyond that multiplies the places a plan can be hiding
-/// without adding a way to find it.
+/// Folders nest, within one project. Names are unique among siblings, which is
+/// what lets an agent address one by its path (`Specs/Billing`).
 model Folder {
   id          String    @id @default(cuid())
   projectId   String
+  /// The folder this one sits in, in the same project. Null is the project's
+  /// own top level.
+  parentId    String?
   name        String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  /// In the trash since. A folder in the trash takes its plans with it without
-  /// marking them, the same way a project does.
+  /// In the trash since. A folder in the trash takes its plans and the folders
+  /// below it with it without marking them, the same way a project does: what
+  /// is under it is hidden by ancestry, so restoring it brings the subtree back
+  /// exactly as it was.
   deletedAt   DateTime?
   deletedById String?
 
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  deletedBy User?   @relation("FolderTrasher", fields: [deletedById], references: [id], onDelete: SetNull)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Cascaded, unlike a plan's folder: only a real deletion reaches this, and a
+  /// subtree whose root is destroyed has nowhere left to hang. The plans in it
+  /// still fall back to the project's top level through their own relation.
+  parent    Folder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Folder[] @relation("FolderTree")
+  deletedBy User?    @relation("FolderTrasher", fields: [deletedById], references: [id], onDelete: SetNull)
   plans     Plan[]
 
   @@index([projectId])
   @@index([projectId, deletedAt])
+  @@index([projectId, parentId])
 }
 
 model Plan {

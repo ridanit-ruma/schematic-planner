@@ -52,7 +52,13 @@ import {
   renameFolderShape,
   searchShape,
 } from './mcp.schemas.js';
-import { chooseFolder, reachable, resolveWorkspace } from './workspace-scope.js';
+import {
+  chooseFolder,
+  folderPaths,
+  pathParts,
+  reachable,
+  resolveWorkspace,
+} from './workspace-scope.js';
 
 const text = (value: string) => ({ content: [{ type: 'text' as const, text: value }] });
 const failure = (value: string) => ({ ...text(value), isError: true });
@@ -201,7 +207,11 @@ export class McpFactory {
             listing.push({
               workspace: target.slug,
               project: project.slug,
-              folders: drawers.map((drawer) => ({ id: drawer.id, name: drawer.name })),
+              folders: drawers.map((drawer) => ({
+                id: drawer.id,
+                name: drawer.name,
+                parentId: drawer.parentId,
+              })),
               plans: plans.map((plan) => ({
                 id: plan.id,
                 title: plan.title,
@@ -359,7 +369,9 @@ export class McpFactory {
                 this.plans.list(identity.userId, project.id),
                 this.folders.list(identity.userId, project.id),
               ]);
-              const drawerName = new Map(drawers.map((drawer) => [drawer.id, drawer.name]));
+              const drawerName = new Map(
+                folderPaths(drawers).map((drawer) => [drawer.id, drawer.path]),
+              );
 
               for (const summary of plans) {
                 // Every plan is decoded to look inside it, so the work is
@@ -575,8 +587,8 @@ export class McpFactory {
       {
         title: 'List folders',
         description:
-          'The drawers inside a project, and how many plans are in each. A folder does not ' +
-          'nest, and a plan does not have to be in one.',
+          'The drawers inside a project, by path (Specs/Billing), and how many plans are filed ' +
+          'directly in each. Folders nest, and a plan does not have to be in one.',
         inputSchema: listFoldersShape,
       },
       async ({ workspace, projectSlug }) => {
@@ -587,7 +599,9 @@ export class McpFactory {
             return text('No folders in this project. Everything sits at its top level.');
           }
           return text(
-            drawers.map((drawer) => `${drawer.name} — ${drawer.planCount} plans`).join('\n'),
+            drawers
+              .map((drawer) => `${drawer.path.join('/')} — ${drawer.planCount} plans`)
+              .join('\n'),
           );
         } catch (error) {
           return failure(reason(error));
@@ -600,23 +614,29 @@ export class McpFactory {
       {
         title: 'Create a folder',
         description:
-          'A drawer inside a project, for grouping plans that belong together. Folders do not ' +
-          'nest. Asking for one that is already there gives back the one that is there rather ' +
-          'than making a second of the same name.',
+          'A drawer inside a project, for grouping plans that belong together. Folders nest: ' +
+          'give a path like Specs/Billing to make one inside another, and any folder on the way ' +
+          'that is missing is made too. Asking for one that is already there gives back the ' +
+          'one that is there rather than making a second of the same name.',
         inputSchema: createFolderShape,
       },
       async ({ name, workspace, projectSlug }) => {
         try {
           const { projectId } = await this.resolveProject(identity, workspace, projectSlug);
-          const drawers = await this.folders.list(identity.userId, projectId);
-          const already = drawers.find(
-            (drawer) => drawer.name.trim().toLowerCase() === name.trim().toLowerCase(),
-          );
-          if (already !== undefined) {
-            return text(`"${already.name}" is already there, holding ${already.planCount} plans.`);
+          const parts = pathParts(name);
+          if (parts.length === 0) return failure('Name the folder to make.');
+          const long = parts.find((part) => part.length > 80);
+          if (long !== undefined) {
+            return failure(`"${long}" is too long for a folder name; keep it to 80 characters.`);
           }
-          const made = await this.folders.create(identity.userId, projectId, { name });
-          return text(`Created folder "${made.name}". File plans in it with move_plan.`);
+
+          const { made } = await this.folders.ensurePath(identity.userId, projectId, parts);
+          const path = parts.join('/');
+          if (made.length === 0) return text(`"${path}" is already there.`);
+          return text(
+            `Created ${made.map((one) => `"${one}"`).join(', then ')}, so "${path}" is there now. ` +
+              'File plans in it with move_plan.',
+          );
         } catch (error) {
           return failure(reason(error));
         }
@@ -627,15 +647,22 @@ export class McpFactory {
       'rename_folder',
       {
         title: 'Rename a folder',
-        description: 'Changes what a drawer is called. Nothing inside it moves.',
+        description:
+          'Changes what a drawer is called. Nothing inside it moves, and it stays where it is.',
         inputSchema: renameFolderShape,
       },
       async ({ folder, to, workspace, projectSlug }) => {
         try {
           const { projectId } = await this.resolveProject(identity, workspace, projectSlug);
+          if (to.includes('/')) {
+            return failure(
+              'A folder name cannot hold a slash: it is how paths are written. Renaming does ' +
+                'not move a folder.',
+            );
+          }
           const chosen = chooseFolder(await this.folders.list(identity.userId, projectId), folder);
           const renamed = await this.folders.update(identity.userId, chosen.id, { name: to });
-          return text(`"${chosen.name}" is now "${renamed.name}".`);
+          return text(`"${chosen.path}" is now "${renamed.name}".`);
         } catch (error) {
           return failure(reason(error));
         }
@@ -647,9 +674,9 @@ export class McpFactory {
       {
         title: 'Delete a folder',
         description:
-          'Moves a folder to the workspace trash, and the plans filed in it go with it — a ' +
-          'person can restore the folder and get them back. The exact name must be given as ' +
-          'well, so a wrong name cannot take the wrong drawer.',
+          'Moves a folder to the workspace trash, and the folders and plans inside it go with ' +
+          'it — a person can restore the folder and get all of it back. The exact name must be ' +
+          'given as well, so a wrong path cannot take the wrong drawer.',
         inputSchema: deleteFolderShape,
         annotations: { destructiveHint: true },
       },
@@ -664,7 +691,7 @@ export class McpFactory {
           }
           await this.folders.remove(identity.userId, chosen.id);
           return text(
-            `Moved "${chosen.name}" to the trash, with the plans in it. ` +
+            `Moved "${chosen.path}" to the trash, with everything in it. ` +
               'A person can restore it from there.',
           );
         } catch (error) {
@@ -703,13 +730,13 @@ export class McpFactory {
               : chooseFolder(
                   await this.folders.list(identity.userId, destination.projectId),
                   folder,
-                ).id;
+                );
 
-          await this.plans.move(identity.userId, planId, destination.projectId, filed);
+          await this.plans.move(identity.userId, planId, destination.projectId, filed?.id ?? null);
 
           const crossed = destination.workspaceSlug !== where.workspace.slug;
           return text(
-            `Moved. It is now ${filed === null ? 'at the top level of' : `in "${folder}" in`} ` +
+            `Moved. It is now ${filed === null ? 'at the top level of' : `in "${filed.path}" in`} ` +
               `that project.${crossed ? ' Any share link it had has been dropped.' : ''}`,
           );
         } catch (error) {

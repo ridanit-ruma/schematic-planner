@@ -149,6 +149,76 @@ async function main() {
     `${JSON.stringify(nav.body).length} bytes`,
   );
 
+  section('nested folders');
+  const outer = await call(`/projects/${projectId}/folders`, {
+    method: 'POST',
+    token,
+    body: { name: 'Specs' },
+  });
+  const inner = await call(`/projects/${projectId}/folders`, {
+    method: 'POST',
+    token,
+    body: { name: 'Billing', parentId: outer.body.id },
+  });
+  check('a folder is made inside another', inner.body.parentId === outer.body.id);
+
+  const twin = await call(`/projects/${projectId}/folders`, {
+    method: 'POST',
+    token,
+    body: { name: 'billing', parentId: outer.body.id },
+  });
+  check('a sibling of the same name is refused', twin.status === 409, `status ${twin.status}`);
+
+  const loop = await call(`/folders/${outer.body.id}`, {
+    method: 'PATCH',
+    token,
+    body: { parentId: inner.body.id },
+  });
+  check('a folder cannot go inside its own child', loop.status === 400, `status ${loop.status}`);
+
+  const filed = await call(`/projects/${projectId}/plans`, {
+    method: 'POST',
+    token,
+    body: { title: 'Filed deep', folderId: inner.body.id },
+  });
+  const tree = await call(`/workspaces/${workspaceId}/navigation`, { token });
+  const treeProject = tree.body.projects?.find((project) => project.id === projectId);
+  check(
+    'the workspace tree needs no plan and says who is asking',
+    tree.status === 200 && tree.body.workspace?.role === 'OWNER',
+    `status ${tree.status}`,
+  );
+  check(
+    'and nests the folders',
+    treeProject?.folders.some((folder) => folder.id === inner.body.id && folder.parentId === outer.body.id) === true,
+  );
+  check(
+    'and files the plan in the inner one',
+    treeProject?.plans.some((plan) => plan.id === filed.body.id && plan.folderId === inner.body.id) === true,
+  );
+
+  await call(`/folders/${outer.body.id}`, { method: 'DELETE', token });
+  const trashedTree = await call(`/workspaces/${workspaceId}/navigation`, { token });
+  const trashedProject = trashedTree.body.projects?.find((project) => project.id === projectId);
+  check(
+    'trashing the outer folder hides the inner one and its plan',
+    trashedProject?.folders.every((folder) => folder.id !== inner.body.id) === true &&
+      trashedProject?.plans.every((plan) => plan.id !== filed.body.id) === true,
+  );
+  const hiddenPlan = await call(`/plans/${filed.body.id}`, { token });
+  check('a plan below a trashed folder is not found', hiddenPlan.status === 404, `status ${hiddenPlan.status}`);
+  const folderTrash = await call(`/workspaces/${workspaceId}/trash`, { token });
+  const binnedFolder = folderTrash.body.find?.((item) => item.id === outer.body.id);
+  check(
+    'the trash holds the outer folder with what was inside it',
+    binnedFolder?.where?.startsWith('1 plan inside') === true,
+    binnedFolder?.where ?? '',
+  );
+
+  await call(`/trash/folders/${outer.body.id}/restore`, { method: 'POST', token });
+  const restored = await call(`/plans/${filed.body.id}`, { token });
+  check('restoring it brings the whole subtree back', restored.status === 200, `status ${restored.status}`);
+
   section('operations');
   const batch = await call(`/plans/${planId}/ops`, {
     method: 'POST',
@@ -266,6 +336,22 @@ async function main() {
   const names = (tools.result?.tools ?? []).map((tool) => tool.name).sort();
   check('tools/list', names.length === 11, names.join(', '));
   check('trace is offered', names.includes('trace'));
+
+  const madePath = await callTool('create_folder', { name: 'Archive/2026' });
+  check('create_folder makes a path, parents first', madePath.includes('"Archive", then "2026"'), madePath);
+  const madeAgain = await callTool('create_folder', { name: 'archive / 2026' });
+  check('and asking again makes nothing', madeAgain.includes('already there'), madeAgain);
+  const listedFolders = await callTool('list_folders', {});
+  check('list_folders gives paths', listedFolders.includes('Archive/2026 — 0 plans'), listedFolders);
+  const filedByName = await callTool('move_plan', { planId, folder: '2026' });
+  check('a bare name only one folder has still files a plan', filedByName.includes('"Archive/2026"'), filedByName);
+  const listedDeep = await callTool('list_plans', {});
+  check(
+    'list_plans nests the folder and files the plan under it',
+    /\n    2026\n      Smoke plan/.test(listedDeep),
+  );
+  const unfiled = await callTool('move_plan', { planId, folder: null });
+  check('and a plan comes back to the top level', unfiled.includes('top level'), unfiled);
 
   const second = await call('/workspaces', { method: 'POST', token, body: { name: 'Second' } });
   check('a second workspace exists', typeof second.body.slug === 'string', second.body.slug ?? '');
