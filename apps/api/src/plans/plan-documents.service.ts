@@ -77,7 +77,12 @@ export class PlanDocumentsService {
 
     // First open: seed the document from the snapshot so a plan created through
     // the REST API or MCP is immediately editable.
-    const seed: PlanDoc = planDocFromSnapshot(plan.snapshot, plan);
+    const seed: PlanDoc = planDocFromSnapshot(plan.snapshot, {
+      id: plan.id,
+      title: plan.title,
+      description: plan.description,
+      updatedAt: plan.updatedAt.toISOString(),
+    });
     initializePlan(document, seed);
   }
 
