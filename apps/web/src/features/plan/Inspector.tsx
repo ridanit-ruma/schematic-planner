@@ -1,34 +1,90 @@
 import {
   isSlug,
-  planNodeKinds,
-  planNodeStatuses,
+  kindOf,
+  pickable,
+  statusOf,
   type PlanNode,
   type PlanOp,
+  type Vocabulary,
 } from '@schematic/schema';
 import { nodeBodyText } from '@schematic/ydoc';
 import { Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import type * as Y from 'yjs';
 
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/field';
 import { Markdown } from '@/components/ui/markdown';
-import { Select } from '@/components/ui/select';
+import { Select, type SelectOption } from '@/components/ui/select';
+import { TagInput } from '@/components/ui/tag-input';
+import {
+  KindSwatch,
+  Pill,
+  UNKNOWN_COLOR,
+  kindName,
+  paletteVar,
+  statusName,
+} from '@/components/ui/vocabulary';
 import { useT, type Messages } from '@/i18n';
 import { cn } from '@/lib/utils';
+import { DEFAULT_WORDS, type PlanWords } from '@/lib/vocabulary';
 import { SIDE_PANEL } from './side-panel';
 import { useYText } from './use-y-text';
 
-const kindOptions = (t: Messages) =>
-  planNodeKinds.map((kind) => ({
-    value: kind,
-    label: t.plan.labels.nodeKind[kind],
+/** Picked like any other value, and caught before it reaches the node. */
+const EDIT = '__edit_vocabulary__';
+
+/**
+ * What the pickers offer: the project's values that are in use, the one the
+ * node already has even if it has been archived or was never defined, and —
+ * for an editor — a way to change the list itself.
+ */
+function kindOptions(
+  t: Messages,
+  vocabulary: Vocabulary,
+  current: string,
+  editable: boolean,
+): SelectOption<string>[] {
+  const options: SelectOption<string>[] = pickable(vocabulary.kinds, current).map((kind) => ({
+    value: kind.id,
+    label: kind.archived ? t.vocab.archivedValue(kindName(t, kind)) : kindName(t, kind),
+    icon: <KindSwatch look={kind.id === 'group' ? 'strong' : kind.look} />,
   }));
-const statusOptions = (t: Messages) =>
-  planNodeStatuses.map((status) => ({
-    value: status,
-    label: t.plan.labels.status[status],
-  }));
+  if (kindOf(vocabulary, current) === undefined) {
+    options.push({
+      value: current,
+      label: t.vocab.unknown(current),
+      icon: <KindSwatch look={null} />,
+    });
+  }
+  if (editable) options.push({ value: EDIT, label: t.vocab.edit, divided: true });
+  return options;
+}
+
+function statusOptions(
+  t: Messages,
+  vocabulary: Vocabulary,
+  current: string,
+  editable: boolean,
+): SelectOption<string>[] {
+  const options: SelectOption<string>[] = pickable(vocabulary.statuses, current).map((status) => {
+    const label = status.archived
+      ? t.vocab.archivedValue(statusName(t, status))
+      : statusName(t, status);
+    return {
+      value: status.id,
+      label,
+      display: <Pill color={paletteVar(status.color)}>{label}</Pill>,
+    };
+  });
+  if (statusOf(vocabulary, current) === undefined) {
+    const label = t.vocab.unknown(current);
+    options.push({ value: current, label, display: <Pill color={UNKNOWN_COLOR}>{label}</Pill> });
+  }
+  if (editable) options.push({ value: EDIT, label: t.vocab.edit, divided: true });
+  return options;
+}
 
 /**
  * Everything typed here is written straight into the shared document, so two
@@ -42,6 +98,7 @@ export function Inspector({
   onApplyOps,
   onRenamed,
   onClose,
+  words = DEFAULT_WORDS,
 }: {
   doc: Y.Doc;
   node: PlanNode;
@@ -52,8 +109,23 @@ export function Inspector({
   /** The panel follows the node it is about when that node is readdressed. */
   onRenamed: (slug: string) => void;
   onClose: () => void;
+  /** The project's kinds, statuses and tags. Defaults when there is no project to ask. */
+  words?: PlanWords;
 }) {
   const t = useT();
+  const navigate = useNavigate();
+  const { vocabulary } = words;
+  // Changing the list is offered to whoever may change it, once it is known where.
+  const editable = words.canEdit && words.editHref !== null;
+  const pick =
+    (apply: (value: string) => void) =>
+    (value: string): void => {
+      if (value === EDIT) {
+        if (words.editHref !== null) void navigate(words.editHref);
+        return;
+      }
+      apply(value);
+    };
   const body = useMemo(() => nodeBodyText(doc, node.slug), [doc, node.slug]);
   const [text, writeText] = useYText(body);
   // Raw while the cursor is in it, drawn when it is not — the same bargain a
@@ -148,9 +220,9 @@ export function Inspector({
               <Select
                 id={id}
                 value={node.kind}
-                options={kindOptions(t)}
+                options={kindOptions(t, vocabulary, node.kind, editable)}
                 disabled={readOnly}
-                onChange={(kind) => patch({ kind })}
+                onChange={pick((kind) => patch({ kind }))}
               />
             )}
           </Field>
@@ -160,27 +232,37 @@ export function Inspector({
               <Select
                 id={id}
                 value={node.status}
-                options={statusOptions(t)}
+                options={statusOptions(t, vocabulary, node.status, editable)}
                 disabled={readOnly}
-                onChange={(status) => patch({ status })}
+                onChange={pick((status) => patch({ status }))}
               />
             )}
           </Field>
         </div>
 
-        <Field label={t.plan.inspector.tags} hint={t.plan.inspector.tagsHint}>
+        <Field label={t.plan.inspector.tags} hint={readOnly ? undefined : t.vocab.tags.hint}>
           {(id) => (
-            <Input
+            <TagInput
               id={id}
-              value={node.tags.join(', ')}
+              value={node.tags}
+              vocabulary={vocabulary}
               disabled={readOnly}
-              onChange={(event) =>
-                patch({
-                  tags: event.target.value
-                    .split(',')
-                    .map((tag) => tag.trim())
-                    .filter((tag) => tag !== ''),
-                })
+              canEditVocabulary={words.canEdit}
+              onChange={(tags) => patch({ tags })}
+              onCreate={(name) => void words.addTag(name)}
+              onRecolor={(name, color) =>
+                void words.edit((current) => ({
+                  ...current,
+                  tags: current.tags.map((tag) =>
+                    tag.name.toLowerCase() === name.toLowerCase() ? { ...tag, color } : tag,
+                  ),
+                }))
+              }
+              onDelete={(name) =>
+                void words.edit((current) => ({
+                  ...current,
+                  tags: current.tags.filter((tag) => tag.name.toLowerCase() !== name.toLowerCase()),
+                }))
               }
             />
           )}

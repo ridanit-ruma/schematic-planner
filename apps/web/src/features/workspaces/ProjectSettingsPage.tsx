@@ -8,7 +8,8 @@ import { NotFound, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { Page, Panel } from '@/components/ui/page';
 import { useT } from '@/i18n';
-import { canAdminister, isMissing, projects } from '@/lib/api';
+import { canAdminister, isMissing, projects, type Role } from '@/lib/api';
+import { VocabularyEditor } from './VocabularyEditor';
 import { useWorkspace } from './workspace-context';
 
 /** What a project is called, and getting rid of it. The plans inside are the project's own screen. */
@@ -20,6 +21,7 @@ export function ProjectSettingsPage() {
   const [id, setId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [role, setRole] = useState<Role>('VIEWER');
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [deleting, setDeleting] = useState(false);
@@ -36,6 +38,7 @@ export function ProjectSettingsPage() {
         setId(project.id);
         setName(project.name);
         setDescription(project.description);
+        setRole(project.role);
       })
       .catch(setError);
     return () => {
@@ -136,6 +139,8 @@ export function ProjectSettingsPage() {
             </div>
           </form>
         </Panel>
+
+        <VocabularyEditor projectId={id} canEdit={role !== 'VIEWER'} />
 
         {canAdminister(current.role) ? (
           <Panel

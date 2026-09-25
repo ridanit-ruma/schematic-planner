@@ -1,4 +1,11 @@
-import { CARD, GROUP_PADDING, cardHeight, planDocSchema, planOpsSchema } from '@schematic/schema';
+import {
+  CARD,
+  DEFAULT_VOCABULARY,
+  GROUP_PADDING,
+  cardHeight,
+  planDocSchema,
+  planOpsSchema,
+} from '@schematic/schema';
 import { applyOps, initializePlan, readPlanDoc } from '@schematic/ydoc';
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
@@ -459,5 +466,45 @@ describe('lighting a box', () => {
 
     expect(related?.has('inner')).toBe(true);
     expect(related?.has('deep')).toBe(true);
+  });
+});
+
+/*
+ * A line out of a node that has stopped is drawn in the stopped colour. What
+ * counts as stopped is a status's meaning, so a project's own name for it
+ * stops a flow as the built-in Blocked does.
+ */
+describe('lines out of a stopped node', () => {
+  const stopped = (bound: ReturnType<typeof seeded>['bound']) =>
+    bound.store.getState().edges.find((edge) => edge.id === 'flows_to:auth>ui')?.data?.stopped;
+
+  const wired = () => {
+    const made = seeded();
+    applyOps(
+      made.doc,
+      ops([{ op: 'upsert_edge', edge: { kind: 'flows_to', from: 'auth', to: 'ui' } }]),
+    );
+    return made;
+  };
+
+  it('are drawn stopped for the built-in blocked status', () => {
+    const { doc, bound } = wired();
+    applyOps(doc, ops([{ op: 'upsert_node', node: { slug: 'auth', status: 'blocked' } }]));
+    expect(stopped(bound)).toBe(true);
+  });
+
+  it('are drawn stopped for a project status that means blocked, once the project says so', () => {
+    const { doc, bound } = wired();
+    applyOps(doc, ops([{ op: 'upsert_node', node: { slug: 'auth', status: 'waiting' } }]));
+    expect(stopped(bound)).toBe(false);
+
+    bound.setVocabulary({
+      ...DEFAULT_VOCABULARY,
+      statuses: [
+        ...DEFAULT_VOCABULARY.statuses,
+        { id: 'waiting', name: 'Waiting', color: 'orange', category: 'blocked', archived: false },
+      ],
+    });
+    expect(stopped(bound)).toBe(true);
   });
 });
