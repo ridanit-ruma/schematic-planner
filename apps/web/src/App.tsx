@@ -140,7 +140,15 @@ function RequireAuth({
     );
   }
   if (status === 'signed-out') {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    // Also where a session that ends mid-use lands, so the whole address is
+    // kept: signing in again returns to the same plan, query and all.
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: `${location.pathname}${location.search}${location.hash}` }}
+      />
+    );
   }
   return <>{children}</>;
 }
