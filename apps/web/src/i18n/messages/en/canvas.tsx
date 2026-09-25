@@ -41,6 +41,8 @@ export const canvas = {
     paste: {
       notLoaded:
         "This project's statuses and kinds have not loaded yet, so nothing was pasted. Try again in a moment.",
+      wordsRefused:
+        'The copied statuses and kinds could not be added to this project, so nothing was pasted.',
     },
     readingFrom: (by: string, from: string) => `${by} is reading from ${from}`,
   },

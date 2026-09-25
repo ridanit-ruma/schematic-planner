@@ -40,6 +40,7 @@ export const canvas: Messages['canvas'] = {
     },
     paste: {
       notLoaded: '此專案的狀態和類型尚未載入，因此沒有貼上。請稍後再試。',
+      wordsRefused: '無法將複製的狀態和類型加入此專案，因此沒有貼上。',
     },
     readingFrom: (by: string, from: string) => `${by} 正從 ${from} 開始讀取`,
   },

@@ -96,6 +96,19 @@ describe('editing a vocabulary', () => {
     expect(nameOf(store.current('p1'), 'idea')).toBe('Idea');
     expect(store.store.getState().projects['p1']?.error).toBeInstanceOf(ApiError);
   });
+
+  // A paste waits on this before using the statuses and kinds it added.
+  it('tells its caller whether the edit was saved', async () => {
+    const backend = server();
+    const store = createVocabularyStore(backend.remote);
+    await store.reload('p1');
+    expect(await store.edit('p1', rename('idea', 'Someday'))).toBe(true);
+
+    backend.remote.replace = async () => {
+      throw new ApiError(400, 'Too many statuses');
+    };
+    expect(await store.edit('p1', rename('idea', 'Later'))).toBe(false);
+  });
 });
 
 describe('adding a tag', () => {

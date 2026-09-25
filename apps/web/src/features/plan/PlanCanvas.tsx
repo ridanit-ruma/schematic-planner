@@ -213,7 +213,8 @@ export function PlanCanvas({
   words?: {
     loaded: boolean;
     canEdit: boolean;
-    edit: (edit: (vocabulary: Vocabulary) => Vocabulary) => Promise<void>;
+    /** Resolves to whether the edit was saved. */
+    edit: (edit: (vocabulary: Vocabulary) => Vocabulary) => Promise<boolean>;
   };
   /** Something the person asked for that could not be done. */
   onError?: (error: unknown) => void;
@@ -832,32 +833,43 @@ export function PlanCanvas({
         return;
       }
       const at = where === 'pointer' ? hover.current : null;
+      const pointerHolder = at === null ? null : holderAt(at);
       const adoption = adoptWords(payload, store.getState().vocabulary, words?.canEdit === true);
-      if (adoption.add !== null && words !== undefined) void words.edit(adoption.add);
-      const pasted = pasteOps(
-        payload,
-        store.getState().nodes.map((each) => each.id),
-        at === null
-          ? { offset: { x: PASTE_OFFSET, y: PASTE_OFFSET } }
-          : { at: grid.on ? snapTo(at, grid.step) : at },
-        adoption,
-      );
-      const ops = [...pasted.ops];
-      if (at === null) {
-        // Beside the originals, in the plan they came from: in the same box.
-        const present = new Set(store.getState().nodes.map((each) => each.id));
-        if (payload.plan === readPlanDoc(doc).doc.id) {
-          for (const [slug, holder] of Object.entries(payload.holders)) {
-            const made = pasted.renamed.get(slug);
-            if (made !== undefined && present.has(holder)) ops.push(containsOp(holder, made));
+      const place = (): void => {
+        const pasted = pasteOps(
+          payload,
+          store.getState().nodes.map((each) => each.id),
+          at === null
+            ? { offset: { x: PASTE_OFFSET, y: PASTE_OFFSET } }
+            : { at: grid.on ? snapTo(at, grid.step) : at },
+          adoption,
+        );
+        const ops = [...pasted.ops];
+        if (at === null) {
+          // Beside the originals, in the plan they came from: in the same box.
+          const present = new Set(store.getState().nodes.map((each) => each.id));
+          if (payload.plan === readPlanDoc(doc).doc.id) {
+            for (const [slug, holder] of Object.entries(payload.holders)) {
+              const made = pasted.renamed.get(slug);
+              if (made !== undefined && present.has(holder)) ops.push(containsOp(holder, made));
+            }
           }
+        } else if (pointerHolder !== null) {
+          // At the pointer: in whatever box the pointer is in.
+          for (const made of pasted.roots) ops.push(containsOp(pointerHolder, made));
         }
-      } else {
-        // At the pointer: in whatever box the pointer is in.
-        const holder = holderAt(at);
-        if (holder !== null) for (const made of pasted.roots) ops.push(containsOp(holder, made));
+        addCopies(ops, pasted.slugs);
+      };
+      if (adoption.add === null || words === undefined) {
+        place();
+        return;
       }
-      addCopies(ops, pasted.slugs);
+      // The copies use the statuses and kinds being added, so they wait until
+      // those are saved; a refused save leaves nothing pointing at them.
+      void words.edit(adoption.add).then((saved) => {
+        if (saved) place();
+        else onError?.(new Error(t.canvas.canvas.paste.wordsRefused));
+      });
     },
   };
 

@@ -42,6 +42,7 @@ export const canvas: Messages['canvas'] = {
     paste: {
       notLoaded:
         '이 프로젝트의 상태와 종류를 아직 불러오지 못해 붙여넣지 않았습니다. 잠시 후 다시 시도해 주세요.',
+      wordsRefused: '복사한 상태와 종류를 이 프로젝트에 추가하지 못해 붙여넣지 않았습니다.',
     },
     readingFrom: (by: string, from: string) =>
       `${josa(by, '이')} ${quoted(from)}부터 읽고 있습니다`,

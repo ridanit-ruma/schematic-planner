@@ -41,6 +41,8 @@ export const canvas: Messages['canvas'] = {
     paste: {
       notLoaded:
         'このプロジェクトのステータスと種類がまだ読み込まれていないため、貼り付けませんでした。少し待ってからもう一度お試しください。',
+      wordsRefused:
+        'コピーしたステータスと種類をこのプロジェクトに追加できなかったため、貼り付けませんでした。',
     },
     readingFrom: (by: string, from: string) => `${by}が${from}から読み進めています`,
   },

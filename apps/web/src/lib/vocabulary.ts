@@ -132,7 +132,8 @@ export function createVocabularyStore(remote: VocabularyRemote) {
       return entry(projectId).confirmed !== null;
     },
 
-    async edit(projectId: string, edit: VocabularyEdit): Promise<void> {
+    /** Resolves to whether the edit was saved; a refused one is dropped, not thrown. */
+    async edit(projectId: string, edit: VocabularyEdit): Promise<boolean> {
       const id = (sequence += 1);
       patch(projectId, (current) => ({ pending: [...current.pending, { id, edit }] }));
       try {
@@ -149,10 +150,12 @@ export function createVocabularyStore(remote: VocabularyRemote) {
             }
           }
         });
+        return true;
       } catch (error) {
         patch(projectId, () => ({ error }));
         // What is on the server is what is true; the edit that failed is dropped.
         await reload(projectId).catch(() => undefined);
+        return false;
       } finally {
         patch(projectId, (current) => ({
           pending: current.pending.filter((one) => one.id !== id),
@@ -193,7 +196,8 @@ export interface ProjectVocabulary {
   /** False until the server has answered once. */
   loaded: boolean;
   error: unknown;
-  edit: (edit: VocabularyEdit) => Promise<void>;
+  /** Resolves to whether the edit was saved. */
+  edit: (edit: VocabularyEdit) => Promise<boolean>;
   addTag: (name: string, color?: PaletteColor) => Promise<void>;
 }
 
@@ -221,7 +225,7 @@ export function useProjectVocabulary(projectId: string | null): ProjectVocabular
 
   const edit = useCallback(
     (change: VocabularyEdit) =>
-      projectId === null ? Promise.resolve() : vocabularyStore.edit(projectId, change),
+      projectId === null ? Promise.resolve(false) : vocabularyStore.edit(projectId, change),
     [projectId],
   );
   const addTag = useCallback(
@@ -253,7 +257,7 @@ export const DEFAULT_WORDS: PlanWords = {
   vocabulary: DEFAULT_VOCABULARY,
   loaded: true,
   error: null,
-  edit: () => Promise.resolve(),
+  edit: () => Promise.resolve(false),
   addTag: () => Promise.resolve(),
   plan: null,
   canEdit: false,

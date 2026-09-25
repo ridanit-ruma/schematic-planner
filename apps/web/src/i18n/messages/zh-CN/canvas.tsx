@@ -40,6 +40,7 @@ export const canvas: Messages['canvas'] = {
     },
     paste: {
       notLoaded: '此项目的状态和类型尚未加载，因此没有粘贴。请稍后再试。',
+      wordsRefused: '无法将复制的状态和类型添加到此项目，因此没有粘贴。',
     },
     readingFrom: (by: string, from: string) => `${by} 正在从“${from}”开始阅读`,
   },
