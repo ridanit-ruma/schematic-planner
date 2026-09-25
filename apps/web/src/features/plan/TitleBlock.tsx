@@ -15,7 +15,8 @@ import { Link } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { DropdownAction, DropdownMenu } from '@/components/ui/dropdown-menu';
 import { Tooltip } from '@/components/ui/tooltip';
-import { cn, plural } from '@/lib/utils';
+import { useT } from '@/i18n';
+import { cn } from '@/lib/utils';
 import type { ConnectionStatus } from './use-plan-document';
 
 /**
@@ -70,6 +71,7 @@ export function TitleBlock({
   /** Where the plan's own settings live. The title is the way in. */
   settingsHref?: string;
 }) {
+  const t = useT();
   return (
     <header className="flex h-11 shrink-0 items-center gap-2 border-b border-rule bg-surface px-2 sm:gap-3 sm:px-3">
       <ConnectionLight status={status} />
@@ -80,7 +82,7 @@ export function TitleBlock({
         <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{title}</h1>
       ) : (
         <h1 className="min-w-0 flex-1 truncate">
-          <Tooltip content="Plan settings">
+          <Tooltip content={t.plan.titleBlock.planSettings}>
             <Link
               to={settingsHref}
               className="rounded-md px-1.5 py-1 text-sm font-medium text-ink transition-colors hover:bg-surface-2"
@@ -94,10 +96,10 @@ export function TitleBlock({
       <PlanSize count={nodeCount} />
 
       {openNotes === undefined || openNotes === 0 || onNextNote === undefined ? null : (
-        <Tooltip content="Go to the next open note">
+        <Tooltip content={t.plan.titleBlock.nextNote}>
           <button
             type="button"
-            aria-label="Go to the next open note"
+            aria-label={t.plan.titleBlock.nextNote}
             onClick={onNextNote}
             className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-collab transition-colors hover:bg-surface-2"
           >
@@ -111,10 +113,10 @@ export function TitleBlock({
 
       {readOnly ? null : (
         <div className="flex items-center gap-1">
-          <Tooltip content="Add node">
+          <Tooltip content={t.plan.titleBlock.addNode}>
             <Button size="sm" variant="ghost" onClick={onAddNode}>
               <Plus className="size-3.5" />
-              <span className="hidden lg:inline">Add node</span>
+              <span className="hidden lg:inline">{t.plan.titleBlock.addNode}</span>
             </Button>
           </Tooltip>
         </div>
@@ -125,7 +127,7 @@ export function TitleBlock({
         trigger={
           <button
             type="button"
-            aria-label="Plan actions"
+            aria-label={t.plan.titleBlock.planActions}
             className="grid size-7 place-items-center rounded-md text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink focus:outline-none"
           >
             <MoreHorizontal className="size-4" />
@@ -136,26 +138,26 @@ export function TitleBlock({
           <>
             <DropdownAction onSelect={onArrange}>
               <Wand2 className="size-3.5 text-ink-faint" />
-              Arrange
+              {t.plan.titleBlock.arrange}
             </DropdownAction>
             <DropdownAction onSelect={onShare}>
               <Link2 className="size-3.5 text-ink-faint" />
-              Share
+              {t.plan.titleBlock.share}
             </DropdownAction>
           </>
         )}
         <DropdownAction onSelect={onHistory}>
           <Clock className="size-3.5 text-ink-faint" />
-          {historyOpen ? 'Hide history' : 'History'}
+          {historyOpen ? t.plan.titleBlock.hideHistory : t.plan.titleBlock.history}
         </DropdownAction>
         <DropdownAction onSelect={onExport}>
           <Download className="size-3.5 text-ink-faint" />
-          Export
+          {t.plan.titleBlock.export}
         </DropdownAction>
         {settingsHref === undefined ? null : (
           <DropdownAction onSelect={() => window.location.assign(settingsHref)}>
             <Settings className="size-3.5 text-ink-faint" />
-            Plan settings
+            {t.plan.titleBlock.planSettings}
           </DropdownAction>
         )}
       </DropdownMenu>
@@ -180,11 +182,12 @@ function Here({
   self: Presence | null;
   onFollow?: (peer: Presence) => void;
 }) {
+  const t = useT();
   const everyone = [...(self === null ? [] : [self]), ...peers];
   if (everyone.length === 0) return null;
 
   const label =
-    peers.length === 0 ? 'Only you are here' : `${plural(everyone.length, 'person', 'people')} here`;
+    peers.length === 0 ? t.plan.titleBlock.onlyYou : t.plan.titleBlock.peopleHere(everyone.length);
 
   return (
     <DropdownMenu
@@ -216,7 +219,7 @@ function Here({
             <Face peer={peer} you={you} />
             <span className="flex-1 truncate">{peer.name}</span>
             {you ? (
-              <span className="text-xs text-ink-faint">you</span>
+              <span className="text-xs text-ink-faint">{t.plan.titleBlock.you}</span>
             ) : reachable ? (
               <Crosshair className="size-3.5 text-ink-faint" />
             ) : null}
@@ -248,8 +251,13 @@ function Face({ peer, you }: { peer: Presence; you: boolean }) {
  * the canvas that already says it.
  */
 export function PlanSize({ count }: { count: number }) {
+  const t = useT();
   if (count === 0) return null;
-  return <span className="hidden shrink-0 text-xs text-ink-muted sm:inline">{plural(count, 'node')}</span>;
+  return (
+    <span className="hidden shrink-0 text-xs text-ink-muted sm:inline">
+      {t.plan.titleBlock.nodeCount(count)}
+    </span>
+  );
 }
 
 /**
@@ -257,10 +265,11 @@ export function PlanSize({ count }: { count: number }) {
  * second would blink at the edge of vision and read as a fault.
  */
 function ConnectionLight({ status }: { status: ConnectionStatus }) {
+  const t = useT();
   const label = {
-    connected: 'Connected',
-    connecting: 'Connecting',
-    disconnected: 'Not connected — changes are local until this reconnects',
+    connected: t.plan.titleBlock.connected,
+    connecting: t.plan.titleBlock.connecting,
+    disconnected: t.plan.titleBlock.disconnected,
   }[status];
 
   return (

@@ -1,5 +1,7 @@
 import type { PlanDoc, PlanOp } from '@schematic/schema';
 
+import { t } from '@/i18n';
+
 import { config } from './config.js';
 
 export interface AuthUser {
@@ -245,11 +247,7 @@ async function send(path: string, init: RequestInit, retry: boolean): Promise<Re
   } catch {
     // fetch reports every network-level failure as the same opaque error, so say
     // what was attempted rather than repeating "Failed to fetch" at the reader.
-    throw new ApiError(
-      0,
-      `Could not reach the server at ${config.apiUrl}. It may be offline, or this address may ` +
-        'not be allowed to call it.',
-    );
+    throw new ApiError(0, t().ui.api.unreachable(config.apiUrl));
   }
 
   if (response.status === 401 && retry && (await refreshAccessToken())) {
@@ -497,7 +495,11 @@ export interface Usage {
     byAgents: number;
     trend: { day: string; people: number; agents: number }[];
   };
-  agents: { keys: number; liveKeys: number; recent: { name: string; by: string; lastUsedAt: string | null }[] };
+  agents: {
+    keys: number;
+    liveKeys: number;
+    recent: { name: string; by: string; lastUsedAt: string | null }[];
+  };
   reach: { sessions: number; shares: number; liveInvites: number };
   live: { documents: number; connections: number };
   storage: { databaseBytes: number };

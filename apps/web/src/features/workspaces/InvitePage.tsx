@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import { Wordmark } from '@/components/Mark';
@@ -7,13 +7,7 @@ import { Problem, Spinner } from '@/components/ui/feedback';
 import { workspaces, type InvitePreview } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { useDocumentTitle } from '@/lib/use-document-title';
-
-const ROLE_MEANING: Record<string, string> = {
-  OWNER: 'run the workspace, including deleting it',
-  ADMIN: 'manage members and projects',
-  EDITOR: 'draw on every plan in it',
-  VIEWER: 'read every plan in it',
-};
+import { useT } from '@/i18n';
 
 /**
  * An invitation, shown before it is taken.
@@ -23,7 +17,9 @@ const ROLE_MEANING: Record<string, string> = {
  * writes except the two buttons.
  */
 export function InvitePage() {
-  useDocumentTitle('Invitation');
+  const t = useT();
+  const m = t.workspaces.invite;
+  useDocumentTitle(m.documentTitle);
   const { token = '' } = useParams();
   const navigate = useNavigate();
   const user = useAuth((state) => state.user);
@@ -113,22 +109,27 @@ export function InvitePage() {
 
   const settled =
     invite.status === 'accepted'
-      ? 'This invitation has already been used.'
+      ? m.settled.accepted(invite.invitedBy.name)
       : invite.status === 'declined'
-        ? 'This invitation was turned down.'
+        ? m.settled.declined(invite.invitedBy.name)
         : invite.status === 'expired'
-          ? 'This invitation has expired.'
+          ? m.settled.expired(invite.invitedBy.name)
           : null;
+  const asRole: Partial<Record<string, (role: ReactNode) => ReactNode>> = m.asRole;
+  const roleSentence = asRole[invite.role] ?? m.asRole.other;
 
   return (
     <Shell>
       <p className="text-sm text-ink-muted">
-        <span className="text-ink">{invite.invitedBy.name}</span> invited you to
+        {m.invitedYou(<span className="text-ink">{invite.invitedBy.name}</span>)}
       </p>
       <h1 className="mt-1 text-xl font-medium text-ink">{invite.workspace.name}</h1>
       <p className="mt-2 text-sm text-ink-muted">
-        As <span className="text-ink">{invite.role.toLowerCase()}</span>, so you can{' '}
-        {ROLE_MEANING[invite.role] ?? 'take part in it'}.
+        {roleSentence(
+          <span className="text-ink">
+            {t.workspaces.roles[invite.role] ?? invite.role.toLowerCase()}
+          </span>,
+        )}
       </p>
 
       {/*
@@ -139,18 +140,18 @@ export function InvitePage() {
       */}
       {memberSlug !== null ? (
         <div className="mt-6">
-          <p className="text-sm text-ink-muted">You are already in this workspace.</p>
+          <p className="text-sm text-ink-muted">{m.alreadyMember}</p>
           <Button
             variant="primary"
             className="mt-3 w-full"
             onClick={() => navigate(`/workspace/${memberSlug}`, { replace: true })}
           >
-            Open {invite.workspace.name}
+            {m.open(invite.workspace.name)}
           </Button>
         </div>
       ) : settled !== null ? (
         <p className="mt-6 rounded-md border border-rule bg-surface-3 px-3 py-2 text-sm text-ink-muted">
-          {settled} Ask {invite.invitedBy.name} for a new one.
+          {settled}
         </p>
       ) : status === 'loading' ? (
         // auth.me() usually has not resolved by the time the public preview
@@ -167,13 +168,13 @@ export function InvitePage() {
             className="w-full"
             onClick={() => navigate('/login', { state: { from: `/invite/${token}` } })}
           >
-            Sign in to accept
+            {m.signInToAccept}
           </Button>
           <Button
             className="w-full"
             onClick={() => navigate('/register', { state: { from: `/invite/${token}` } })}
           >
-            Create an account
+            {m.createAccount}
           </Button>
         </div>
       ) : (
@@ -185,9 +186,10 @@ export function InvitePage() {
           */}
           {invite.email !== null && user !== null && invite.email !== user.email ? (
             <p className="rounded-md border border-rule bg-surface-3 px-3 py-2 text-xs text-ink-muted">
-              This was sent to <span className="text-ink">{invite.email}</span>, and you are signed
-              in as <span className="text-ink">{user.email}</span>. Accepting joins the account you
-              are signed in as.
+              {m.otherAddress(
+                <span className="text-ink">{invite.email}</span>,
+                <span className="text-ink">{user.email}</span>,
+              )}
             </p>
           ) : null}
           <div className="flex gap-2">
@@ -197,14 +199,14 @@ export function InvitePage() {
               disabled={busy}
               onClick={() => void accept()}
             >
-              Accept
+              {m.accept}
             </Button>
             <Button className="flex-1" disabled={busy} onClick={() => void decline()}>
-              Decline
+              {m.decline}
             </Button>
           </div>
           {user === null ? null : (
-            <p className="text-center text-xs text-ink-faint">Signed in as {user.email}</p>
+            <p className="text-center text-xs text-ink-faint">{m.signedInAs(user.email)}</p>
           )}
         </div>
       )}

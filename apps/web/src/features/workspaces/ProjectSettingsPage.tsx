@@ -7,6 +7,7 @@ import { Field, Input, Textarea } from '@/components/ui/field';
 import { NotFound, Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { Page, Panel } from '@/components/ui/page';
+import { useT } from '@/i18n';
 import { canAdminister, isMissing, projects } from '@/lib/api';
 import { useWorkspace } from './workspace-context';
 
@@ -22,6 +23,8 @@ export function ProjectSettingsPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [deleting, setDeleting] = useState(false);
+  const t = useT();
+  const m = t.workspaces;
 
   useEffect(() => {
     let live = true;
@@ -46,7 +49,7 @@ export function ProjectSettingsPage() {
 
   if (error !== null && id === null) {
     return (
-      <Page title="Project settings" width="narrow">
+      <Page title={m.projectSettings.title} width="narrow">
         <Problem error={error} />
       </Page>
     );
@@ -83,24 +86,21 @@ export function ProjectSettingsPage() {
   return (
     <Page
       title={name}
-      description="What this project is called, and what happens to it."
+      description={m.projectSettings.description}
       width="narrow"
       actions={
         <Button
           variant="quiet"
           onClick={() => void navigate(`/workspace/${current.slug}/project/${projectSlug}`)}
         >
-          Open the plans
+          {m.projectSettings.openPlans}
         </Button>
       }
     >
       <div className="space-y-6">
         {error !== null ? <Problem error={error} /> : null}
 
-        <Panel
-          title="Name"
-          description="The address stays as it is — a link somebody saved should survive a change of mind about the name."
-        >
+        <Panel title={m.projectSettings.name.title} description={m.projectSettings.name.body}>
           <form
             className="space-y-3"
             onSubmit={(event) => {
@@ -108,7 +108,7 @@ export function ProjectSettingsPage() {
               void save();
             }}
           >
-            <Field label="Project name">
+            <Field label={m.projectSettings.name.label}>
               {(fieldId) => (
                 <Input
                   id={fieldId}
@@ -117,7 +117,7 @@ export function ProjectSettingsPage() {
                 />
               )}
             </Field>
-            <Field label="Description">
+            <Field label={m.projectSettings.name.description}>
               {(fieldId) => (
                 <Textarea
                   id={fieldId}
@@ -129,9 +129,9 @@ export function ProjectSettingsPage() {
             </Field>
             <div className="flex items-center gap-3">
               <Button type="submit" variant="primary" disabled={name.trim() === ''}>
-                Save
+                {t.common.save}
               </Button>
-              {saved ? <span className="text-xs text-status-done">Saved</span> : null}
+              {saved ? <span className="text-xs text-status-done">{t.common.saved}</span> : null}
               <span className="slug ml-auto text-ink-faint">{projectSlug}</span>
             </div>
           </form>
@@ -139,13 +139,13 @@ export function ProjectSettingsPage() {
 
         {canAdminister(current.role) ? (
           <Panel
-            title="Delete this project"
+            title={m.projectSettings.delete.title}
             tone="danger"
-            description="It goes to the trash with the plans it holds, and restoring it brings back exactly what was under it."
+            description={m.projectSettings.delete.body}
           >
             <Button variant="danger" onClick={() => setDeleting(true)}>
               <Trash2 className="size-3.5" />
-              Move to trash
+              {m.list.moveToTrash}
             </Button>
           </Panel>
         ) : null}
@@ -154,16 +154,16 @@ export function ProjectSettingsPage() {
       <Modal
         open={deleting}
         onOpenChange={setDeleting}
-        title={`Move ${name} to the trash?`}
-        description="The plans inside go with it. You can bring the whole project back from the trash."
+        title={m.list.confirmTrash(name)}
+        description={m.projects.trashBody}
       >
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setDeleting(false)}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button variant="danger" onClick={() => void remove()}>
             <Trash2 className="size-3.5" />
-            Move to trash
+            {m.list.moveToTrash}
           </Button>
         </div>
       </Modal>

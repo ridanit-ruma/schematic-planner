@@ -1,3 +1,4 @@
+import { useT } from '@/i18n';
 import type { ChangeAuthor } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -16,13 +17,15 @@ export function Author({
   by: Pick<ChangeAuthor, 'name' | 'agent'> | null;
   className?: string;
 }) {
-  if (by === null) return <span className={cn('text-ink-faint', className)}>Someone</span>;
+  const t = useT();
+  if (by === null)
+    return <span className={cn('text-ink-faint', className)}>{t.ui.author.someone}</span>;
   if (by.agent === null) return <span className={cn('font-medium', className)}>{by.name}</span>;
 
   return (
     <span className={cn('min-w-0', className)}>
       <span className="font-medium text-collab">{by.agent}</span>
-      <span className="text-ink-muted"> · via {by.name}</span>
+      <span className="text-ink-muted">{t.ui.author.via(by.name)}</span>
     </span>
   );
 }

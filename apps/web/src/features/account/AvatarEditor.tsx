@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { useT } from '@/i18n';
 
 /** What is written, and what the picture is framed in while it is being set. */
 const OUTPUT = 512;
@@ -29,6 +30,7 @@ export function AvatarEditor({
   onCancel: () => void;
   onDone: (png: Blob) => void | Promise<void>;
 }) {
+  const t = useT();
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [placement, setPlacement] = useState<Placement>({ zoom: 1, x: 0, y: 0 });
   const [failed, setFailed] = useState(false);
@@ -92,10 +94,10 @@ export function AvatarEditor({
   if (failed) {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-danger">That file could not be read as an image.</p>
+        <p className="text-sm text-danger">{t.account.avatarEditor.unreadable}</p>
         <div className="flex justify-end">
           <Button variant="ghost" onClick={onCancel}>
-            Close
+            {t.common.close}
           </Button>
         </div>
       </div>
@@ -138,7 +140,7 @@ export function AvatarEditor({
       </div>
 
       <label className="flex items-center gap-3">
-        <span className="text-xs text-ink-muted">Zoom</span>
+        <span className="text-xs text-ink-muted">{t.account.avatarEditor.zoom}</span>
         <input
           type="range"
           min={100}
@@ -151,16 +153,19 @@ export function AvatarEditor({
         />
       </label>
 
-      <p className="text-2xs text-ink-faint">
-        Drag the picture to move it. It is saved as a {OUTPUT}×{OUTPUT} square.
-      </p>
+      <p className="text-2xs text-ink-faint">{t.account.avatarEditor.hint(OUTPUT)}</p>
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>
-          Cancel
+          {t.common.cancel}
         </Button>
-        <Button type="button" variant="primary" onClick={() => void save()} disabled={busy || image === null}>
-          {busy ? 'Saving…' : 'Save picture'}
+        <Button
+          type="button"
+          variant="primary"
+          onClick={() => void save()}
+          disabled={busy || image === null}
+        >
+          {busy ? t.account.avatarEditor.saving : t.account.avatarEditor.save}
         </Button>
       </div>
     </div>

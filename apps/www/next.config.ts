@@ -21,6 +21,10 @@ const config: NextConfig = {
   // taught to try an .html suffix.
   trailingSlash: true,
   images: { unoptimized: true },
+  // Each language is its own root layout (so each page's `lang` is right in the
+  // HTML), which leaves no single layout for the not-found page to sit in.
+  // src/app/global-not-found.tsx is that page, and this is what reads it.
+  experimental: { globalNotFound: true },
   // Named explicitly so a missing value fails visibly at build rather than
   // being inlined as the development default.
   env: {

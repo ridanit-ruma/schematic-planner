@@ -1,15 +1,17 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 
+import { useT, type Messages } from '@/i18n';
 import { useLost } from '@/lib/use-crumb';
 
 import { cn } from '@/lib/utils';
 
 export function Spinner({ className }: { className?: string }) {
+  const t = useT();
   return (
     <span
       role="status"
-      aria-label="Loading"
+      aria-label={t.common.loading}
       className={cn(
         'inline-block size-4 animate-spin rounded-full border-2 border-rule border-t-accent',
         className,
@@ -38,7 +40,8 @@ export function Empty({
 }
 
 export function Problem({ error }: { error: unknown }) {
-  const message = error instanceof Error ? error.message : 'Something went wrong.';
+  const t = useT();
+  const message = error instanceof Error ? error.message : t.common.somethingWentWrong;
   return (
     <div
       role="alert"
@@ -63,7 +66,19 @@ export function Problem({ error }: { error: unknown }) {
  * and the canvas did worse: it drew an empty plan called "Untitled plan", which
  * is a drawing of something that is not there.
  */
-export function NotFound({ subject = 'page' }: { subject?: string }) {
+export type NotFoundSubject = 'page' | 'plan' | 'shared plan' | 'project' | 'folder' | 'workspace';
+
+const NOT_FOUND_TITLE: Record<NotFoundSubject, keyof Messages['ui']['notFound']['title']> = {
+  page: 'page',
+  plan: 'plan',
+  'shared plan': 'sharedPlan',
+  project: 'project',
+  folder: 'folder',
+  workspace: 'workspace',
+};
+
+export function NotFound({ subject = 'page' }: { subject?: NotFoundSubject }) {
+  const t = useT();
   useLost();
 
   return (
@@ -71,17 +86,14 @@ export function NotFound({ subject = 'page' }: { subject?: string }) {
       <div className="max-w-md text-center">
         <p className="slug text-ink-faint">404</p>
         <h1 className="mt-2 text-base font-medium text-ink">
-          There is no {subject} here
+          {t.ui.notFound.title[NOT_FOUND_TITLE[subject]]}
         </h1>
-        <p className="mt-1.5 text-sm text-ink-muted">
-          This address does not lead anywhere you can reach. It may never have existed, it may
-          have been deleted, or it may belong to somebody who has not shared it with you.
-        </p>
+        <p className="mt-1.5 text-sm text-ink-muted">{t.ui.notFound.body}</p>
         <Link
           to="/recent"
           className="mt-5 inline-block text-sm text-accent underline underline-offset-2"
         >
-          Back to what you were working on
+          {t.ui.notFound.back}
         </Link>
       </div>
     </div>

@@ -10,11 +10,13 @@ import { account, type SessionSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { formatWhen } from '@/lib/utils';
 import { AvatarEditor } from './AvatarEditor';
+import { LanguagePicker } from '@/components/LanguagePicker';
+import { useT, type Messages } from '@/i18n';
 import { useDocumentTitle } from '@/lib/use-document-title';
 
 /** Reads "Chrome on Linux" out of a user-agent string, or gives up honestly. */
-function describeClient(userAgent: string | null): string {
-  if (userAgent === null || userAgent.trim() === '') return 'Unknown client';
+function describeClient(userAgent: string | null, t: Messages): string {
+  if (userAgent === null || userAgent.trim() === '') return t.account.client.unknown;
 
   const browser = /Firefox\/[\d.]+/.test(userAgent)
     ? 'Firefox'
@@ -24,7 +26,7 @@ function describeClient(userAgent: string | null): string {
         ? 'Chrome'
         : /Safari\//.test(userAgent)
           ? 'Safari'
-          : 'Unknown browser';
+          : t.account.client.unknownBrowser;
 
   const platform = /Windows/.test(userAgent)
     ? 'Windows'
@@ -36,13 +38,14 @@ function describeClient(userAgent: string | null): string {
           ? 'iOS'
           : /Linux/.test(userAgent)
             ? 'Linux'
-            : 'unknown platform';
+            : t.account.client.unknownPlatform;
 
-  return `${browser} on ${platform}`;
+  return t.account.client.on(browser, platform);
 }
 
 export function AccountSettingsPage() {
-  useDocumentTitle('Account');
+  const t = useT();
+  useDocumentTitle(t.account.documentTitle);
   const { user, signOut, patchUser } = useAuth();
   const navigate = useNavigate();
 
@@ -68,10 +71,15 @@ export function AccountSettingsPage() {
       {error !== null ? <Problem error={error} /> : null}
 
       <section className="rounded-lg border border-rule bg-surface-2 p-4">
-        <h2 className="text-sm font-medium text-ink">Picture</h2>
-        <p className="mt-1 text-xs text-ink-muted">
-          Shown wherever you appear — a member list, the history of a plan, your cursor on a canvas.
-        </p>
+        <h2 className="text-sm font-medium text-ink">{t.common.language}</h2>
+        <div className="mt-4 max-w-56">
+          <LanguagePicker />
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-rule bg-surface-2 p-4">
+        <h2 className="text-sm font-medium text-ink">{t.account.picture.title}</h2>
+        <p className="mt-1 text-xs text-ink-muted">{t.account.picture.body}</p>
         <div className="mt-4 flex items-center gap-4">
           <Avatar
             src={user?.avatarUrl}
@@ -91,7 +99,9 @@ export function AccountSettingsPage() {
               }}
             />
             <Button type="button" variant="ghost" onClick={() => pick.current?.click()}>
-              {user?.avatarUrl == null || user.avatarUrl === '' ? 'Add a picture' : 'Replace'}
+              {user?.avatarUrl == null || user.avatarUrl === ''
+                ? t.account.picture.add
+                : t.account.picture.replace}
             </Button>
             {user?.avatarUrl != null && user.avatarUrl !== '' ? (
               <Button
@@ -107,7 +117,7 @@ export function AccountSettingsPage() {
                     .catch(setError);
                 }}
               >
-                Remove
+                {t.common.remove}
               </Button>
             ) : null}
           </div>
@@ -117,7 +127,7 @@ export function AccountSettingsPage() {
       <Modal
         open={picking !== null}
         onOpenChange={(open) => !open && setPicking(null)}
-        title="Your picture"
+        title={t.account.picture.modalTitle}
       >
         {picking === null ? null : (
           <AvatarEditor
@@ -139,11 +149,9 @@ export function AccountSettingsPage() {
       </Modal>
 
       <section className="rounded-lg border border-rule bg-surface-2 p-4">
-        <h2 className="text-sm font-medium text-ink">Name</h2>
+        <h2 className="text-sm font-medium text-ink">{t.account.name.title}</h2>
         <p className="mt-1 text-xs text-ink-muted">
-          What the people you share a workspace with see. Your email is{' '}
-          <span className="text-ink">{user?.email}</span>; changing it needs email delivery, which
-          is not built yet.
+          {t.account.name.emailNote(<span className="text-ink">{user?.email}</span>)}
         </p>
         <form
           className="mt-4 flex items-end gap-2"
@@ -160,7 +168,7 @@ export function AccountSettingsPage() {
           }}
         >
           <div className="flex-1">
-            <Field label="Display name">
+            <Field label={t.account.name.label}>
               {(id) => (
                 <Input id={id} value={name} onChange={(event) => setName(event.target.value)} />
               )}
@@ -171,17 +179,14 @@ export function AccountSettingsPage() {
             variant="primary"
             disabled={name.trim() === '' || name.trim() === user?.name}
           >
-            {nameSaved ? 'Saved' : 'Save'}
+            {nameSaved ? t.common.saved : t.common.save}
           </Button>
         </form>
       </section>
 
       <section className="rounded-lg border border-rule bg-surface-2 p-4">
-        <h2 className="text-sm font-medium text-ink">Password</h2>
-        <p className="mt-1 text-xs text-ink-muted">
-          Changing it signs out every other session. If you are changing it because you think it
-          leaked, that is the point.
-        </p>
+        <h2 className="text-sm font-medium text-ink">{t.account.password.title}</h2>
+        <p className="mt-1 text-xs text-ink-muted">{t.account.password.body}</p>
         <form
           className="mt-4 space-y-3"
           onSubmit={(event) => {
@@ -199,7 +204,7 @@ export function AccountSettingsPage() {
               .catch(setError);
           }}
         >
-          <Field label="Current password">
+          <Field label={t.account.password.current}>
             {(id) => (
               <Input
                 id={id}
@@ -210,7 +215,7 @@ export function AccountSettingsPage() {
               />
             )}
           </Field>
-          <Field label="New password" hint="At least 10 characters.">
+          <Field label={t.account.password.new} hint={t.account.password.newHint}>
             {(id) => (
               <Input
                 id={id}
@@ -227,7 +232,7 @@ export function AccountSettingsPage() {
             variant="primary"
             disabled={currentPassword === '' || newPassword.length < 10}
           >
-            {passwordSaved ? 'Password changed' : 'Change password'}
+            {passwordSaved ? t.account.password.changed : t.account.password.change}
           </Button>
         </form>
       </section>
@@ -235,10 +240,8 @@ export function AccountSettingsPage() {
       <section className="rounded-lg border border-rule bg-surface-2 p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h2 className="text-sm font-medium text-ink">Where you are signed in</h2>
-            <p className="mt-1 text-xs text-ink-muted">
-              End a session you do not recognise. This one stays.
-            </p>
+            <h2 className="text-sm font-medium text-ink">{t.account.sessions.title}</h2>
+            <p className="mt-1 text-xs text-ink-muted">{t.account.sessions.body}</p>
           </div>
           {sessions !== null && sessions.length > 1 ? (
             <Button
@@ -246,7 +249,7 @@ export function AccountSettingsPage() {
               variant="quiet"
               onClick={() => void account.revokeOthers().then(reloadSessions).catch(setError)}
             >
-              End the others
+              {t.account.sessions.endOthers}
             </Button>
           ) : null}
         </div>
@@ -261,13 +264,15 @@ export function AccountSettingsPage() {
               <li key={session.id} className="flex items-center justify-between gap-4 py-2.5">
                 <div className="min-w-0">
                   <span className="block truncate text-sm text-ink">
-                    {describeClient(session.userAgent)}
+                    {describeClient(session.userAgent, t)}
                     {session.current ? (
-                      <span className="ml-2 text-xs text-ink-faint">this one</span>
+                      <span className="ml-2 text-xs text-ink-faint">
+                        {t.account.sessions.thisOne}
+                      </span>
                     ) : null}
                   </span>
                   <span className="block text-xs text-ink-muted">
-                    Started {formatWhen(session.createdAt)}
+                    {t.account.sessions.started(formatWhen(session.createdAt))}
                   </span>
                 </div>
                 {!session.current ? (
@@ -278,7 +283,7 @@ export function AccountSettingsPage() {
                       void account.revokeSession(session.id).then(reloadSessions).catch(setError)
                     }
                   >
-                    End
+                    {t.account.sessions.end}
                   </Button>
                 ) : null}
               </li>
@@ -288,21 +293,18 @@ export function AccountSettingsPage() {
       </section>
 
       <section className="rounded-lg border border-danger/20 bg-surface-2 p-4">
-        <h2 className="text-sm font-medium text-ink">Delete your account</h2>
-        <p className="mt-1 max-w-prose text-xs text-ink-muted">
-          Everything you own goes with it: workspaces where you are the only owner, and every
-          project and plan inside them. Export what you want to keep first.
-        </p>
+        <h2 className="text-sm font-medium text-ink">{t.account.remove.title}</h2>
+        <p className="mt-1 max-w-prose text-xs text-ink-muted">{t.account.remove.body}</p>
         <Button variant="danger" className="mt-4" onClick={() => setDeleting(true)}>
-          Delete account
+          {t.account.remove.button}
         </Button>
       </section>
 
       <Modal
         open={deleting}
         onOpenChange={setDeleting}
-        title="Delete your account"
-        description="This cannot be undone. Confirm with your password."
+        title={t.account.remove.modalTitle}
+        description={t.account.remove.modalDescription}
       >
         <form
           className="space-y-4"
@@ -317,7 +319,7 @@ export function AccountSettingsPage() {
               .catch(setError);
           }}
         >
-          <Field label="Password">
+          <Field label={t.account.remove.password}>
             {(id) => (
               <Input
                 id={id}
@@ -331,10 +333,10 @@ export function AccountSettingsPage() {
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setDeleting(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button type="submit" variant="danger" disabled={deletePassword === ''}>
-              Delete my account
+              {t.account.remove.confirm}
             </Button>
           </div>
         </form>

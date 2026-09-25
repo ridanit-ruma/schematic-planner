@@ -14,6 +14,7 @@ import type * as Y from 'yjs';
 
 import { Markdown } from '@/components/ui/markdown';
 import { Tooltip } from '@/components/ui/tooltip';
+import { useT } from '@/i18n';
 import { cn, formatWhen } from '@/lib/utils';
 import { snapTo } from './snap';
 import type { PlanStore } from './plan-store';
@@ -161,6 +162,7 @@ function Note({
   anchoredAt: Position | null;
   onSelect: (id: string | null) => void;
 }) {
+  const t = useT();
   const [body, write] = useYText(commentBodyText(doc, comment.id));
   const { screenToFlowPosition } = useReactFlow();
   const zoom = useFlowStore((state) => state.transform[2]);
@@ -169,7 +171,9 @@ function Note({
   const grab = useRef<{ pointer: Position; from: Position; moved: boolean } | null>(null);
   // The same bargain for the corner: drawn as it is dragged, stored once.
   const [stretched, setStretched] = useState<{ width: number; height: number } | null>(null);
-  const corner = useRef<{ pointer: Position; from: { width: number; height: number } } | null>(null);
+  const corner = useRef<{ pointer: Position; from: { width: number; height: number } } | null>(
+    null,
+  );
   const size = stretched ?? comment.size;
 
   /*
@@ -362,7 +366,7 @@ function Note({
           className="flex w-full items-baseline gap-1.5 px-2 pt-1.5 text-left"
         >
           <span className="min-w-0 flex-1 truncate text-2xs font-medium text-collab">
-            {comment.author === '' ? 'Someone' : comment.author}
+            {comment.author === '' ? t.plan.comments.someone : comment.author}
           </span>
           {comment.at === '' ? null : (
             <span className="shrink-0 text-2xs text-ink-faint">{formatWhen(comment.at)}</span>
@@ -381,7 +385,7 @@ function Note({
             // A note is dragged by its head, not by the words being typed into it.
             onPointerDown={(event) => event.stopPropagation()}
             rows={4}
-            placeholder="What about this?"
+            placeholder={t.plan.comments.placeholder}
             className={cn(
               'w-full resize-none bg-transparent px-2 py-1 text-xs leading-relaxed text-ink outline-none placeholder:text-ink-faint',
               size !== null && size !== undefined && 'min-h-0 flex-1',
@@ -410,7 +414,7 @@ function Note({
             )}
           >
             {body === '' ? (
-              <span className="text-xs text-ink-faint">Empty note</span>
+              <span className="text-xs text-ink-faint">{t.plan.comments.empty}</span>
             ) : (
               <Markdown
                 body={body}
@@ -422,28 +426,26 @@ function Note({
 
         {readOnly ? null : (
           <div className="flex items-center justify-end gap-0.5 border-t border-rule px-1 py-0.5">
-            <Tooltip content={comment.resolved ? 'Reopen' : 'Resolve'}>
+            <Tooltip content={comment.resolved ? t.plan.comments.reopen : t.plan.comments.resolve}>
               <button
                 type="button"
                 onClick={() => apply({ resolved: !comment.resolved })}
                 className="grid size-5 place-items-center rounded text-ink-faint hover:bg-surface-2 hover:text-ink"
               >
-                {comment.resolved ? (
-                  <RotateCcw className="size-3" />
-                ) : (
-                  <Check className="size-3" />
-                )}
-                <span className="sr-only">{comment.resolved ? 'Reopen' : 'Resolve'}</span>
+                {comment.resolved ? <RotateCcw className="size-3" /> : <Check className="size-3" />}
+                <span className="sr-only">
+                  {comment.resolved ? t.plan.comments.reopen : t.plan.comments.resolve}
+                </span>
               </button>
             </Tooltip>
-            <Tooltip content="Delete note">
+            <Tooltip content={t.plan.comments.deleteNote}>
               <button
                 type="button"
                 onClick={remove}
                 className="grid size-5 place-items-center rounded text-ink-faint hover:bg-danger/10 hover:text-danger"
               >
                 <Trash2 className="size-3" />
-                <span className="sr-only">Delete note</span>
+                <span className="sr-only">{t.plan.comments.deleteNote}</span>
               </button>
             </Tooltip>
           </div>

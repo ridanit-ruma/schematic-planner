@@ -9,25 +9,36 @@ import { Modal } from '@/components/ui/modal';
 import { RowMenu } from '@/components/ui/row-menu';
 import { Select } from '@/components/ui/select';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
+import { useT, type Messages } from '@/i18n';
 import { admin, type InviteSummary } from '@/lib/api';
 import { useLiveList } from '@/lib/use-live-list';
-import { cn, formatWhen, plural } from '@/lib/utils';
+import { cn, formatWhen } from '@/lib/utils';
 import { useDocumentTitle } from '@/lib/use-document-title';
 
-const LIMITS = [
-  { value: '1', label: 'One person' },
-  { value: '5', label: 'Up to five' },
-  { value: '25', label: 'Up to twenty-five' },
-  { value: '', label: 'No limit' },
+const limits = (t: Messages) => [
+  { value: '1', label: t.admin.invitations.limits.one },
+  { value: '5', label: t.admin.invitations.limits.five },
+  { value: '25', label: t.admin.invitations.limits.twentyFive },
+  { value: '', label: t.admin.invitations.limits.none },
 ];
 
-const LIVES = [
-  { value: '1', label: 'A day' },
-  { value: '7', label: 'A week' },
-  { value: '14', label: 'A fortnight' },
-  { value: '90', label: 'Three months' },
-  { value: '', label: 'Until withdrawn' },
+const lives = (t: Messages) => [
+  { value: '1', label: t.admin.invitations.lives.day },
+  { value: '7', label: t.admin.invitations.lives.week },
+  { value: '14', label: t.admin.invitations.lives.fortnight },
+  { value: '90', label: t.admin.invitations.lives.threeMonths },
+  { value: '', label: t.admin.invitations.lives.forever },
 ];
+
+const STATE_LABELS = {
+  live: 'live',
+  'used up': 'usedUp',
+  expired: 'expired',
+  withdrawn: 'withdrawn',
+} as const satisfies Record<
+  InviteSummary['state'],
+  keyof Messages['admin']['invitations']['states']
+>;
 
 /**
  * Every way onto this instance, and only the ones that still work.
@@ -39,7 +50,8 @@ const LIVES = [
  * lists doors and leaves out the unlocked one is worse than no screen.
  */
 export function InvitationsPage() {
-  useDocumentTitle('Invitations');
+  const t = useT();
+  useDocumentTitle(t.admin.invitations.documentTitle);
   const [invites, setInvites] = useState<InviteSummary[] | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -113,13 +125,10 @@ export function InvitationsPage() {
       {error !== null ? <Problem error={error} /> : null}
 
       <div className="flex items-start justify-between gap-4">
-        <p className="max-w-prose text-sm text-ink-muted">
-          A link lets somebody make an account here. Give one to a person rather than a code to
-          everybody: it can be limited, withdrawn, and told apart afterwards.
-        </p>
+        <p className="max-w-prose text-sm text-ink-muted">{t.admin.invitations.intro}</p>
         <Button variant="primary" onClick={() => setMaking(true)}>
           <Plus className="size-3.5" />
-          New link
+          {t.admin.invitations.newLink}
         </Button>
       </div>
 
@@ -130,16 +139,14 @@ export function InvitationsPage() {
         <div className="rounded-lg border border-status-progress/30 bg-surface-2 px-3 py-2.5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-ink">The sign-up code</p>
+              <p className="text-sm font-medium text-ink">{t.admin.invitations.code.title}</p>
               <p className="mt-0.5 text-xs text-ink-muted">
-                Set in this deployment&rsquo;s configuration. Anyone who has it can make an account
-                without a link, as many times as they like, and nothing here records that they did.
-                Clear <span className="slug">REGISTRATION_CODE</span> to take this door away.
+                {t.admin.invitations.code.body(<span className="slug">REGISTRATION_CODE</span>)}
               </p>
             </div>
             <Button size="sm" variant="ghost" onClick={() => copy(code)}>
               <Copy className="size-3.5" />
-              {copied === code ? 'Copied' : 'Copy'}
+              {copied === code ? t.admin.invitations.copied : t.admin.invitations.copy}
             </Button>
           </div>
           <p className="slug mt-2 rounded-sm bg-surface px-2 py-1 text-ink">{code}</p>
@@ -148,28 +155,30 @@ export function InvitationsPage() {
 
       {shown.length === 0 ? (
         <Empty
-          title={live.length === 0 && spent.length > 0 ? 'No invitations still open' : 'No invitations yet'}
+          title={
+            live.length === 0 && spent.length > 0
+              ? t.admin.invitations.empty.noneOpen
+              : t.admin.invitations.empty.noneYet
+          }
           body={
-            code === null
-              ? 'Nobody can sign up until you issue a link.'
-              : 'The code above is the only way in at the moment.'
+            code === null ? t.admin.invitations.empty.noCode : t.admin.invitations.empty.onlyCode
           }
         />
       ) : (
         <Table>
           <THead>
-            <TH>Invitation</TH>
+            <TH>{t.admin.invitations.columns.invitation}</TH>
             <TH className="w-28" hide="sm">
-              Used
+              {t.admin.invitations.columns.used}
             </TH>
             <TH className="w-32" hide="md">
-              Expires
+              {t.admin.invitations.columns.expires}
             </TH>
             <TH className="w-24 sm:w-28" align="right">
-              State
+              {t.admin.invitations.columns.state}
             </TH>
             <TH className="w-10" align="right">
-              <span className="sr-only">Actions</span>
+              <span className="sr-only">{t.admin.actions}</span>
             </TH>
           </THead>
           <tbody>
@@ -177,10 +186,10 @@ export function InvitationsPage() {
               <TR key={invite.id}>
                 <TD>
                   <span className="block truncate font-medium text-ink">
-                    {invite.label === '' ? 'Untitled' : invite.label}
+                    {invite.label === '' ? t.admin.invitations.untitled : invite.label}
                   </span>
                   <span className="slug block truncate text-2xs text-ink-faint">
-                    {invite.prefix}… · by {invite.createdBy}
+                    {t.admin.invitations.byline(invite.prefix, invite.createdBy)}
                   </span>
                   {invite.accounts.length === 0 ? null : (
                     <span className="block truncate text-2xs text-ink-muted">
@@ -189,11 +198,12 @@ export function InvitationsPage() {
                   )}
                 </TD>
                 <TD className="text-xs text-ink-muted" hide="sm">
-                  {invite.uses}
-                  {invite.maxUses === null ? '' : ` of ${invite.maxUses}`}
+                  {t.admin.invitations.uses(invite.uses, invite.maxUses)}
                 </TD>
                 <TD className="text-xs text-ink-muted" hide="md">
-                  {invite.expiresAt === null ? 'Never' : formatWhen(invite.expiresAt)}
+                  {invite.expiresAt === null
+                    ? t.admin.invitations.never
+                    : formatWhen(invite.expiresAt)}
                 </TD>
                 <TD align="right">
                   <span
@@ -202,20 +212,24 @@ export function InvitationsPage() {
                       invite.state === 'live' ? 'text-status-done' : 'text-ink-faint',
                     )}
                   >
-                    {invite.state}
+                    {t.admin.invitations.states[STATE_LABELS[invite.state]]}
                   </span>
                 </TD>
                 <TD align="right">
                   <span className="flex justify-end">
-                    <RowMenu label={invite.label === '' ? 'this invitation' : invite.label}>
+                    <RowMenu
+                      label={
+                        invite.label === '' ? t.admin.invitations.thisInvitation : invite.label
+                      }
+                    >
                       {invite.state !== 'live' ? null : (
                         <DropdownAction onSelect={() => void act(admin.withdrawInvite(invite.id))}>
-                          Withdraw
+                          {t.admin.invitations.withdraw}
                         </DropdownAction>
                       )}
                       <DropdownAction tone="danger" onSelect={() => setDeleting(invite)}>
                         <Trash2 className="size-3.5" />
-                        Delete
+                        {t.common.delete}
                       </DropdownAction>
                     </RowMenu>
                   </span>
@@ -232,13 +246,11 @@ export function InvitationsPage() {
           onClick={() => setShowSpent((open) => !open)}
           className="text-xs text-ink-faint transition-colors hover:text-ink"
         >
-          {showSpent
-            ? 'Hide what is no longer open'
-            : `${plural(spent.length, 'invitation')} no longer open — show`}
+          {showSpent ? t.admin.invitations.hideSpent : t.admin.invitations.showSpent(spent.length)}
         </button>
       )}
 
-      <Modal open={making} onOpenChange={setMaking} title="New invitation">
+      <Modal open={making} onOpenChange={setMaking} title={t.admin.invitations.create.title}>
         <form
           className="space-y-4"
           onSubmit={(event) => {
@@ -246,31 +258,34 @@ export function InvitationsPage() {
             void create();
           }}
         >
-          <Field label="What it is for" hint="Only you see this. It is how you tell links apart.">
+          <Field
+            label={t.admin.invitations.create.label}
+            hint={t.admin.invitations.create.labelHint}
+          >
             {(id) => (
               <Input
                 id={id}
                 autoFocus
                 value={label}
                 onChange={(event) => setLabel(event.target.value)}
-                placeholder="For the design review"
+                placeholder={t.admin.invitations.create.labelPlaceholder}
               />
             )}
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="How many accounts">
-              {(id) => <Select id={id} value={limit} onChange={setLimit} options={LIMITS} />}
+            <Field label={t.admin.invitations.create.limit}>
+              {(id) => <Select id={id} value={limit} onChange={setLimit} options={limits(t)} />}
             </Field>
-            <Field label="How long it lasts">
-              {(id) => <Select id={id} value={life} onChange={setLife} options={LIVES} />}
+            <Field label={t.admin.invitations.create.life}>
+              {(id) => <Select id={id} value={life} onChange={setLife} options={lives(t)} />}
             </Field>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setMaking(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button type="submit" variant="primary">
-              Issue link
+              {t.admin.invitations.create.submit}
             </Button>
           </div>
         </form>
@@ -284,15 +299,15 @@ export function InvitationsPage() {
             setCopied(null);
           }
         }}
-        title="The link"
-        description="Copy it now. Only its hash is kept, so it cannot be shown again — issue another if it is lost."
+        title={t.admin.invitations.issued.title}
+        description={t.admin.invitations.issued.description}
       >
         <div className="space-y-3">
           <Input readOnly value={issued ?? ''} onFocus={(event) => event.target.select()} />
           <div className="flex justify-end">
             <Button variant="primary" onClick={() => copy(issued ?? '')}>
               <Copy className="size-3.5" />
-              {copied === issued ? 'Copied' : 'Copy link'}
+              {copied === issued ? t.admin.invitations.copied : t.admin.invitations.issued.copy}
             </Button>
           </div>
         </div>
@@ -301,16 +316,16 @@ export function InvitationsPage() {
       <Modal
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
-        title="Delete this invitation?"
+        title={t.admin.invitations.remove.title}
         description={
           deleting !== null && deleting.accounts.length > 0
-            ? `${plural(deleting.accounts.length, 'account')} came in through it and will stop saying how they got here. Withdrawing it instead stops it working and keeps that.`
-            : 'It will stop working and be forgotten. Withdrawing it instead keeps the record.'
+            ? t.admin.invitations.remove.withAccounts(deleting.accounts.length)
+            : t.admin.invitations.remove.withoutAccounts
         }
       >
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setDeleting(null)}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button
             variant="danger"
@@ -318,7 +333,7 @@ export function InvitationsPage() {
               if (deleting !== null) void act(admin.deleteInvite(deleting.id));
             }}
           >
-            Delete
+            {t.common.delete}
           </Button>
         </div>
       </Modal>

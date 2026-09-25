@@ -5,6 +5,7 @@ import { Author } from '@/components/ui/author';
 import { Avatar } from '@/components/ui/avatar';
 import { Tooltip } from '@/components/ui/tooltip';
 import { Problem, Spinner } from '@/components/ui/feedback';
+import { formatLocale, t, useLocale, useT } from '@/i18n';
 import { plans, type PlanChangeRecord } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { SIDE_PANEL } from './side-panel';
@@ -16,58 +17,63 @@ import { SIDE_PANEL } from './side-panel';
  * agent alike.
  */
 function sentence(change: PlanChangeRecord): string {
-  const name = change.label === '' ? 'this plan' : change.label;
+  const { history } = t().plan;
+  const say = history.change;
+  const name = change.label === '' ? history.thisPlan : change.label;
+  // The value a status or kind change ended on, as the words for it.
+  const became = (words: Record<string, string>): string | null => {
+    const to = (change.detail ?? '').split('→').pop()?.trim();
+    return to === undefined ? null : (words[to] ?? to);
+  };
   switch (change.kind) {
     case 'plan.created':
-      return change.detail === null
-        ? 'started this plan'
-        : `started this plan with ${change.detail} nodes`;
+      return say.planCreated(change.detail);
     case 'plan.title':
-      return `renamed the plan to ${name}`;
+      return say.planTitle(name);
     case 'plan.description':
-      return 'wrote the plan description';
+      return say.planDescription;
     case 'plan.arranged':
-      return `moved ${change.detail ?? 'some'} node${change.detail === '1' ? '' : 's'}`;
+      return say.planArranged(change.detail);
     case 'node.added':
-      return `added ${name}`;
+      return say.nodeAdded(name);
     case 'node.removed':
-      return `removed ${name}`;
+      return say.nodeRemoved(name);
     case 'node.identifier':
-      return `now addresses ${name} as ${change.subject}`;
+      return say.nodeIdentifier(name, change.subject);
     case 'node.renamed':
-      return `renamed ${change.detail ?? 'a node'} to ${name}`;
+      return say.nodeRenamed(change.detail, name);
     case 'node.status':
-      return `set ${name} to ${(change.detail ?? '').split('→').pop()?.trim() ?? 'a new state'}`;
+      return say.nodeStatus(name, became(history.statusWord));
     case 'node.kind':
-      return `made ${name} a ${(change.detail ?? '').split('→').pop()?.trim() ?? 'different kind'}`;
+      return say.nodeKind(name, became(history.kindWord));
     case 'node.body':
-      return `wrote in ${name}`;
+      return say.nodeBody(name);
     case 'node.tags':
       return change.detail === ''
-        ? `cleared the tags on ${name}`
-        : `tagged ${name} ${change.detail}`;
+        ? say.nodeTagsCleared(name)
+        : say.nodeTags(name, change.detail ?? '');
     case 'node.meta':
       return change.detail === ''
-        ? `cleared the extra fields on ${name}`
-        : `set ${change.detail} on ${name}`;
+        ? say.nodeMetaCleared(name)
+        : say.nodeMeta(name, change.detail ?? '');
     case 'edge.added':
-      return `connected ${name}`;
+      return say.edgeAdded(name);
     case 'edge.removed':
-      return `disconnected ${name}`;
+      return say.edgeRemoved(name);
     case 'note.added':
-      return `left a note on ${name}`;
+      return say.noteAdded(name);
     case 'note.removed':
-      return `removed the note on ${name}`;
+      return say.noteRemoved(name);
     case 'note.edited':
-      return `rewrote the note on ${name}`;
+      return say.noteEdited(name);
     case 'note.answered':
-      return `answered the note on ${name}`;
+      return say.noteAnswered(name);
     case 'note.resolved':
-      return `resolved the note on ${name}`;
+      return say.noteResolved(name);
     case 'note.reopened':
-      return `reopened the note on ${name}`;
+      return say.noteReopened(name);
     default:
-      return `changed ${name}`;
+      return say.other(name);
   }
 }
 
@@ -122,24 +128,27 @@ function summary(changes: readonly PlanChangeRecord[]): string {
     else tally.other += 1;
   }
 
-  const counted = (count: { added: number; removed: number }, noun: string): string | null => {
+  const say = t().plan.history.summary;
+  const counted = (
+    count: { added: number; removed: number },
+    noun: (change: string, total: number) => string,
+  ): string | null => {
     const parts = [
       count.added > 0 ? `+${count.added}` : null,
       count.removed > 0 ? `−${count.removed}` : null,
     ].filter((part) => part !== null);
     if (parts.length === 0) return null;
-    const total = count.added + count.removed;
-    return `${parts.join(' ')} ${total === 1 ? noun : `${noun}s`}`;
+    return noun(parts.join(' '), count.added + count.removed);
   };
 
   const parts = [
-    counted(tally.node, 'node'),
-    counted(tally.edge, 'connection'),
-    counted(tally.note, 'note'),
-    tally.other > 0 ? `${tally.other} edit${tally.other === 1 ? '' : 's'}` : null,
+    counted(tally.node, say.nodes),
+    counted(tally.edge, say.connections),
+    counted(tally.note, say.notes),
+    tally.other > 0 ? say.edits(tally.other) : null,
   ].filter((part) => part !== null);
 
-  return parts.length === 0 ? 'made some changes' : parts.join(', ');
+  return parts.length === 0 ? say.madeChanges : parts.join(say.separator);
 }
 
 /**
@@ -153,7 +162,7 @@ function when(iso: string): string {
     at.getFullYear() === today.getFullYear() &&
     at.getMonth() === today.getMonth() &&
     at.getDate() === today.getDate();
-  return at.toLocaleString(undefined, {
+  return at.toLocaleString(formatLocale(), {
     hour: '2-digit',
     minute: '2-digit',
     ...(sameDay ? {} : { month: 'short', day: 'numeric' }),
@@ -161,6 +170,7 @@ function when(iso: string): string {
 }
 
 export function HistoryPanel({ planId, onClose }: { planId: string; onClose: () => void }) {
+  const messages = useT();
   const [changes, setChanges] = useState<PlanChangeRecord[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
@@ -190,14 +200,14 @@ export function HistoryPanel({ planId, onClose }: { planId: string; onClose: () 
   return (
     <aside className={SIDE_PANEL}>
       <div className="flex items-center justify-between gap-2 border-b border-rule px-3 py-2">
-        <h2 className="text-sm font-medium text-ink">History</h2>
+        <h2 className="text-sm font-medium text-ink">{messages.plan.history.title}</h2>
         <button
           type="button"
           onClick={onClose}
           className="grid size-6 place-items-center rounded-md text-ink-muted hover:bg-surface-2 hover:text-ink"
         >
           <X className="size-4" />
-          <span className="sr-only">Close</span>
+          <span className="sr-only">{messages.common.close}</span>
         </button>
       </div>
 
@@ -211,9 +221,7 @@ export function HistoryPanel({ planId, onClose }: { planId: string; onClose: () 
             <Spinner />
           </div>
         ) : grouped.length === 0 ? (
-          <p className="p-3 text-xs text-ink-muted">
-            Nothing yet. Every change to this plan is recorded here, whoever makes it.
-          </p>
+          <p className="p-3 text-xs text-ink-muted">{messages.plan.history.empty}</p>
         ) : (
           <ol>
             {grouped.map((batch) =>
@@ -261,6 +269,8 @@ function Entry({
   isOpen?: boolean;
   children?: React.ReactNode;
 }) {
+  const messages = useT();
+  const locale = useLocale();
   return (
     <li className="flex gap-2 border-b border-rule/60 px-3 py-2 last:border-b-0">
       <Avatar
@@ -270,10 +280,10 @@ function Entry({
       />
       <div className="min-w-0 flex-1">
         <p className="text-xs leading-snug text-ink">
-          <Author by={change.by} /> {line}
+          {messages.plan.history.entry(<Author by={change.by} />, line)}
         </p>
         <div className="mt-0.5 flex items-center gap-2">
-          <Tooltip content={new Date(change.at).toLocaleString()}>
+          <Tooltip content={new Date(change.at).toLocaleString(formatLocale(locale))}>
             <span className="text-2xs text-ink-faint">{when(change.at)}</span>
           </Tooltip>
           {onOpen === undefined ? null : (
@@ -286,7 +296,7 @@ function Entry({
                 aria-hidden
                 className={cn('size-3 transition-transform', isOpen === true && 'rotate-90')}
               />
-              {isOpen === true ? 'Fewer' : 'Each one'}
+              {isOpen === true ? messages.plan.history.fewer : messages.plan.history.eachOne}
             </button>
           )}
         </div>

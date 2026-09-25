@@ -44,7 +44,7 @@ import {
   ContextSeparator,
   ContextSub,
 } from '@/components/ui/context-menu';
-import { plural } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { place, type Guide } from './align';
 import { resolveDrop, type DropTarget, type Rect } from './group-drop';
 import { groupOps } from './make-group';
@@ -197,6 +197,7 @@ export function PlanCanvas({
   const taken = useRef(false);
   useOpeningFit(doc, nodes.length, taken);
   const grid = useGrid();
+  const t = useT();
 
   /**
    * The height the grid holds a node by, which only a card has.
@@ -612,6 +613,7 @@ export function PlanCanvas({
    * the boundary it no longer belongs to.
    */
   const holderOfUnder = under?.kind === 'node' ? (parentOf[under.id] ?? null) : null;
+  const holderTitle = nodes.find((c) => c.id === holderOfUnder)?.data.node.title;
 
   const takeOutOfBox = (): void => {
     if (under === null || under.kind !== 'node' || holderOfUnder === null) return;
@@ -650,7 +652,7 @@ export function PlanCanvas({
         <>
           <ContextAction onSelect={() => onAddNode(pointer)}>
             <Plus className="size-3.5 text-ink-faint" />
-            Add node here
+            {t.canvas.canvas.menu.addNode}
           </ContextAction>
           {onAddComment === undefined ? null : (
             <ContextAction
@@ -659,31 +661,37 @@ export function PlanCanvas({
               }
             >
               <MessageSquarePlus className="size-3.5 text-ink-faint" />
-              {under?.kind === 'node' ? 'Leave a note on this node' : 'Leave a note here'}
+              {under?.kind === 'node'
+                ? t.canvas.canvas.menu.noteOnNode
+                : t.canvas.canvas.menu.noteHere}
             </ContextAction>
           )}
           {selection.length < 2 ? null : (
             <ContextAction onSelect={groupSelection}>
               <Group className="size-3.5 text-ink-faint" />
-              Group {plural(selection.length, 'node')}
+              {t.canvas.canvas.menu.groupNodes(selection.length)}
             </ContextAction>
           )}
           {holderOfUnder === null ? null : (
             <ContextAction onSelect={takeOutOfBox}>
               <Ungroup className="size-3.5 text-ink-faint" />
-              Take out of {nodes.find((c) => c.id === holderOfUnder)?.data.node.title ?? 'the box'}
+              {holderTitle === undefined
+                ? t.canvas.canvas.menu.takeOutOfBox
+                : t.canvas.canvas.menu.takeOutOf(holderTitle)}
             </ContextAction>
           )}
           {widenedUnder === null ? null : (
             <ContextAction onSelect={fitUnder}>
               <Shrink className="size-3.5 text-ink-faint" />
-              Use the standard width
+              {t.canvas.canvas.menu.standardWidth}
             </ContextAction>
           )}
           {under === null ? null : (
             <ContextAction tone="danger" onSelect={removeUnder}>
               <Trash2 className="size-3.5" />
-              {under.kind === 'node' ? 'Delete node' : 'Delete connection'}
+              {under.kind === 'node'
+                ? t.canvas.canvas.menu.deleteNode
+                : t.canvas.canvas.menu.deleteConnection}
             </ContextAction>
           )}
           <ContextSeparator />
@@ -693,41 +701,46 @@ export function PlanCanvas({
         <>
           <ContextAction onSelect={undo.undo} disabled={!undo.canUndo} hint="⌘Z">
             <Undo2 className="size-3.5 text-ink-faint" />
-            Undo
+            {t.canvas.canvas.menu.undo}
           </ContextAction>
           <ContextAction onSelect={undo.redo} disabled={!undo.canRedo} hint="⌘Y">
             <Redo2 className="size-3.5 text-ink-faint" />
-            Redo
+            {t.canvas.canvas.menu.redo}
           </ContextAction>
           <ContextSeparator />
         </>
       )}
-      <ContextAction onSelect={() => void fitView(FIT_VIEW)}>Fit the whole plan</ContextAction>
+      <ContextAction onSelect={() => void fitView(FIT_VIEW)}>
+        {t.canvas.canvas.menu.fitPlan}
+      </ContextAction>
       <ContextAction onSelect={grid.toggle}>
-        {grid.on ? 'Stop snapping to the grid' : 'Snap to the grid'}
+        {grid.on ? t.canvas.canvas.grid.stopSnapping : t.canvas.canvas.grid.snap}
       </ContextAction>
       {!grid.on ? null : (
         <>
-          <ContextSub label="Grid spacing">
+          <ContextSub label={t.canvas.canvas.menu.gridSpacing}>
             <ContextChoice
               value={String(grid.step)}
               onChoose={(value) => grid.choose(Number(value) as GridStep)}
               options={GRID_STEPS.map((step) => ({
                 value: String(step),
-                label: `${step} px`,
+                label: t.canvas.canvas.menu.gridStep(step),
               }))}
             />
           </ContextSub>
           {/* Line the wires up, or line the boxes up. A terminal sits at the
               middle of a node's side and nodes are not all the same height, so
               a grid that holds corners leaves every run with a kink in it. */}
-          <ContextSub label="Snap by">
+          <ContextSub label={t.canvas.canvas.menu.snapBy}>
             <ContextChoice
               value={grid.anchor}
               onChoose={(value) => grid.chooseAnchor(value as GridAnchor)}
               options={GRID_ANCHORS.map((anchor) => ({
                 value: anchor,
-                label: anchor === 'terminal' ? 'Terminals' : 'Outer edge',
+                label:
+                  anchor === 'terminal'
+                    ? t.canvas.canvas.menu.snapTerminals
+                    : t.canvas.canvas.menu.snapOuterEdge,
               }))}
             />
           </ContextSub>
@@ -736,8 +749,8 @@ export function PlanCanvas({
       {settled === 0 ? null : (
         <ContextAction onSelect={() => setResolvedShown((shown) => !shown)}>
           {resolvedShown
-            ? `Hide ${plural(settled, 'resolved note')}`
-            : `Show ${plural(settled, 'resolved note')}`}
+            ? t.canvas.canvas.menu.hideResolved(settled)
+            : t.canvas.canvas.menu.showResolved(settled)}
         </ContextAction>
       )}
     </>
@@ -869,8 +882,12 @@ export function PlanCanvas({
               stays in the menu: this is the switch, not the settings. */}
           <ControlButton
             onClick={grid.toggle}
-            title={grid.on ? `Snapping to a ${grid.step}px grid` : 'Not snapping to the grid'}
-            aria-label={grid.on ? 'Stop snapping to the grid' : 'Snap to the grid'}
+            title={
+              grid.on
+                ? t.canvas.canvas.grid.snappingTo(grid.step)
+                : t.canvas.canvas.grid.notSnapping
+            }
+            aria-label={grid.on ? t.canvas.canvas.grid.stopSnapping : t.canvas.canvas.grid.snap}
             aria-pressed={grid.on}
           >
             <Grid2x2 className={grid.on ? '!fill-none stroke-accent' : '!fill-none stroke-ink-muted'} />
@@ -909,13 +926,14 @@ function descendantsOf(slug: string, parentOf: Record<string, string>): string[]
  */
 function ReadingBanner({ store }: { store: PlanStore['store'] }) {
   const reading = useStore(store, (state) => state.reading);
+  const t = useT();
   if (reading === null) return null;
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center">
       <span className="flex items-center gap-2 rounded-md border border-collab/40 bg-surface-3 px-2.5 py-1 text-xs text-ink elevated">
         <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-collab" />
-        {reading.by} is reading from {reading.from}
+        {t.canvas.canvas.readingFrom(reading.by, reading.from)}
       </span>
     </div>
   );

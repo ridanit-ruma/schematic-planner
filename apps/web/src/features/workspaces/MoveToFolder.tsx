@@ -5,6 +5,7 @@ import { Field } from '@/components/ui/field';
 import { Problem } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { Select } from '@/components/ui/select';
+import { useT } from '@/i18n';
 import { plans, type FolderSummary, type PlanSummary } from '@/lib/api';
 
 /** The project's own level, which is not a folder and so has no id of its own. */
@@ -33,6 +34,8 @@ export function MoveToFolder({
 }) {
   const [chosen, setChosen] = useState<string>(TOP);
   const [error, setError] = useState<unknown>(null);
+  const t = useT();
+  const m = t.workspaces.moveToFolder;
 
   // Opening this for a different plan has to start from where that plan actually
   // is, not from wherever the last one was put.
@@ -55,8 +58,8 @@ export function MoveToFolder({
     <Modal
       open={plan !== null}
       onOpenChange={(open) => !open && onCancel()}
-      title={`Move ${plan?.title ?? ''}`}
-      description="Which drawer of this project it should be filed in."
+      title={m.title(plan?.title ?? '')}
+      description={m.description}
     >
       <form
         className="space-y-4"
@@ -66,13 +69,13 @@ export function MoveToFolder({
         }}
       >
         {error === null ? null : <Problem error={error} />}
-        <Field label="Folder">
+        <Field label={m.folder}>
           {(id) => (
             <Select
               id={id}
               value={chosen}
               options={[
-                { value: TOP, label: 'Top level', hint: 'Outside every folder' },
+                { value: TOP, label: m.topLevel, hint: m.topLevelHint },
                 ...folders.map((folder) => ({ value: folder.id, label: folder.name })),
               ]}
               onChange={setChosen}
@@ -81,10 +84,10 @@ export function MoveToFolder({
         </Field>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onCancel}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button type="submit" variant="primary">
-            Move
+            {m.submit}
           </Button>
         </div>
       </form>

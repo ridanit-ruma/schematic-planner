@@ -8,10 +8,11 @@ import { Problem, Spinner } from '@/components/ui/feedback';
 import { Modal } from '@/components/ui/modal';
 import { RowMenu } from '@/components/ui/row-menu';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
+import { useT } from '@/i18n';
 import { admin, type AccountSummary } from '@/lib/api';
 import { useLiveList } from '@/lib/use-live-list';
 import { useAuth } from '@/lib/auth-store';
-import { formatWhen, plural } from '@/lib/utils';
+import { formatWhen } from '@/lib/utils';
 import { useDocumentTitle } from '@/lib/use-document-title';
 
 /**
@@ -23,7 +24,8 @@ import { useDocumentTitle } from '@/lib/use-document-title';
  * already a record of what people actually did.
  */
 export function PeoplePage() {
-  useDocumentTitle('People');
+  const t = useT();
+  useDocumentTitle(t.admin.people.documentTitle);
   const me = useAuth((state) => state.user);
   const [accounts, setAccounts] = useState<AccountSummary[] | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -62,18 +64,18 @@ export function PeoplePage() {
 
       <Table>
         <THead>
-          <TH>Account</TH>
+          <TH>{t.admin.people.columns.account}</TH>
           <TH className="w-32" hide="md">
-            Holds
+            {t.admin.people.columns.holds}
           </TH>
           <TH className="w-28" hide="sm">
-            Joined
+            {t.admin.people.columns.joined}
           </TH>
           <TH className="w-28 sm:w-32" align="right">
-            Last change
+            {t.admin.people.columns.lastChange}
           </TH>
           <TH className="w-10" align="right">
-            <span className="sr-only">Actions</span>
+            <span className="sr-only">{t.admin.actions}</span>
           </TH>
         </THead>
         <tbody>
@@ -87,25 +89,28 @@ export function PeoplePage() {
                       <span className="truncate font-medium text-ink">{account.name}</span>
                       {account.instanceRole === 'OWNER' ? (
                         <span className="rail-heading shrink-0 rounded-sm border border-rule px-1">
-                          owner
+                          {t.admin.people.owner}
                         </span>
                       ) : null}
                       {account.suspendedAt === null ? null : (
-                        <span className="shrink-0 text-2xs text-danger">suspended</span>
+                        <span className="shrink-0 text-2xs text-danger">
+                          {t.admin.people.suspended}
+                        </span>
                       )}
                     </span>
                     <span className="block truncate text-xs text-ink-muted">{account.email}</span>
                     {account.invitedVia === null ? null : (
                       <span className="block truncate text-2xs text-ink-faint">
-                        via {account.invitedVia.label === '' ? 'an invitation' : account.invitedVia.label}
+                        {account.invitedVia.label === ''
+                          ? t.admin.people.viaInvitation
+                          : t.admin.people.via(account.invitedVia.label)}
                       </span>
                     )}
                   </span>
                 </span>
               </TD>
               <TD className="text-xs text-ink-muted" hide="md">
-                {plural(account.workspaces, 'workspace')} · {plural(account.plans, 'plan')}
-                {account.keys > 0 ? ` · ${plural(account.keys, 'key')}` : ''}
+                {t.admin.people.holds(account.workspaces, account.plans, account.keys)}
               </TD>
               <TD className="text-xs text-ink-muted" hide="sm">
                 {formatWhen(account.createdAt)}
@@ -120,25 +125,22 @@ export function PeoplePage() {
                       <DropdownAction
                         onSelect={() => void change(account, { instanceRole: 'MEMBER' })}
                       >
-                        Withdraw ownership
+                        {t.admin.people.withdrawOwnership}
                       </DropdownAction>
                     ) : (
                       <DropdownAction
                         onSelect={() => void change(account, { instanceRole: 'OWNER' })}
                       >
-                        Make an owner
+                        {t.admin.people.makeOwner}
                       </DropdownAction>
                     )}
                     {account.suspendedAt === null ? (
-                      <DropdownAction
-                        tone="danger"
-                        onSelect={() => setSuspending(account)}
-                      >
-                        Suspend
+                      <DropdownAction tone="danger" onSelect={() => setSuspending(account)}>
+                        {t.admin.people.suspend}
                       </DropdownAction>
                     ) : (
                       <DropdownAction onSelect={() => void change(account, { suspended: false })}>
-                        Let back in
+                        {t.admin.people.letBackIn}
                       </DropdownAction>
                     )}
                   </RowMenu>
@@ -150,19 +152,20 @@ export function PeoplePage() {
       </Table>
 
       <p className="text-xs text-ink-faint">
-        Signed in as <Author by={{ name: me?.name ?? 'you', agent: null }} />. An account is
-        suspended rather than deleted, so what it drew stays attributed to somebody.
+        {t.admin.people.signedInAs(
+          <Author by={{ name: me?.name ?? t.admin.people.you, agent: null }} />,
+        )}
       </p>
 
       <Modal
         open={suspending !== null}
         onOpenChange={(open) => !open && setSuspending(null)}
-        title={`Suspend ${suspending?.name ?? ''}?`}
-        description="They are signed out everywhere immediately and cannot sign in again. Their workspaces, plans and history stay exactly as they are."
+        title={t.admin.people.suspendTitle(suspending?.name ?? '')}
+        description={t.admin.people.suspendDescription}
       >
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setSuspending(null)}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button
             variant="danger"
@@ -170,7 +173,7 @@ export function PeoplePage() {
               if (suspending !== null) void change(suspending, { suspended: true });
             }}
           >
-            Suspend
+            {t.admin.people.suspend}
           </Button>
         </div>
       </Modal>

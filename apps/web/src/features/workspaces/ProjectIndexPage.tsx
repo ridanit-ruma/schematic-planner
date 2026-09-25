@@ -11,7 +11,8 @@ import { Page } from '@/components/ui/page';
 import { RowMenu } from '@/components/ui/row-menu';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { canAdminister, projects as api, type ProjectSummary } from '@/lib/api';
-import { formatWhen, plural } from '@/lib/utils';
+import { useT } from '@/i18n';
+import { formatWhen } from '@/lib/utils';
 import { useLiveList } from '@/lib/use-live-list';
 import { useWorkspace } from './workspace-context';
 
@@ -25,6 +26,8 @@ export function ProjectIndexPage() {
   const [newDescription, setNewDescription] = useState('');
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
   const mayDelete = canAdminister(current.role);
+  const t = useT();
+  const m = t.workspaces;
   const navigate = useNavigate();
 
   const reload = (): void => {
@@ -58,7 +61,7 @@ export function ProjectIndexPage() {
 
   if (error !== null) {
     return (
-      <Page title="Projects">
+      <Page title={m.projects.title}>
         <Problem error={error} />
       </Page>
     );
@@ -73,39 +76,37 @@ export function ProjectIndexPage() {
 
   return (
     <Page
-      title="Projects"
-      description={`${
-        list.length === 0 ? 'Nothing here yet' : plural(list.length, 'project')
-      } in ${current.name}.`}
+      title={m.projects.title}
+      description={m.projects.description(list.length, current.name)}
       actions={
         <Button variant="primary" onClick={() => setCreating(true)}>
           <Plus className="size-3.5" />
-          New project
+          {m.projects.newProject}
         </Button>
       }
     >
       {list.length === 0 ? (
         <Empty
-          title="No projects yet"
-          body="A project groups the plans for one thing you are building. Most workspaces start with one."
+          title={m.projects.empty.title}
+          body={m.projects.empty.body}
           action={
             <Button variant="primary" onClick={() => setCreating(true)}>
-              Create the first project
+              {m.projects.empty.action}
             </Button>
           }
         />
       ) : (
         <Table>
           <THead>
-            <TH>Project</TH>
+            <TH>{m.projects.project}</TH>
             <TH className="w-24" align="right" hide="md">
-              Plans
+              {m.projects.plans}
             </TH>
             <TH className="w-20 sm:w-32" align="right">
-              Updated
+              {m.list.updated}
             </TH>
             <TH className="w-10">
-              <span className="sr-only">Actions</span>
+              <span className="sr-only">{m.list.actions}</span>
             </TH>
           </THead>
           <tbody>
@@ -123,7 +124,7 @@ export function ProjectIndexPage() {
                       </span>
                     )}
                     <span className="slug block truncate text-ink-faint md:hidden">
-                      {plural(project.planCount, 'plan')}
+                      {m.list.planCount(project.planCount)}
                     </span>
                   </Link>
                 </TD>
@@ -141,12 +142,12 @@ export function ProjectIndexPage() {
                       }
                     >
                       <Settings className="size-3.5 text-ink-faint" />
-                      Settings
+                      {m.list.settings}
                     </DropdownAction>
                     {mayDelete ? (
                       <DropdownAction tone="danger" onSelect={() => setDeleting(project)}>
                         <Trash2 className="size-3.5" />
-                        Move to trash
+                        {m.list.moveToTrash}
                       </DropdownAction>
                     ) : null}
                   </RowMenu>
@@ -160,12 +161,12 @@ export function ProjectIndexPage() {
       <Modal
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
-        title={`Move ${deleting?.name ?? ''} to the trash?`}
-        description="The plans inside go with it. You can bring the whole project back from the trash."
+        title={m.list.confirmTrash(deleting?.name ?? '')}
+        description={m.projects.trashBody}
       >
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setDeleting(null)}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button
             variant="danger"
@@ -174,12 +175,12 @@ export function ProjectIndexPage() {
             }}
           >
             <Trash2 className="size-3.5" />
-            Move to trash
+            {m.list.moveToTrash}
           </Button>
         </div>
       </Modal>
 
-      <Modal open={creating} onOpenChange={setCreating} title="New project">
+      <Modal open={creating} onOpenChange={setCreating} title={m.projects.create.title}>
         <form
           className="space-y-4"
           onSubmit={(event) => {
@@ -187,34 +188,37 @@ export function ProjectIndexPage() {
             void create();
           }}
         >
-          <Field label="Name" hint="The address is derived from this and does not change later.">
+          <Field label={m.projects.create.nameLabel} hint={m.projects.create.nameHint}>
             {(id) => (
               <Input
                 id={id}
                 autoFocus
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Billing rework"
+                placeholder={m.projects.create.namePlaceholder}
               />
             )}
           </Field>
-          <Field label="Description" hint="What this project is for. One line, shown in the list.">
+          <Field
+            label={m.projects.create.descriptionLabel}
+            hint={m.projects.create.descriptionHint}
+          >
             {(id) => (
               <Textarea
                 id={id}
                 rows={2}
                 value={newDescription}
                 onChange={(event) => setNewDescription(event.target.value)}
-                placeholder="Moving billing off the monolith."
+                placeholder={m.projects.create.descriptionPlaceholder}
               />
             )}
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button type="submit" variant="primary">
-              Create project
+              {m.projects.create.submit}
             </Button>
           </div>
         </form>
