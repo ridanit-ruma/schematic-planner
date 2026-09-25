@@ -22,6 +22,7 @@ import {
   type Box,
   type PlanOp,
   type Position,
+  type Vocabulary,
 } from '@schematic/schema';
 import {
   ORIGIN_LOCAL,
@@ -56,7 +57,14 @@ import {
 } from '@/components/ui/context-menu';
 import { useT } from '@/i18n';
 import { placeBlock, type Guide } from './align';
-import { clipboardForms, copyPayload, pasteOps, readClipboard, type ClipboardPayload } from './clipboard';
+import {
+  adoptWords,
+  clipboardForms,
+  copyPayload,
+  pasteOps,
+  readClipboard,
+  type ClipboardPayload,
+} from './clipboard';
 import { GapHandles, GapMarkers } from './GapHandles';
 import { resolveDrop, type DropTarget, type Rect } from './group-drop';
 import { groupOps } from './make-group';
@@ -185,6 +193,7 @@ export function PlanCanvas({
   undo,
   onAddComment,
   handle,
+  words,
 }: {
   connection: PlanConnection;
   readOnly: boolean;
@@ -195,6 +204,11 @@ export function PlanCanvas({
   onAddComment?: (at: Position, anchor: string | null) => void;
   /** Filled in with what the page can ask of the canvas. */
   handle?: RefObject<PlanCanvasHandle | null>;
+  /**
+   * Whether this person may change the project's vocabulary, and how. A paste
+   * from another project adds the kinds, statuses and tags this one lacks.
+   */
+  words?: { canEdit: boolean; edit: (edit: (vocabulary: Vocabulary) => Vocabulary) => Promise<void> };
 }) {
   const { store, doc } = connection.bound;
   const nodes = useStore(store, (state) => state.nodes);
@@ -794,7 +808,7 @@ export function PlanCanvas({
       const state = store.getState();
       const chosen = state.nodes.filter((each) => each.selected === true).map((each) => each.id);
       if (chosen.length === 0) return null;
-      return copyPayload(readPlanDoc(doc).doc, chosen, state.absolute);
+      return copyPayload(readPlanDoc(doc).doc, chosen, state.absolute, state.vocabulary);
     },
     remove: (slugs) => {
       if (slugs.length === 0) return;
@@ -804,12 +818,15 @@ export function PlanCanvas({
     },
     paste: (payload, where) => {
       const at = where === 'pointer' ? hover.current : null;
+      const adoption = adoptWords(payload, store.getState().vocabulary, words?.canEdit === true);
+      if (adoption.add !== null && words !== undefined) void words.edit(adoption.add);
       const pasted = pasteOps(
         payload,
         store.getState().nodes.map((each) => each.id),
         at === null
           ? { offset: { x: PASTE_OFFSET, y: PASTE_OFFSET } }
           : { at: grid.on ? snapTo(at, grid.step) : at },
+        adoption,
       );
       const ops = [...pasted.ops];
       if (at === null) {

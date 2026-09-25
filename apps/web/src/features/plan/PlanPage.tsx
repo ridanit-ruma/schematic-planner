@@ -223,6 +223,7 @@ function PlanWorkspace({
             undo={undo}
             onAddComment={addComment}
             handle={canvas}
+            words={words}
           />
         </div>
         {selectedNode !== null ? (

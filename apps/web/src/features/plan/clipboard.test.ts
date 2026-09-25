@@ -1,4 +1,5 @@
 import {
+  DEFAULT_VOCABULARY,
   applyPlanOps,
   normalizeEdge,
   planEdgeInputSchema,
@@ -10,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CLIPBOARD_MIME,
+  adoptWords,
   clipboardForms,
   copyPayload,
   linesAsPayload,
@@ -137,7 +139,7 @@ describe('pasting nodes', () => {
   });
 
   // A value this plan does not know is left to the default, not a failed paste.
-  it('falls back to the default for a value the plan does not take', () => {
+  it('keeps a kind or status the schema takes when nothing says otherwise', () => {
     const odd = readPayload({
       type: 'schematic-planner/nodes',
       v: 1,
@@ -149,7 +151,75 @@ describe('pasting nodes', () => {
       { ...plan, nodes: [], edges: [] },
       pasteOps(odd, [], { offset: { x: 0, y: 0 } }).ops,
     );
-    expect(result.nodes[0]).toMatchObject({ kind: 'task', status: 'idea' });
+    expect(result.nodes[0]).toMatchObject({ kind: 'spaceship', status: 'someday' });
+  });
+});
+
+describe('pasting into another project', () => {
+  const source = {
+    ...DEFAULT_VOCABULARY,
+    statuses: [
+      ...DEFAULT_VOCABULARY.statuses,
+      { id: 'in-review', name: 'In review', color: 'purple', category: 'active', archived: false },
+    ],
+    kinds: [
+      ...DEFAULT_VOCABULARY.kinds,
+      { id: 'screen', name: 'Screen', look: 'strong', work: true, archived: false },
+    ],
+    tags: [{ name: 'api', color: 'teal' }],
+  } as typeof DEFAULT_VOCABULARY;
+  const copied: PlanDoc = {
+    ...plan,
+    nodes: [
+      node('a', 0, 0, { kind: 'screen', status: 'in-review', tags: ['api'] }),
+      node('b', 300, 0),
+    ],
+    edges: [],
+  };
+  const payload = copyPayload(copied, ['a', 'b'], {}, source)!;
+
+  it('carries what the copied values mean, and only those', () => {
+    expect(payload.words.statuses.map((status) => status.id).sort()).toEqual(['idea', 'in-review']);
+    expect(payload.words.kinds.map((kind) => kind.id).sort()).toEqual(['screen', 'task']);
+    expect(payload.words.tags).toEqual([{ name: 'api', color: 'teal' }]);
+  });
+
+  it('adds what the target lacks when the person may edit its vocabulary', () => {
+    const adoption = adoptWords(payload, DEFAULT_VOCABULARY, true);
+    const added = adoption.add!(DEFAULT_VOCABULARY);
+    expect(added.statuses.find((status) => status.id === 'in-review')).toMatchObject({
+      name: 'In review',
+      category: 'active',
+    });
+    expect(added.kinds.find((kind) => kind.id === 'screen')).toMatchObject({ look: 'strong' });
+    expect(added.tags).toEqual([{ name: 'api', color: 'teal' }]);
+
+    const result = applyPlanOps(
+      { ...plan, nodes: [], edges: [] },
+      pasteOps(payload, [], { offset: { x: 0, y: 0 } }, adoption).ops,
+    );
+    expect(result.nodes.find((one) => one.slug === 'a')).toMatchObject({
+      kind: 'screen',
+      status: 'in-review',
+    });
+  });
+
+  it('falls back to the defaults when the person may not edit it', () => {
+    const adoption = adoptWords(payload, DEFAULT_VOCABULARY, false);
+    expect(adoption.add).toBeNull();
+    const result = applyPlanOps(
+      { ...plan, nodes: [], edges: [] },
+      pasteOps(payload, [], { offset: { x: 0, y: 0 } }, adoption).ops,
+    );
+    expect(result.nodes.find((one) => one.slug === 'a')).toMatchObject({
+      kind: 'task',
+      status: 'idea',
+      tags: ['api'],
+    });
+  });
+
+  it('asks for nothing when the target already has every value', () => {
+    expect(adoptWords(payload, source, true).add).toBeNull();
   });
 });
 
