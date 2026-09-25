@@ -138,7 +138,7 @@ function Rendered({
                   type="checkbox"
                   checked={item?.checked ?? false}
                   disabled={onToggleTask === undefined || item === undefined}
-                  aria-label={item?.label ?? t.ui.markdown.task}
+                  aria-label={item?.label || t.ui.markdown.task}
                   // Otherwise ticking a box in a note also opens its editor, and
                   // the answer is lost under a textarea.
                   onClick={(event) => event.stopPropagation()}

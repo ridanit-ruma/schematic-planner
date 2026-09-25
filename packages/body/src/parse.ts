@@ -166,7 +166,7 @@ function withContent(node: JSONContent, content: JSONContent[]): JSONContent {
 }
 
 function list(node: M.List, context: Context): JSONContent {
-  const children = node.children.map((item) => boxed(item, node, context));
+  const children = node.children.map((item) => boxed(item, node, context.source));
   const checks = children.map((item) => item.checked);
   const task = checks.some((checked) => typeof checked === 'boolean');
   // A task list is a bullet list whose every item has a box. A numbered one, or
@@ -194,12 +194,12 @@ const BOX = /^\[([ xX])\]$/;
  * `- [ ]` with nothing after the box is an empty to-do, which is how serialize
  * writes one; GFM reads that box as text. An escaped `\[ ]` stays text.
  */
-function boxed(item: M.ListItem, list: M.List, context: Context): M.ListItem {
+export function boxed(item: M.ListItem, list: M.List, source: string): M.ListItem {
   const head = item.children[0];
   if (list.ordered === true || typeof item.checked === 'boolean' || head?.type !== 'paragraph') {
     return item;
   }
-  const box = BOX.exec(slice(context.source, head));
+  const box = BOX.exec(slice(source, head));
   if (box === null) return item;
   return { ...item, checked: box[1] !== ' ', children: item.children.slice(1) };
 }

@@ -1,6 +1,13 @@
 import type * as M from 'mdast';
 
-import { CALLOUT, DETAILS_START, closingDetails, openDetails, parseMarkdown } from './parse.js';
+import {
+  CALLOUT,
+  DETAILS_START,
+  boxed,
+  closingDetails,
+  openDetails,
+  parseMarkdown,
+} from './parse.js';
 
 /*
  * A Markdown tree reshaped for a renderer that turns mdast into HTML elements
@@ -11,7 +18,8 @@ import { CALLOUT, DETAILS_START, closingDetails, openDetails, parseMarkdown } fr
  *   HTML source printed as text;
  * - an Obsidian callout is a blockquote marked `data-callout="<type>"`, its
  *   `[!type]` marker taken off and its title line set apart;
- * - a single newline breaks the line, as it does in the editor.
+ * - a single newline breaks the line, as it does in the editor;
+ * - `- [ ]` with no words is a to-do, as the editor reads it.
  *
  * `data.hName` and `data.hProperties` are how mdast asks the HTML step for a
  * particular element; nothing here builds markup.
@@ -50,6 +58,9 @@ function shapeFlow(parent: FlowParent, source: string): void {
     }
 
     if (child.type === 'blockquote') markCallout(child, source);
+    if (child.type === 'list') {
+      child.children = child.children.map((item) => boxed(item, child, source));
+    }
     shape(child, source);
     out.push(child);
   }

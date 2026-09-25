@@ -74,6 +74,13 @@ describe('shapeForDisplay', () => {
     expect(toggle.children[1]?.data).toEqual({ hProperties: { dataCallout: 'note' } });
   });
 
+  it('draws an empty to-do as a box', () => {
+    const tree = shaped('- [ ] a\n- [ ]\n- [x]\n- \\[ ]');
+    const items = (tree.children[0] as M.List).children;
+    expect(items.map((item) => item.checked)).toEqual([false, false, true, null]);
+    expect(items[1]?.children).toEqual([]);
+  });
+
   it('breaks lines where the source does', () => {
     const tree = shaped('one\ntwo');
     expect(plain(tree.children[0])).toEqual({
