@@ -118,7 +118,9 @@ export function GapHandles({
   const rects = useMemo(() => members.map((member) => member.rect), [members]);
   const row = useMemo(() => evenRow(rects), [rects]);
   const [gap, setGap] = useState<number | null>(null);
-  const drag = useRef<{ pointer: number; from: number } | null>(null);
+  // The gap the pointer is at lives here too: a release can come before the
+  // last move has been drawn, and the rendered `gap` would still be the one before.
+  const drag = useRef<{ pointer: number; from: number; gap: number } | null>(null);
 
   if (row === null) return null;
   const current = gap ?? row.gap;
@@ -191,7 +193,7 @@ export function GapHandles({
               event.stopPropagation();
               event.preventDefault();
               event.currentTarget.setPointerCapture(event.pointerId);
-              drag.current = { pointer: along(event), from: row.gap };
+              drag.current = { pointer: along(event), from: row.gap, gap: row.gap };
               setGap(row.gap);
             }}
             onPointerMove={(event) => {
@@ -200,13 +202,14 @@ export function GapHandles({
                 0,
                 Math.round(drag.current.from + (along(event) - drag.current.pointer) / zoom),
               );
+              drag.current.gap = next;
               setGap(next);
               onPreview(positionsAt(next));
             }}
             onPointerUp={(event) => {
               if (drag.current === null) return;
               event.currentTarget.releasePointerCapture(event.pointerId);
-              const next = gap ?? drag.current.from;
+              const next = drag.current.gap;
               const moved = Math.abs(next - drag.current.from) >= 1;
               drag.current = null;
               setGap(null);
