@@ -166,11 +166,12 @@ function wordsFor(
   if (vocabulary === undefined) return { statuses: [], kinds: [], tags: [] };
   const statuses = new Set(nodes.map((node) => node.status));
   const kinds = new Set(nodes.map((node) => node.kind));
-  const tags = new Set(nodes.flatMap((node) => node.tags));
+  // Matched the way `tagOf` matches them everywhere else: whatever the case.
+  const tags = new Set(nodes.flatMap((node) => node.tags.map((tag) => tagOf(vocabulary, tag))));
   return {
     statuses: vocabulary.statuses.filter((status) => statuses.has(status.id)),
     kinds: vocabulary.kinds.filter((kind) => kinds.has(kind.id)),
-    tags: vocabulary.tags.filter((tag) => tags.has(tag.name)),
+    tags: vocabulary.tags.filter((tag) => tags.has(tag)),
   };
 }
 

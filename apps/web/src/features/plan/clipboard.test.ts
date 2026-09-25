@@ -184,6 +184,16 @@ describe('pasting into another project', () => {
     expect(payload.words.tags).toEqual([{ name: 'api', color: 'teal' }]);
   });
 
+  it('carries a tag written in another case, as the vocabulary matches it everywhere', () => {
+    const upper = copyPayload(
+      { ...copied, nodes: [node('a', 0, 0, { tags: ['API'] })] },
+      ['a'],
+      {},
+      source,
+    )!;
+    expect(upper.words.tags).toEqual([{ name: 'api', color: 'teal' }]);
+  });
+
   it('adds what the target lacks when the person may edit its vocabulary', () => {
     const adoption = adoptWords(payload, DEFAULT_VOCABULARY, true);
     const added = adoption.add!(DEFAULT_VOCABULARY);
