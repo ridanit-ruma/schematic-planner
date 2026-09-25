@@ -41,7 +41,6 @@ export const plan = {
     tags: 'Tags',
     tagsHint: 'Separated by commas',
     detail: 'Detail',
-    detailHint: 'Markdown. Drawn as Markdown on the canvas',
     nothingYet: 'Nothing yet',
     deleteNode: 'Delete node',
     deleteNodeNote: 'Removes the node and every connection attached to it.',

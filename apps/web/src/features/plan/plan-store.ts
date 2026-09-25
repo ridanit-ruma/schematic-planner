@@ -19,6 +19,7 @@ import {
   edgesMap,
   nodesMap,
   readPlanDoc,
+  toggleNodeTask,
   type Presence,
   type Reading,
 } from '@schematic/ydoc';
@@ -167,6 +168,8 @@ export interface PlanState {
   /** Bounds a person has dragged a group's corner to. */
   resizeNode: (slug: string, size: { width: number; height: number }) => void;
   sizeNode: (slug: string, size: { width: number; height: number }) => void;
+  /** Ticks or unticks a to-do in a node's body, counted as the card draws them. */
+  toggleTask: (slug: string, index: number) => void;
   selectEdge: (id: string | null) => void;
   selectComment: (id: string | null) => void;
 }
@@ -371,6 +374,7 @@ export function createPlanStore(doc: Y.Doc) {
       set({ sizing: { ...get().sizing, [slug]: stored } });
       refresh();
     },
+    toggleTask: (slug, index) => toggleNodeTask(doc, slug, index, ORIGIN_LOCAL),
     resizeNode: (slug, size) => {
       // A card is dragged by one edge and only its width is a person's to
       // choose; the height that width comes to is written beside it so that

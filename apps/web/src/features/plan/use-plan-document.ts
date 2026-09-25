@@ -16,6 +16,11 @@ export interface PlanConnection {
   publishDrag: (positions: Record<string, Position> | null) => void;
   /** Where this person's pointer is, in plan coordinates. Null when it has left. */
   publishCursor: (at: Position | null) => void;
+  /**
+   * The presence channel itself, for the body editor's carets. Absent where
+   * nobody else can be present, as on a shared read-only page.
+   */
+  awareness?: HocuspocusProvider['awareness'];
 }
 
 export interface PlanDocumentHandle {
@@ -194,7 +199,7 @@ export function usePlanDocument(
       });
     };
 
-    setConnection({ doc, bound, publishDrag, publishCursor });
+    setConnection({ doc, bound, publishDrag, publishCursor, awareness });
 
     return () => {
       gone = true;

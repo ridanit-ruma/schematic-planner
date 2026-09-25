@@ -17,3 +17,5 @@ export const ORIGIN_LOCAL = 'local';
 export const ORIGIN_REMOTE = 'remote';
 export const ORIGIN_AGENT = 'agent';
 export const ORIGIN_LAYOUT = 'layout';
+/** The server converting bodies stored as text into block-editor fragments. */
+export const ORIGIN_MIGRATE = 'migrate';

@@ -199,20 +199,3 @@ export function commitCommentSize(
     origin,
   );
 }
-
-/**
- * The collaborative text behind a node's body, for binding a rich text editor.
- * Editing through this merges character by character; replacing the whole string
- * would make the last writer win.
- */
-export function nodeBodyText(doc: Y.Doc, slug: string): Y.Text | undefined {
-  const node = nodesMap(doc).get(slug);
-  if (node === undefined) return undefined;
-  const body = node.get('body');
-  if (body instanceof Y.Text) return body;
-
-  const text = new Y.Text();
-  if (typeof body === 'string' && body !== '') text.insert(0, body);
-  node.set('body', text);
-  return text;
-}

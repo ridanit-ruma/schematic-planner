@@ -10,6 +10,7 @@ import {
   type SanitizeResult,
 } from '@schematic/schema';
 
+import { copyNodeBody, readNodeBody, setNodeBody } from './body.js';
 import {
   COMMENTS_KEY,
   EDGES_KEY,
@@ -51,13 +52,14 @@ export function isEmpty(doc: Y.Doc): boolean {
   );
 }
 
-function readBody(node: YNode | YComment): string {
+/** A note's body: plain shared text, which its own editor binds to. */
+function readBody(node: YComment): string {
   const body = node.get('body');
   if (body instanceof Y.Text) return body.toString();
   return typeof body === 'string' ? body : '';
 }
 
-function setBody(node: YNode | YComment, value: string): void {
+function setBody(node: YComment, value: string): void {
   const body = node.get('body');
   if (body instanceof Y.Text) {
     // Replace in place so the Y.Text identity, and therefore any cursor another
@@ -77,7 +79,7 @@ function readNode(node: YNode): unknown {
     slug: node.get('slug'),
     kind: node.get('kind'),
     title: node.get('title'),
-    body: readBody(node),
+    body: readNodeBody(node),
     status: node.get('status'),
     position: node.get('position') ?? null,
     pinned: node.get('pinned') ?? false,
@@ -144,7 +146,7 @@ function writeNode(target: YNode, node: PlanNode): void {
   target.set('size', node.size);
   target.set('tags', node.tags);
   target.set('meta', node.meta);
-  setBody(target, node.body);
+  setNodeBody(target, node.body);
 }
 
 function writeEdge(target: YEdge, edge: PlanEdge): void {
@@ -250,11 +252,13 @@ export function applyOps(doc: Y.Doc, ops: readonly PlanOp[], origin: unknown = O
             if (resolved === undefined) break;
             // A fresh map under the new key, not the old one moved: a Yjs type
             // belongs to one place in one document and cannot be re-parented.
-            // So the body is re-created from its text, and anybody typing into
+            // So the body's blocks are cloned across, and anybody typing into
             // the old node's body at that instant is typing into a node that no
             // longer exists — which is what renaming it means.
             const target = new Y.Map<unknown>();
             nodes.set(op.to, target);
+            const previous = nodes.get(op.from);
+            if (previous !== undefined) copyNodeBody(previous, target);
             writeNode(target, resolved);
             nodes.delete(op.from);
             break;

@@ -10,7 +10,6 @@ import {
   commitEdgeRoute,
   commitLayout,
   commitNodePosition,
-  nodeBodyText,
   nudgeEdges,
 } from './mutations.js';
 import { presenceColor } from './presence.js';
@@ -171,15 +170,6 @@ describe('nudgeEdges', () => {
     const edge = readPlanDoc(ydoc).doc.edges[0];
     expect(edge?.waypoints).toEqual([{ x: 10, y: 10 }]);
     expect(edge?.labelPosition).toEqual({ x: 10, y: 10 });
-  });
-});
-
-describe('nodeBodyText', () => {
-  it('returns the shared text so edits merge', () => {
-    const ydoc = doc();
-    const text = nodeBodyText(ydoc, 'a');
-    text?.insert(0, 'hello');
-    expect(readPlanDoc(ydoc).doc.nodes.find((n) => n.slug === 'a')?.body).toBe('hello');
   });
 });
 

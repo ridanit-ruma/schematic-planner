@@ -43,7 +43,6 @@ export const plan: Messages['plan'] = {
     tags: '標籤',
     tagsHint: '以逗號分隔',
     detail: '詳細內容',
-    detailHint: '支援 Markdown，並在畫布上以 Markdown 呈現',
     nothingYet: '尚無內容',
     deleteNode: '刪除節點',
     deleteNodeNote: '刪除這個節點，以及與它相連的所有連接。',

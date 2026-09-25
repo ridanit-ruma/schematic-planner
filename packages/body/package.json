@@ -1,5 +1,5 @@
 {
-  "name": "@schematic/ydoc",
+  "name": "@schematic/body",
   "version": "0.0.0",
   "private": true,
   "license": "AGPL-3.0-only",
@@ -31,8 +31,19 @@
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },
   "dependencies": {
-    "@schematic/body": "workspace:*",
-    "@schematic/schema": "workspace:*",
+    "@tiptap/core": "catalog:",
+    "@tiptap/extension-code": "catalog:",
+    "@tiptap/extension-details": "catalog:",
+    "@tiptap/extension-list": "catalog:",
+    "@tiptap/extension-table": "catalog:",
+    "@tiptap/pm": "catalog:",
+    "@tiptap/starter-kit": "catalog:",
+    "@tiptap/y-tiptap": "catalog:",
+    "@types/mdast": "catalog:",
+    "mdast-util-from-markdown": "catalog:",
+    "mdast-util-gfm": "catalog:",
+    "mdast-util-to-markdown": "catalog:",
+    "micromark-extension-gfm": "catalog:",
     "yjs": "catalog:"
   },
   "devDependencies": {

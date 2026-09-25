@@ -268,6 +268,7 @@ function PlanWorkspace({
             node={selectedNode}
             slugs={nodes.map((node) => node.id)}
             readOnly={false}
+            awareness={connection.awareness}
             onApplyOps={apply}
             onRenamed={select}
             onClose={() => select(null)}
