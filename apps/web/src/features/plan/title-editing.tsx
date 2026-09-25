@@ -69,8 +69,14 @@ export interface DraftRequest {
   pinned: boolean;
 }
 
-/** What a new node is called before anybody names it. */
-const DRAFT_SLUG = 'node';
+/**
+ * What a new node is called before anybody names it. It carries this client's
+ * id, so two people each adding a node before the other's has arrived do not
+ * both write the same key and lose one of the two.
+ */
+export function draftSlug(clientID: number, taken: Iterable<string>): string {
+  return uniqueSlug(`node-${clientID.toString(36)}`, taken);
+}
 
 /**
  * Making a node and naming it, as one step.
@@ -176,7 +182,7 @@ export function useNodeDraft(options: {
       const open = store.getState().editing;
       if (open !== null) editor.cancel(open);
 
-      const slug = uniqueSlug(DRAFT_SLUG, slugs());
+      const slug = draftSlug(latest.current.doc.clientID, slugs());
       const ops: PlanOp[] = [
         {
           op: 'upsert_node',
