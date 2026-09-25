@@ -293,6 +293,22 @@ describe('making a path', () => {
     expect(rows.find((row) => row.name === '2025')?.parentId).toBe(archive?.id);
   });
 
+  it('makes one folder of a name asked for twice at once', async () => {
+    const { folders, rows } = service(seed);
+    await Promise.all([
+      folders.ensurePath('u', 'p1', ['Archive', '2025']),
+      folders.ensurePath('u', 'p1', ['Archive', '2025']),
+    ]);
+    expect(rows.filter((row) => row.name === 'Archive')).toHaveLength(1);
+    expect(rows.filter((row) => row.name === '2025')).toHaveLength(1);
+
+    const made = await Promise.allSettled([
+      folders.create('u', 'p1', { name: 'Drafts' }),
+      folders.create('u', 'p1', { name: 'Drafts' }),
+    ]);
+    expect(made.map((result) => result.status).sort()).toEqual(['fulfilled', 'rejected']);
+  });
+
   /* A folder in the trash is not "already there"; a new one takes its place. */
   it('does not reuse a folder in the trash', async () => {
     const { folders } = service(

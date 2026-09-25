@@ -92,16 +92,21 @@ export class FoldersService {
     const parentId = input.parentId ?? null;
     if (parentId !== null) await this.requireParent(userId, projectId, parentId);
 
-    const siblings = await this.prisma.folder.findMany({
-      where: { projectId, parentId, deletedAt: null },
-      select: { id: true, parentId: true, name: true, deletedAt: true },
-    });
-    this.refuseClash(siblings, parentId, input.name);
+    // Nothing in the database keeps sibling names apart, so the check and the
+    // insert happen under the tree's lock, where a second create waits its turn.
+    return this.prisma.$transaction(async (tx) => {
+      await lockFolderTrees(tx, [projectId]);
+      const siblings = await tx.folder.findMany({
+        where: { projectId, parentId, deletedAt: null },
+        select: { id: true, parentId: true, name: true, deletedAt: true },
+      });
+      this.refuseClash(siblings, parentId, input.name);
 
-    const folder = await this.prisma.folder.create({
-      data: { projectId, parentId, name: input.name },
+      const folder = await tx.folder.create({
+        data: { projectId, parentId, name: input.name },
+      });
+      return record(folder);
     });
-    return record(folder);
   }
 
   /** A rename, a move to another parent in the same project, or both. */
@@ -155,29 +160,34 @@ export class FoldersService {
     await this.access.requireProject(userId, projectId, 'EDITOR');
     if (names.length === 0) throw new BadRequestException('A folder path needs at least one name');
 
-    const folders = await this.prisma.folder.findMany({
-      where: { projectId },
-      select: { id: true, parentId: true, name: true, deletedAt: true, projectId: true },
-    });
-    const hidden = trashedFolderIds(folders);
-    const shown = folders.filter((folder) => !hidden.has(folder.id));
+    // Under the tree's lock, as `create` is: two callers asking for the same
+    // new path at once would otherwise each make its first folder.
+    return this.prisma.$transaction(async (tx) => {
+      await lockFolderTrees(tx, [projectId]);
+      const folders = await tx.folder.findMany({
+        where: { projectId },
+        select: { id: true, parentId: true, name: true, deletedAt: true, projectId: true },
+      });
+      const hidden = trashedFolderIds(folders);
+      const shown = folders.filter((folder) => !hidden.has(folder.id));
 
-    let parentId: string | null = null;
-    let reached: FolderRecord | null = null;
-    const made: string[] = [];
-    for (const name of names) {
-      const found = siblingNamed(shown, parentId, name);
-      if (found !== undefined) {
-        reached = record(found);
-      } else {
-        reached = record(
-          await this.prisma.folder.create({ data: { projectId, parentId, name: name.trim() } }),
-        );
-        made.push(reached.name);
+      let parentId: string | null = null;
+      let reached: FolderRecord | null = null;
+      const made: string[] = [];
+      for (const name of names) {
+        const found = siblingNamed(shown, parentId, name);
+        if (found !== undefined) {
+          reached = record(found);
+        } else {
+          reached = record(
+            await tx.folder.create({ data: { projectId, parentId, name: name.trim() } }),
+          );
+          made.push(reached.name);
+        }
+        parentId = reached.id;
       }
-      parentId = reached.id;
-    }
-    return { folder: reached as FolderRecord, made };
+      return { folder: reached as FolderRecord, made };
+    });
   }
 
   /** Into the trash, with whatever is filed in it and below it. */
