@@ -7,6 +7,7 @@ import {
 import {
   droppedIds,
   readVocabulary,
+  storedVocabularySchema,
   tagOf,
   withTag,
   type PaletteColor,
@@ -168,6 +169,18 @@ export class VocabularyService {
     version: number,
     lists: Omit<Vocabulary, 'version'>,
   ): Promise<Vocabulary> {
+    // Only what readVocabulary can read back is stored: anything else would
+    // read as the defaults, and the next save would make that permanent.
+    const checked = storedVocabularySchema.safeParse(lists);
+    if (!checked.success) {
+      throw new BadRequestException({
+        message: 'Validation failed',
+        issues: checked.error.issues.map((issue) => ({
+          path: issue.path.join('.'),
+          message: issue.message,
+        })),
+      });
+    }
     const { count } = await this.prisma.project.updateMany({
       where: { id: projectId, vocabularyVersion: version },
       data: { vocabulary: lists, vocabularyVersion: { increment: 1 } },

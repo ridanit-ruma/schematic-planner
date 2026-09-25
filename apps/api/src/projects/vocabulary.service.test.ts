@@ -143,4 +143,16 @@ describe('adding a tag where it was typed', () => {
     const after = await service.addTag('u1', 'p1', { name: 'Auth', color: 'red' });
     expect(after.tags.map((one) => one.name).sort()).toEqual(['Auth', 'Billing']);
   });
+
+  it('refuses a tag past the limit and keeps the vocabulary it had', async () => {
+    const { service, row } = project();
+    const { version: _version, ...lists } = DEFAULT_VOCABULARY;
+    const tags = Array.from({ length: 500 }, (_, n) => ({ name: `t${n}`, color: 'blue' }));
+    row.vocabulary = { ...lists, tags };
+
+    await expect(service.addTag('u1', 'p1', { name: 'one-more' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect((await service.read('u1', 'p1')).tags).toHaveLength(500);
+  });
 });
