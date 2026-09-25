@@ -231,6 +231,19 @@ describe('document shape', () => {
     expect(markdownToJSON(jsonToMarkdown(doc))).toEqual(doc);
   });
 
+  it('keeps a quote that starts with the words of a callout marker a quote', () => {
+    const doc = {
+      type: 'doc',
+      content: [
+        {
+          type: 'blockquote',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: '[!note] hello' }] }],
+        },
+      ],
+    };
+    expect(markdownToJSON(jsonToMarkdown(doc))).toEqual(doc);
+  });
+
   it('escapes what would otherwise become syntax', () => {
     const doc = {
       type: 'doc',

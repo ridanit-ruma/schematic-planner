@@ -16,8 +16,8 @@ import { CALLOUT, DETAILS_START, closingDetails, openDetails, parseMarkdown } fr
  * `data.hName` and `data.hProperties` are how mdast asks the HTML step for a
  * particular element; nothing here builds markup.
  */
-export function shapeForDisplay(tree: M.Root): void {
-  shapeFlow(tree);
+export function shapeForDisplay(tree: M.Root, source: string): void {
+  shapeFlow(tree, source);
 }
 
 type FlowParent = M.Parent & { children: M.RootContent[] };
@@ -32,7 +32,8 @@ const PHRASING_PARENTS = new Set([
   'link',
 ]);
 
-function shapeFlow(parent: FlowParent): void {
+/** `source` is the string the positions in `parent` refer to. */
+function shapeFlow(parent: FlowParent, source: string): void {
   const out: M.RootContent[] = [];
   const children = parent.children;
 
@@ -40,7 +41,7 @@ function shapeFlow(parent: FlowParent): void {
     const child = children[at]!;
 
     if (child.type === 'html' && DETAILS_START.test(child.value.trim())) {
-      const toggle = details(children, at);
+      const toggle = details(children, at, source);
       if (toggle !== null) {
         out.push(toggle.node);
         at = toggle.end;
@@ -48,26 +49,27 @@ function shapeFlow(parent: FlowParent): void {
       }
     }
 
-    if (child.type === 'blockquote') markCallout(child);
-    shape(child);
+    if (child.type === 'blockquote') markCallout(child, source);
+    shape(child, source);
     out.push(child);
   }
 
   parent.children = out;
 }
 
-function shape(node: M.RootContent): void {
+function shape(node: M.RootContent, source: string): void {
   if (!('children' in node)) return;
   if (PHRASING_PARENTS.has(node.type)) {
     shapeInline(node as M.Parent);
   } else {
-    shapeFlow(node as FlowParent);
+    shapeFlow(node as FlowParent, source);
   }
 }
 
 function details(
   children: readonly M.RootContent[],
   at: number,
+  source: string,
 ): { node: M.RootContent; end: number } | null {
   try {
     const opened = openDetails((children[at] as M.Html).value);
@@ -85,7 +87,8 @@ function details(
       data: { hName: 'details' },
       children: [summary, ...content],
     } as M.Blockquote;
-    shapeFlow(node as FlowParent);
+    // Parsed on its own, the inside's positions are into the inside.
+    shapeFlow(node as FlowParent, opened.inner ?? source);
     return { node, end };
   } catch {
     // Not a toggle the editor would make either; it stays as it was written.
@@ -93,13 +96,15 @@ function details(
   }
 }
 
-function markCallout(quote: M.Blockquote): void {
+function markCallout(quote: M.Blockquote, source: string): void {
   const first = quote.children[0];
   if (first?.type !== 'paragraph') return;
   const lead = first.children[0];
   if (lead?.type !== 'text') return;
   const marker = CALLOUT.exec(lead.value);
   if (marker === null) return;
+  // An escaped `\[!note]` is a quote that starts with those words.
+  if (!source.startsWith(marker[0], lead.position?.start.offset)) return;
 
   quote.data = { ...quote.data, hProperties: { dataCallout: (marker[1] ?? 'note').toLowerCase() } };
 

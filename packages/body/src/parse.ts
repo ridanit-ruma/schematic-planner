@@ -245,6 +245,8 @@ function callout(quote: M.Blockquote, context: Context): JSONContent | null {
   if (start === undefined || end === undefined) return null;
   const newline = context.source.indexOf('\n', start);
   const line = context.source.slice(start, newline === -1 || newline > end ? end : newline);
+  // An escaped `\[!note]` is a quote that starts with those words.
+  if (!line.startsWith(marker[0])) return null;
   const title = line.slice(marker[0].length).trim();
 
   const body: JSONContent[] = [];

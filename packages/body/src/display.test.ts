@@ -6,7 +6,7 @@ import { parseMarkdown } from './parse.js';
 
 function shaped(markdown: string): M.Root {
   const tree = parseMarkdown(markdown);
-  shapeForDisplay(tree);
+  shapeForDisplay(tree, markdown);
   return tree;
 }
 
@@ -61,6 +61,17 @@ describe('shapeForDisplay', () => {
       type: 'paragraph',
       children: [{ type: 'text', value: 'Body.' }],
     });
+  });
+
+  it('draws a quote that starts with an escaped marker as a quote', () => {
+    const tree = shaped('> \\[!note] hello');
+    expect(tree.children[0]?.data).toBeUndefined();
+  });
+
+  it('marks a callout inside a toggle written as one HTML block', () => {
+    const tree = shaped('<details><summary>More</summary>\n> [!note] Inside\n</details>');
+    const toggle = tree.children[0] as M.Blockquote;
+    expect(toggle.children[1]?.data).toEqual({ hProperties: { dataCallout: 'note' } });
   });
 
   it('breaks lines where the source does', () => {

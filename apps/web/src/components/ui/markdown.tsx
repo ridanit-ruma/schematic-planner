@@ -54,7 +54,8 @@ const ALLOWED = [
 ];
 
 /** Toggles, callouts and line breaks, drawn the way the editor draws them. */
-const remarkBody = () => (tree: Parameters<typeof shapeForDisplay>[0]) => shapeForDisplay(tree);
+const remarkBody = () => (tree: Parameters<typeof shapeForDisplay>[0], file: { value: unknown }) =>
+  shapeForDisplay(tree, String(file.value));
 
 /**
  * Markdown, as React elements.
