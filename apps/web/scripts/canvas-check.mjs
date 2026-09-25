@@ -135,38 +135,41 @@ try {
 
   // Wrapping a link in a tooltip hands it the tooltip's props, and a className
   // written as a function is merged into nonsense — the whole rail lost its
-  // styling that way once, silently.
+  // styling that way once, silently. The explorer keeps the same links.
   await page
-    .waitForSelector('aside nav a[href^="/workspace/"]', { timeout: 8000 })
+    .waitForSelector('aside[aria-label="Explorer"] [data-tree-row]', { timeout: 8000 })
     .catch(() => null);
   const railRows = await page.evaluate(() => {
+    const explorer = document.querySelector('aside[aria-label="Explorer"]');
     const rows = [
-      ...document.querySelectorAll(
-        'aside nav a[href="/recent"], aside nav a[href^="/workspace/"]',
-      ),
+      ...(explorer?.querySelectorAll('a[href="/recent"], a[href^="/workspace/"]') ?? []),
     ];
     return {
+      explorer: explorer !== null,
       rows: rows.length,
       tallEnough: rows.filter((row) => row.getBoundingClientRect().height >= 28).length,
       active: rows.filter((row) => row.classList.contains('active')).length,
-      // The workspace is switched from its name at the head of the trail, not
-      // from a second control in the rail.
-      switcher: document.querySelector('header button[aria-label$="switch workspace"]') !== null,
-      railSwitcher: document.querySelector('aside button[aria-label$="switch workspace"]') !== null,
-      account: document.querySelector('aside button[aria-label="Account"]') !== null,
+      // The workspace is switched from its name at the head of the explorer,
+      // and there is no bar above the content with a second one.
+      switcher: explorer?.querySelector('button[aria-label$="switch workspace"]') != null,
+      elsewhere: [...document.querySelectorAll('button[aria-label$="switch workspace"]')].filter(
+        (button) => explorer?.contains(button) !== true,
+      ).length,
+      account: explorer?.querySelector('button[aria-label="Account"]') != null,
+      projects: explorer?.querySelectorAll('[data-tree-kind="project"]').length ?? 0,
     };
   });
+  check('the explorer is beside the first screen', railRows.explorer);
   check(
-    'the rail draws its rows',
+    'and draws its links at full height',
     railRows.rows > 0 && railRows.tallEnough === railRows.rows,
     `${railRows.tallEnough}/${railRows.rows} at full height`,
   );
   check('and marks exactly one of them', railRows.active === 1, `${railRows.active} active`);
-  // The workspace is switched from its own name; the logo above it is the
-  // product, and the account keeps its own menu at the foot of the rail.
-  check('the workspace name in the trail is the switcher', railRows.switcher);
-  check('and there is not a second one in the rail', !railRows.railSwitcher);
+  check('the workspace name at its head is the switcher', railRows.switcher);
+  check('and there is not a second one anywhere else', railRows.elsewhere === 0);
   check('and the account has its own menu', railRows.account);
+  check('the tree lists the projects', railRows.projects > 0, `${railRows.projects} projects`);
 
   check(
     'the application opens on what you were working on',
@@ -175,25 +178,18 @@ try {
   );
 
   console.log('\nthe canvas');
-  // Workspace, then project, then plan — the hierarchy the addresses describe.
-  const projects = await page.$$eval('a[href*="/project/"]', (list) =>
-    list.map((a) => a.getAttribute('href')).filter((h) => h !== null),
-  );
-  check('projects are listed in the workspace', projects.length > 0, projects.join(', '));
-
-  // A workspace usually has an empty project as well as a used one, so take the
-  // first that actually holds a plan rather than assuming an order.
-  let planHref = null;
-  for (const projectHref of projects) {
-    await page.goto(`${BASE}${projectHref}`, { waitUntil: 'domcontentloaded' });
-    // The app mints an access token before it can list anything, so waiting a
-    // fixed moment here reports an empty project whenever the machine is busy.
-    await page.waitForSelector('a[href^="/plan/"]', { timeout: 8000 }).catch(() => null);
-    planHref = await page
-      .$eval('a[href^="/plan/"]', (a) => a.getAttribute('href'))
-      .catch(() => null);
-    if (planHref !== null) break;
+  // Workspace, then project, then plan — the hierarchy the tree draws. Every
+  // project is opened, and the first plan in any of them is the one to drive.
+  for (let round = 0; round < 3; round += 1) {
+    const closed = await page.$$('[data-tree-kind="project"] button[aria-expanded="false"]');
+    if (closed.length === 0) break;
+    for (const button of closed) await button.click();
+    await wait(300);
   }
+  const planRow = await page
+    .$eval('[data-tree-kind="plan"]', (row) => row.getAttribute('data-tree-row'))
+    .catch(() => null);
+  const planHref = planRow === null ? null : `/plan/${planRow}`;
   check(
     'a plan is listed in a project',
     planHref !== null,
@@ -202,9 +198,13 @@ try {
   );
   if (planHref === null) throw new Error('no plan to open — seed one first');
 
+  // Opened from the tree, which is how a plan is reached now.
+  await page.click(`[data-tree-row="${planRow}"] button[title]`);
+  await wait(1500);
+  check('clicking it in the tree opens it', page.url().endsWith(planHref), page.url());
+
   const planId = planHref.split('/').pop();
-  await page.goto(`${BASE}${planHref}`, { waitUntil: 'domcontentloaded' });
-  await wait(4000);
+  await wait(2500);
 
   const nodes = await page.$$eval('.react-flow__node', (list) => list.length);
   check('nodes render', nodes > 0, `${nodes} nodes`);
@@ -286,18 +286,19 @@ try {
 
   console.log('\nmoving between plans');
   const rail = await page.evaluate(() => {
-    const aside = document.querySelector('aside');
+    const aside = document.querySelector('aside[aria-label="Explorer"]');
     if (aside === null) return null;
     return {
-      workspace: aside.querySelector('a[href^="/workspace/"]')?.textContent?.trim() ?? '',
+      workspace:
+        aside.querySelector('button[aria-label$="switch workspace"]')?.textContent?.trim() ?? '',
       current: aside.querySelector('[aria-current="page"]')?.textContent?.trim() ?? '',
-      plans: aside.querySelectorAll('button[title]').length,
+      plans: aside.querySelectorAll('[data-tree-kind="plan"]').length,
     };
   });
   check(
-    'the rail names the workspace it belongs to',
+    'the explorer names the workspace the plan belongs to',
     (rail?.workspace ?? '') !== '',
-    rail?.workspace ?? 'no rail',
+    rail?.workspace ?? 'no explorer',
   );
   check('and marks the plan you are on', (rail?.current ?? '') !== '', rail?.current ?? '');
   check('and lists the plans you can move to', (rail?.plans ?? 0) > 0, `${rail?.plans ?? 0} plans`);
@@ -2338,7 +2339,8 @@ try {
   // A plan's contents come over a socket, but the lists around it are plain
   // reads. Coming back to the window is when a person looks, so it is when the
   // lists read themselves again — otherwise somebody else's new plan is
-  // invisible until the screen is opened afresh.
+  // invisible until the screen is opened afresh. The old project address opens
+  // Recent with the project open in the tree, so both lists are on screen.
   await page.goto(`${BASE}/workspace/${workspaces[0].slug}/project/${projectList[0].slug}`, {
     waitUntil: 'domcontentloaded',
   });
@@ -2413,12 +2415,10 @@ try {
     strange.text.replace(/\s+/g, ' ').slice(0, 70),
   );
   check('and does not name it as forbidden', !/forbidden|permission|not allowed/i.test(strange.text));
-  // The trail is read out of the address, which is right while every address
-  // leads somewhere: this one came out as "Demo's workspace > Projects" over a
-  // page saying there is nothing here.
+  // Drawn in the shell like every other screen, so the way out is still beside it.
   check(
-    'and the trail does not describe an address that leads nowhere',
-    await page.evaluate(() => (document.querySelector('header')?.textContent ?? '').includes('Projects') === false),
+    'and the explorer is still there to leave by',
+    await page.evaluate(() => document.querySelector('aside[aria-label="Explorer"]') !== null),
   );
 
   // A plan id of the right shape that this account cannot open. The canvas
@@ -2431,114 +2431,410 @@ try {
   );
   check('and draws no canvas at all', !hidden.text.includes('Untitled plan'));
 
-  await reopen();
-  console.log('\nfolders as places');
-  // A folder used to be a heading spliced into the middle of the plan table: a
-  // raw `td` with none of the padding every other cell has, so its name sat
-  // eleven pixels left of every plan title, and nothing to click. Neither of
-  // those is visible from the protocol.
-  const drawerName = `Gate ${Date.now()}`;
-  const drawer = await call(`/projects/${projectList[0].id}/folders`, {
-    method: 'POST',
-    body: { name: drawerName },
-  });
-  const filedTitle = `Filed ${Date.now()}`;
-  const filed = await call(`/projects/${projectList[0].id}/plans`, {
-    method: 'POST',
-    body: { title: filedTitle, description: '', folderId: drawer.id },
-  });
-
-  await page.goto(`${BASE}/workspace/${workspaces[0].slug}/project/${projectList[0].slug}`, {
-    waitUntil: 'domcontentloaded',
-  });
-  await wait(2500);
-
-  const rows = await page.evaluate(() =>
-    [...document.querySelectorAll('tbody tr')].map((tr) => ({
-      x: Math.round(tr.children[0]?.getBoundingClientRect().x ?? -1),
-      cells: tr.children.length,
-      link: tr.querySelector('a')?.getAttribute('href') ?? null,
-      text: (tr.textContent ?? '').trim().slice(0, 40),
-    })),
-  );
-
-  check('the project index lists rows', rows.length > 0, `${rows.length} rows`);
-  check(
-    'and every row starts its first cell at the same place',
-    new Set(rows.map((row) => row.x)).size === 1,
-    rows.map((row) => row.x).join(', '),
-  );
-  check(
-    'and every row spans the same columns',
-    new Set(rows.map((row) => row.cells)).size === 1,
-    rows.map((row) => row.cells).join(', '),
-  );
-  check(
-    'and the plans inside a folder are not also listed at the top level',
-    rows.every((row) => !row.text.startsWith(filedTitle)),
-    rows.map((row) => row.text).join(' | ').slice(0, 120),
-  );
-
-  const folderRow = rows.find((row) => row.text.startsWith(drawerName));
-  check('a folder is one of the rows', folderRow !== undefined, JSON.stringify(folderRow));
-  check(
-    'and it can be opened',
-    folderRow?.link?.includes(`/folder/${drawer.id}`) === true,
-    folderRow?.link ?? 'no link',
-  );
-
-  if (folderRow?.link != null) {
-    await page.goto(`${BASE}${folderRow.link}`, { waitUntil: 'domcontentloaded' });
-    await wait(2500);
-
-    const inside = await page.evaluate(() => ({
-      heading: document.querySelector('h1')?.textContent ?? '',
-      // Leaf elements only: each crumb is a wrapper span around a span or a
-      // link, so taking both levels reads every name twice.
-      crumbs: [...document.querySelectorAll('header a, header span')]
-        .filter((el) => el.children.length === 0)
-        .map((el) => (el.textContent ?? '').trim())
-        .filter((text) => text !== ''),
-      titles: [...document.querySelectorAll('tbody tr')].map((tr) =>
-        (tr.textContent ?? '').trim().slice(0, 40),
-      ),
-    }));
-
-    check('the folder screen is titled after the folder', inside.heading === drawerName, inside.heading);
-    check(
-      'and the trail says which folder you are in',
-      inside.crumbs.some((crumb) => crumb === drawerName),
-      inside.crumbs.join(' > '),
-    );
-    check(
-      'and it holds the plan filed in it',
-      inside.titles.some((title) => title.startsWith(filedTitle)),
-      inside.titles.join(' | ').slice(0, 120),
-    );
-
-    // The row menu is how a plan leaves a folder without the rail's drag. It has
-    // to be opened with a real pointer: the menu listens for pointerdown, and a
-    // synthetic click() never reaches it.
-    const menuAt = await page.evaluate(() => {
-      const button = document.querySelector('tbody tr button[aria-label^="Actions for"]');
-      if (button === null) return null;
-      const box = button.getBoundingClientRect();
-      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    });
-    check('a plan row has a menu', menuAt !== null, JSON.stringify(menuAt));
-    if (menuAt !== null) {
-      await page.mouse.click(menuAt.x, menuAt.y);
-      await wait(900);
-      const offered = await page.evaluate(() => document.body.textContent ?? '');
-      check('and it offers to move the plan to a folder', offered.includes('Move to folder'));
-      await page.keyboard.press('Escape');
+  console.log('\nthe explorer');
+  /*
+   * One screen for everything signed in: the tree on the left replaced the
+   * project, plan and folder lists, and every screen that used to be a page of
+   * its own is drawn beside it. Everything the lists did is done on the rows —
+   * made and named in place, renamed, moved by dragging or from the menu, and
+   * thrown away — and none of it is visible from the protocol.
+   */
+  {
+    const stamp = Date.now();
+    const home = projectList[0];
+    const errorsBefore = pageErrors.length;
+    const tree = () => call(`/workspaces/${workspaces[0].id}/navigation`);
+    const rowOf = (id) => `aside[aria-label="Explorer"] [data-tree-row="${id}"]`;
+    const inView = (id) =>
+      page.evaluate((selector) => {
+        const row = document.querySelector(selector);
+        const pane = row?.closest('.overflow-y-auto');
+        if (row == null || pane == null) return false;
+        const a = row.getBoundingClientRect();
+        const b = pane.getBoundingClientRect();
+        return a.height > 0 && a.top >= b.top - 1 && a.bottom <= b.bottom + 1;
+      }, rowOf(id));
+    const expanded = (id) =>
+      page
+        .$eval(`${rowOf(id)} button[aria-expanded]`, (button) => button.getAttribute('aria-expanded'))
+        .catch(() => null);
+    /** Hovers a row and presses one of the buttons that appear on it. */
+    const onRow = async (id, label) => {
+      await page.hover(rowOf(id)).catch(() => undefined);
+      await wait(250);
+      const button = await page.$(`${rowOf(id)} button[aria-label^="${label}"]`);
+      if (button === null) return false;
+      await button.click();
       await wait(400);
-    }
-  }
+      return true;
+    };
+    /** Types a name into the field the tree opened, and keeps it. */
+    const name = async (text) => {
+      const field = await page
+        .waitForSelector('aside[aria-label="Explorer"] input', { timeout: 3000 })
+        .catch(() => null);
+      if (field === null) return false;
+      await page.keyboard.type(text);
+      await page.keyboard.press('Enter');
+      await wait(1500);
+      return true;
+    };
+    /** Opens a row's menu from its own button and picks an item, or a sub-item. */
+    const fromMenu = async (id, item, sub) => {
+      const opener = await page.$(`${rowOf(id)} button[aria-label^="Actions for"]`);
+      if (opener === null) return false;
+      await page.hover(rowOf(id));
+      await opener.click();
+      await wait(500);
+      const at = (text, exact) =>
+        page.evaluate(
+          ({ text: t, exact: e }) => {
+            const found = [...document.querySelectorAll('[role="menuitem"]')].find((el) =>
+              e ? (el.textContent ?? '').trim() === t : (el.textContent ?? '').includes(t),
+            );
+            if (found === undefined) return null;
+            const box = found.getBoundingClientRect();
+            return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+          },
+          { text, exact },
+        );
+      const first = await at(item, false);
+      if (first === null) {
+        await page.keyboard.press('Escape');
+        return false;
+      }
+      if (sub === undefined) {
+        await page.mouse.click(first.x, first.y);
+        await wait(1200);
+        return true;
+      }
+      await page.mouse.move(first.x, first.y);
+      await wait(600);
+      const second = await at(sub, true);
+      if (second === null) {
+        await page.keyboard.press('Escape');
+        await page.keyboard.press('Escape');
+        return false;
+      }
+      await page.mouse.move(second.x - 20, second.y, { steps: 4 });
+      await page.mouse.click(second.x, second.y);
+      await wait(1500);
+      return true;
+    };
 
-  await call(`/plans/${filed.id}`, { method: 'DELETE' });
-  await call(`/trash/plans/${filed.id}`, { method: 'DELETE' });
-  await call(`/folders/${drawer.id}`, { method: 'DELETE' });
+    // The removed list addresses land on Recent, with what they named opened.
+    const gate = await call(`/projects/${home.id}/folders`, {
+      method: 'POST',
+      body: { name: `Gate ${stamp}` },
+    });
+    const inner = await call(`/projects/${home.id}/folders`, {
+      method: 'POST',
+      body: { name: `Inner ${stamp}`, parentId: gate.id },
+    });
+    const filed = await call(`/projects/${home.id}/plans`, {
+      method: 'POST',
+      body: { title: `Filed ${stamp}`, description: '', folderId: inner.id },
+    });
+    await page.goto(
+      `${BASE}/workspace/${workspaces[0].slug}/project/${home.slug}/folder/${inner.id}`,
+      { waitUntil: 'domcontentloaded' },
+    );
+    await wait(3000);
+    check('an old folder address opens Recent', page.url().endsWith('/recent'), page.url());
+    check(
+      'with that folder opened in the tree, however deep, and in view',
+      (await expanded(inner.id)) === 'true' && (await inView(inner.id)),
+      String(await expanded(inner.id)),
+    );
+    check('and what is filed in it listed under it', (await page.$(rowOf(filed.id))) !== null);
+
+    await page.goto(`${BASE}/workspace/${workspaces[0].slug}/project/${home.slug}`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await wait(2500);
+    check(
+      'an old project address opens Recent with the project open',
+      page.url().endsWith('/recent') && (await expanded(home.id)) === 'true',
+      page.url(),
+    );
+    await page.goto(`${BASE}/workspace/${workspaces[0].slug}`, { waitUntil: 'domcontentloaded' });
+    await wait(2500);
+    check('and an old workspace address opens Recent', page.url().endsWith('/recent'), page.url());
+
+    // Made where they will be, named in place: a folder, one inside it, a plan inside that.
+    const made = `Made ${stamp}`;
+    const offered = await onRow(home.id, 'New folder in');
+    check('a project row offers a new folder on hover', offered);
+    await name(made);
+    let now = await tree();
+    const madeFolder = now.projects
+      .find((project) => project.id === home.id)
+      ?.folders.find((folder) => folder.name === made);
+    check('and names it in the tree', madeFolder?.parentId === null, JSON.stringify(madeFolder));
+
+    let nested;
+    if (madeFolder !== undefined) {
+      await onRow(madeFolder.id, 'New folder in');
+      await name(`Nested ${stamp}`);
+      now = await tree();
+      nested = now.projects
+        .find((project) => project.id === home.id)
+        ?.folders.find((folder) => folder.name === `Nested ${stamp}`);
+      check('a folder row makes a folder inside it', nested?.parentId === madeFolder.id);
+    }
+
+    let treePlan;
+    if (nested !== undefined) {
+      await onRow(nested.id, 'New plan in');
+      await name(`Tree plan ${stamp}`);
+      await wait(1500);
+      now = await tree();
+      treePlan = now.projects
+        .find((project) => project.id === home.id)
+        ?.plans.find((plan) => plan.title === `Tree plan ${stamp}`);
+      check('and a plan inside that', treePlan?.folderId === nested.id, JSON.stringify(treePlan));
+      check(
+        'which opens beside the tree, marked as the one on screen',
+        treePlan !== undefined &&
+          page.url().endsWith(`/plan/${treePlan.id}`) &&
+          (await page.$(`${rowOf(treePlan.id)} button[aria-current="page"]`)) !== null,
+        page.url(),
+      );
+    }
+
+    // Typing a name in the tree is not typing at the canvas: Backspace and
+    // Delete stay in the field while a node is selected beside it.
+    if (treePlan !== undefined && nested !== undefined) {
+      await call(`/plans/${treePlan.id}/ops`, {
+        method: 'POST',
+        body: { ops: [{ op: 'upsert_node', node: { slug: 'keep', title: 'Keep me' } }] },
+      });
+      await page.waitForSelector('.react-flow__node[data-id="keep"]', { timeout: 8000 }).catch(() => null);
+      await wait(500);
+      await page.click('.react-flow__node[data-id="keep"]').catch(() => undefined);
+      await wait(400);
+      const renamed = await fromMenu(nested.id, 'Rename');
+      await page.keyboard.press('Backspace');
+      await page.keyboard.press('Delete');
+      await page.keyboard.type(`Renamed ${stamp}`);
+      await page.keyboard.press('Enter');
+      await wait(1500);
+      now = await tree();
+      const after = now.projects
+        .find((project) => project.id === home.id)
+        ?.folders.find((folder) => folder.id === nested.id);
+      const plan = await call(`/plans/${treePlan.id}`);
+      check('a folder is renamed in place from its menu', renamed && after?.name === `Renamed ${stamp}`, after?.name);
+      check(
+        'and the keys typed into it never reach the selected node',
+        (plan.nodes ?? []).some((node) => node.slug === 'keep'),
+        String((plan.nodes ?? []).length),
+      );
+
+      await fromMenu(treePlan.id, 'Rename');
+      await page.keyboard.type(`Retitled ${stamp}`);
+      await page.keyboard.press('Enter');
+      await wait(2000);
+      const titled = await page.evaluate(() => document.querySelector('header')?.textContent ?? '');
+      check(
+        'a plan renamed in the tree is renamed on its canvas too',
+        titled.includes(`Retitled ${stamp}`),
+        titled.slice(0, 60),
+      );
+    }
+
+    // A new project from the foot of the tree, then a plan dragged into it.
+    const bottom = await page.$('aside[aria-label="Explorer"] button[aria-label="New project"]');
+    check('the foot of the tree offers a new project', bottom !== null);
+    if (bottom !== null) await bottom.click();
+    await wait(300);
+    await name(`Elsewhere ${stamp}`);
+    now = await tree();
+    const other = now.projects.find((project) => project.name === `Elsewhere ${stamp}`);
+    check('and names it in the tree', other !== undefined);
+
+    if (other !== undefined && treePlan !== undefined) {
+      // Puppeteer's own drag does not speak HTML drag and drop, so the events
+      // are the browser's own, one task apart as a real drag delivers them.
+      const drag = (from, to, types) =>
+        page.evaluate(
+          ({ from: f, to: t, types: kinds }) => {
+            const source = document.querySelector(`${f} button[title]`);
+            const target = document.querySelector(t);
+            if (source === null || target === null) return;
+            window.__drag ??= new window.DataTransfer();
+            for (const type of kinds) {
+              (type === 'dragstart' || type === 'dragend' ? source : target).dispatchEvent(
+                new window.DragEvent(type, {
+                  bubbles: true,
+                  cancelable: true,
+                  dataTransfer: window.__drag,
+                }),
+              );
+            }
+          },
+          { from, to, types },
+        );
+      await drag(rowOf(treePlan.id), rowOf(other.id), ['dragstart']);
+      await wait(200);
+      await drag(rowOf(treePlan.id), rowOf(other.id), ['dragenter', 'dragover']);
+      await wait(200);
+      await drag(rowOf(treePlan.id), rowOf(other.id), ['drop', 'dragend']);
+      await wait(1800);
+      now = await tree();
+      const moved = now.projects
+        .find((project) => project.id === other.id)
+        ?.plans.find((plan) => plan.id === treePlan.id);
+      check('a plan dragged onto another project moves there', moved?.folderId === null, JSON.stringify(moved));
+
+      await fromMenu(nested.id, 'Move to', home.name);
+      now = await tree();
+      const lifted = now.projects
+        .find((project) => project.id === home.id)
+        ?.folders.find((folder) => folder.id === nested.id);
+      check('a folder moves to its project top level from its menu', lifted?.parentId === null, JSON.stringify(lifted));
+
+      await fromMenu(other.id, 'Rename');
+      await page.keyboard.type(`Renamed project ${stamp}`);
+      await page.keyboard.press('Enter');
+      await wait(1500);
+      now = await tree();
+      check(
+        'a project is renamed in place',
+        now.projects.some((project) => project.id === other.id && project.name === `Renamed project ${stamp}`),
+      );
+
+      // Throwing away the plan on screen takes you off it.
+      await fromMenu(treePlan.id, 'Move to trash');
+      await wait(800);
+      const binned = await call(`/workspaces/${workspaces[0].id}/trash`);
+      check(
+        'the open plan goes to the trash from its row, and the screen leaves it',
+        binned.some((item) => item.id === treePlan.id) && page.url().endsWith('/recent'),
+        page.url(),
+      );
+      await fromMenu(madeFolder.id, 'Move to trash');
+      await fromMenu(other.id, 'Move to trash');
+      now = await tree();
+      check(
+        'folders and projects go to the trash from their rows',
+        !now.projects.some((project) => project.id === other.id) &&
+          !now.projects.some((project) => project.folders.some((folder) => folder.id === madeFolder.id)),
+      );
+      const trashed = await call(`/workspaces/${workspaces[0].id}/trash`);
+      for (const item of trashed) {
+        if ([treePlan.id, madeFolder.id, other.id].includes(item.id)) {
+          await call(`/trash/${item.kind}s/${item.id}`, { method: 'DELETE' });
+        }
+      }
+      await call(`/folders/${nested.id}`, { method: 'DELETE' });
+      await call(`/trash/folders/${nested.id}`, { method: 'DELETE' });
+    }
+
+    // The right edge is a grip: 200-480px, remembered, double-click resets.
+    await page.goto(`${BASE}/recent`, { waitUntil: 'domcontentloaded' });
+    await wait(2500);
+    const explorerWidth = () =>
+      page.evaluate(
+        () => document.querySelector('aside[aria-label="Explorer"]')?.getBoundingClientRect().width ?? 0,
+      );
+    const grip = async () => {
+      const box = await page.$eval('aside[aria-label="Explorer"] [role="separator"]', (el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      });
+      return box;
+    };
+    const pull = async (dx) => {
+      const at = await grip();
+      await page.mouse.move(at.x, at.y);
+      await page.mouse.down();
+      await page.mouse.move(at.x + dx / 2, at.y, { steps: 5 });
+      await page.mouse.move(at.x + dx, at.y, { steps: 5 });
+      await page.mouse.up();
+      await wait(400);
+    };
+    const was = await explorerWidth();
+    await pull(120);
+    const wider = await explorerWidth();
+    check('dragging the grip widens the explorer', Math.abs(wider - was - 120) <= 2, `${was} -> ${wider}`);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await wait(2500);
+    check('and the width is remembered', Math.abs((await explorerWidth()) - wider) <= 1, String(await explorerWidth()));
+    await pull(2000);
+    check('it stops at 480px', (await explorerWidth()) === 480, String(await explorerWidth()));
+    await pull(-2000);
+    check('and at 200px', (await explorerWidth()) === 200, String(await explorerWidth()));
+    const at = await grip();
+    await page.mouse.click(at.x, at.y, { count: 2 });
+    await wait(400);
+    check('a double-click puts it back to 256px', (await explorerWidth()) === 256, String(await explorerWidth()));
+
+    await page.click('aside[aria-label="Explorer"] button[aria-label="Hide the sidebar"]');
+    await wait(400);
+    const folded = await explorerWidth();
+    await page.click('aside[aria-label="Explorer"] button[aria-label="Show the sidebar"]');
+    await wait(400);
+    check('it folds away and comes back', folded <= 40 && (await explorerWidth()) === 256, `${folded}`);
+
+    // Every signed-in screen is drawn beside the tree, in both languages.
+    const addresses = [
+      '/recent',
+      `/plan/${fixture.id}`,
+      `/plan/${fixture.id}/settings`,
+      '/settings',
+      '/settings/agents',
+      '/admin',
+      '/admin/invitations',
+      '/admin/people',
+      `/workspace/${workspaces[0].slug}/members`,
+      `/workspace/${workspaces[0].slug}/settings`,
+      `/workspace/${workspaces[0].slug}/trash`,
+      `/workspace/${workspaces[0].slug}/project/${home.slug}/settings`,
+    ];
+    for (const [locale, recent] of [
+      ['ko', '최근'],
+      ['en', 'Recent'],
+    ]) {
+      await page.evaluate((value) => window.localStorage.setItem('schematic.locale', value), locale);
+      const missing = [];
+      for (const address of addresses) {
+        await page.goto(`${BASE}${address}`, { waitUntil: 'domcontentloaded' });
+        await wait(address.startsWith('/plan/') && !address.endsWith('settings') ? 3500 : 2000);
+        const shown = await page.evaluate((word) => {
+          const explorer = document.querySelector('aside[aria-label]');
+          const main = document.querySelector('main');
+          const text = (main?.innerText ?? '').trim();
+          return {
+            explorer: explorer !== null && (explorer.textContent ?? '').includes(word),
+            content: text.length > 0 && !text.startsWith('404'),
+            canvas: document.querySelector('.react-flow')?.getBoundingClientRect().height ?? 0,
+          };
+        }, recent);
+        const ok =
+          shown.explorer &&
+          shown.content &&
+          (!address.startsWith('/plan/') || address.endsWith('settings') || shown.canvas > 200);
+        if (!ok) missing.push(`${address} ${JSON.stringify(shown)}`);
+      }
+      check(
+        `every signed-in address is drawn beside the explorer (${locale})`,
+        missing.length === 0,
+        missing.join(' | ').slice(0, 200),
+      );
+    }
+    check(
+      'and none of them threw',
+      pageErrors.length === errorsBefore,
+      pageErrors.slice(errorsBefore).join(' | ').slice(0, 160),
+    );
+
+    await call(`/plans/${filed.id}`, { method: 'DELETE' });
+    await call(`/trash/plans/${filed.id}`, { method: 'DELETE' });
+    await call(`/folders/${gate.id}`, { method: 'DELETE' });
+    await call(`/trash/folders/${gate.id}`, { method: 'DELETE' });
+  }
+  await reopen();
 
     // Its own block: every name in it is its own, whatever the sections around it call theirs.
     {
@@ -2873,6 +3169,43 @@ try {
       panel !== null && panel.width >= 330,
       panel === null ? 'no panel' : `${Math.round(panel.width)}px`,
     );
+
+    // Opened, the explorer floats over the canvas instead of squeezing it, and
+    // following a row puts it away again.
+    await page.keyboard.press('Escape');
+    await page.click('aside[aria-label="Explorer"] button[aria-label="Show the sidebar"]').catch(() => undefined);
+    await wait(500);
+    const floating = await page.evaluate(() => {
+      const aside = document.querySelector('aside[aria-label="Explorer"]');
+      return {
+        position: aside === null ? '' : getComputedStyle(aside).position,
+        width: aside?.getBoundingClientRect().width ?? 0,
+        canvas: document.querySelector('.react-flow')?.getBoundingClientRect().width ?? 0,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    });
+    check(
+      'the explorer opens over the canvas on a phone',
+      floating.position === 'absolute' && floating.canvas >= 330 && floating.overflow <= 0,
+      JSON.stringify(floating),
+    );
+    const other = await page
+      .$$eval('aside[aria-label="Explorer"] [data-tree-kind="plan"]', (rows, here) =>
+        rows.map((row) => row.getAttribute('data-tree-row')).find((id) => id !== here) ?? null,
+      fixture.id)
+      .catch(() => null);
+    if (other !== null) {
+      await page.click(`aside[aria-label="Explorer"] [data-tree-row="${other}"] button[title]`);
+      await wait(1200);
+      const after = await page.evaluate(
+        () => document.querySelector('aside[aria-label="Explorer"]')?.getBoundingClientRect().width ?? 0,
+      );
+      check(
+        'and a plan picked from it opens with the explorer put away',
+        page.url().endsWith(`/plan/${other}`) && after <= 40,
+        `${page.url()} ${after}px`,
+      );
+    }
 
     // A fixed-layout table divides the width it is given, so widths that add up
     // to more than a phone has leave the subject of the row a single letter.
