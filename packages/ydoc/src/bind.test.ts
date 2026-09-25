@@ -170,7 +170,11 @@ describe('concurrent editing', () => {
     });
     const [a, b] = fork(plan);
 
-    const textOf = (doc: Y.Doc) => nodesMap(doc).get('note')?.get('body') as Y.Text;
+    // The paragraph's text inside the body fragment the block editor edits.
+    const textOf = (doc: Y.Doc) =>
+      ((nodesMap(doc).get('note')?.get('body') as Y.XmlFragment).get(0) as Y.XmlElement).get(
+        0,
+      ) as Y.XmlText;
     textOf(a).insert(5, ' world');
     textOf(b).insert(0, 'say ');
     merge(a, b);

@@ -7,15 +7,14 @@ import {
   type PlanOp,
   type Vocabulary,
 } from '@schematic/schema';
-import { nodeBodyText } from '@schematic/ydoc';
+import { nodeBodyFragment } from '@schematic/ydoc';
 import { Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import type * as Y from 'yjs';
 
 import { Button } from '@/components/ui/button';
-import { Field, Input, Textarea } from '@/components/ui/field';
-import { Markdown } from '@/components/ui/markdown';
+import { Field, Input } from '@/components/ui/field';
 import { Select, type SelectOption } from '@/components/ui/select';
 import { TagInput } from '@/components/ui/tag-input';
 import {
@@ -27,10 +26,9 @@ import {
   statusName,
 } from '@/components/ui/vocabulary';
 import { useT, type Messages } from '@/i18n';
-import { cn } from '@/lib/utils';
 import { DEFAULT_WORDS, type PlanWords } from '@/lib/vocabulary';
+import { BodyEditor, type Awareness } from './editor/BodyEditor';
 import { SIDE_PANEL } from './side-panel';
-import { useYText } from './use-y-text';
 
 /** Picked like any other value, and caught before it reaches the node. */
 const EDIT = '__edit_vocabulary__';
@@ -95,6 +93,7 @@ export function Inspector({
   node,
   slugs,
   readOnly,
+  awareness,
   onApplyOps,
   onRenamed,
   onClose,
@@ -105,6 +104,8 @@ export function Inspector({
   /** Every identifier in the plan, so a clash is said before it is attempted. */
   slugs: readonly string[];
   readOnly: boolean;
+  /** The plan's presence channel, so other people's carets show in the body. */
+  awareness?: Awareness | null;
   onApplyOps: (ops: PlanOp[]) => void;
   /** The panel follows the node it is about when that node is readdressed. */
   onRenamed: (slug: string) => void;
@@ -126,11 +127,9 @@ export function Inspector({
       }
       apply(value);
     };
-  const body = useMemo(() => nodeBodyText(doc, node.slug), [doc, node.slug]);
-  const [text, writeText] = useYText(body);
-  // Raw while the cursor is in it, drawn when it is not — the same bargain a
-  // note already makes by being a textarea open and text closed.
-  const [writing, setWriting] = useState(false);
+  // The shared fragment the body is edited in, so two people and an agent
+  // writing in one body merge rather than overwrite each other.
+  const body = useMemo(() => nodeBodyFragment(doc, node.slug), [doc, node.slug]);
 
   const patch = (changes: Partial<PlanNode>): void => {
     onApplyOps([{ op: 'upsert_node', node: { slug: node.slug, ...changes } }]);
@@ -268,35 +267,12 @@ export function Inspector({
           )}
         </Field>
 
-        <Field label={t.plan.inspector.detail} hint={t.plan.inspector.detailHint}>
-          {(id) =>
-            writing && !readOnly ? (
-              <Textarea
-                id={id}
-                rows={10}
-                autoFocus
-                value={text}
-                onChange={(event) => writeText(event.target.value)}
-                onBlur={() => setWriting(false)}
-              />
+        <Field label={t.plan.inspector.detail} hint={readOnly ? undefined : t.editor.hint}>
+          {() =>
+            body === undefined ? null : readOnly && node.body.trim() === '' ? (
+              <p className="text-sm text-ink-faint">{t.plan.inspector.nothingYet}</p>
             ) : (
-              <div
-                id={id}
-                role="button"
-                tabIndex={readOnly ? -1 : 0}
-                onClick={() => !readOnly && setWriting(true)}
-                onFocus={() => !readOnly && setWriting(true)}
-                className={cn(
-                  'min-h-24 w-full rounded-md border border-rule bg-surface px-2.5 py-1.5',
-                  !readOnly && 'cursor-text',
-                )}
-              >
-                {text.trim() === '' ? (
-                  <span className="text-sm text-ink-faint">{t.plan.inspector.nothingYet}</span>
-                ) : (
-                  <Markdown body={text} className="text-sm" />
-                )}
-              </div>
+              <BodyEditor fragment={body} awareness={awareness} editable={!readOnly} />
             )
           }
         </Field>

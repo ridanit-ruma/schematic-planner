@@ -31,6 +31,20 @@ describe('finding the task items in a body', () => {
     expect(taskItems('- [ ] outer\n  - [ ] inner')).toHaveLength(2);
   });
 
+  /* A callout is a quote, and the block editor puts to-dos in them. */
+  it('finds an item inside a quote or a callout', () => {
+    const body = '> [!note] Decide\n> - [ ] yes\n> > - [x] nested';
+    expect(taskItems(body).map((item) => [item.label, item.checked])).toEqual([
+      ['yes', false],
+      ['nested', true],
+    ]);
+    expect(toggleTask(body, 0)).toBe('> [!note] Decide\n> - [x] yes\n> > - [x] nested');
+  });
+
+  it('ignores a list inside a fenced code block in a quote', () => {
+    expect(taskItems('> ```\n> - [ ] shown\n> ```')).toEqual([]);
+  });
+
   /* A fenced block is a picture of markup, not markup. */
   it('ignores a list inside a fenced code block', () => {
     const body = ['- [ ] real', '```', '- [ ] shown, not asked', '```', '- [ ] also real'].join(

@@ -18,9 +18,12 @@ export interface TaskItem {
   readonly label: string;
 }
 
-/** A bullet or an ordered marker, then a box, then the words. */
-const ITEM = /^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])\]\s*(.*)$/;
-const FENCE = /^\s*(?:```|~~~)/;
+/**
+ * A bullet or an ordered marker, then a box, then the words — inside any
+ * number of quote markers, because a callout is a quote and holds tasks too.
+ */
+const ITEM = /^((?:\s*>)*\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])\]\s*(.*)$/;
+const FENCE = /^(?:\s*>)*\s*(?:```|~~~)/;
 
 /**
  * Every task item in the body, in the order they are written.

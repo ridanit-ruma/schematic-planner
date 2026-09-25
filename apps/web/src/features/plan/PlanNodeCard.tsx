@@ -149,6 +149,7 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
   const kind = kindOf(vocabulary, node.kind);
   const border = kind === undefined ? UNKNOWN_BORDER : LOOK_BORDER[kind.look];
   const sizeNode = usePlanStore((state) => state.sizeNode);
+  const toggleTask = usePlanStore((state) => state.toggleTask);
   const attention = cn(arrivedAt !== undefined && 'plan-arrive', dimmed && 'plan-dim');
   // Its place in the sweep. The animation fills backwards, so a card waiting
   // its turn is already invisible rather than flashing on and starting over.
@@ -277,7 +278,10 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
             onPointerDown={(event) => event.stopPropagation()}
             className="nodrag mt-1.5 min-h-0 flex-1 overflow-y-auto text-xs leading-snug text-ink-muted"
           >
-            <Markdown body={node.body} />
+            <Markdown
+              body={node.body}
+              onToggleTask={editable ? (index) => toggleTask(id, index) : undefined}
+            />
           </div>
         ) : null}
         {node.tags.length > 0 ? (

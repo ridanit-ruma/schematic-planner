@@ -1,3 +1,4 @@
+import { shapeForDisplay } from '@schematic/body';
 import { taskItems } from '@schematic/schema';
 import { memo } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -7,14 +8,16 @@ import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 import { safeUrl } from './safe-url';
+import './markdown.css';
 
 /**
- * The subset a plan may be written in.
+ * What a body may be drawn with: the blocks the editor makes, and nothing else.
  *
- * Not headings, tables or images: a note is a remark beside a drawing and a node
- * card is 260px of that drawing, and a document's furniture inside either one
- * makes the picture about its own typography. The narrow subset is also the
- * narrow surface — a plan opens through a share link with no login.
+ * Headings, tables, toggles and callouts are here because the editor makes
+ * them, and a card that drew them as flat lines would be drawing something
+ * other than what was written. Images and raw HTML are still not: the narrow
+ * subset is also the narrow surface, since a plan opens through a share link
+ * with no login.
  *
  * `input` is deliberately absent. remark-gfm draws a disabled checkbox for a
  * task item; the `li` below draws its own instead, so one place owns what a
@@ -34,7 +37,24 @@ const ALLOWED = [
   'blockquote',
   'hr',
   'br',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'table',
+  'thead',
+  'tbody',
+  'tr',
+  'th',
+  'td',
+  'details',
+  'summary',
 ];
+
+/** Toggles, callouts and line breaks, drawn the way the editor draws them. */
+const remarkBody = () => (tree: Parameters<typeof shapeForDisplay>[0]) => shapeForDisplay(tree);
 
 /**
  * Markdown, as React elements.
@@ -72,11 +92,12 @@ function Rendered({
         '[&_a]:text-accent [&_a]:underline [&_a]:underline-offset-2',
         '[&_blockquote]:border-l-2 [&_blockquote]:border-rule-strong [&_blockquote]:pl-2',
         '[&_hr]:border-rule',
+        'body-markdown',
         className,
       )}
     >
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkBody]}
         allowedElements={ALLOWED}
         unwrapDisallowed
         urlTransform={(url) => safeUrl(url) ?? ''}

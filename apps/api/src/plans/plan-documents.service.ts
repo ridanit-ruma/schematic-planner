@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { initializePlan, readPlanDoc } from '@schematic/ydoc';
+import { initializePlan, migrateBodies, readPlanDoc } from '@schematic/ydoc';
 import { diffPlans, planDocFromSnapshot, type PlanDoc } from '@schematic/schema';
 import * as Y from 'yjs';
 
@@ -44,12 +44,34 @@ export class PlanDocumentsService {
   async hydrate(document: Y.Doc, planId: string): Promise<void> {
     const plan = await this.prisma.plan.findUnique({
       where: { id: planId },
-      select: { id: true, title: true, description: true, ydoc: true, snapshot: true },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        ydoc: true,
+        snapshot: true,
+        updatedAt: true,
+      },
     });
     if (plan === null) return;
 
     if (plan.ydoc !== null && plan.ydoc.length > 0) {
       Y.applyUpdate(document, new Uint8Array(plan.ydoc));
+
+      // Bodies written before the block editor are text. They become the
+      // fragments the editor binds to here — before any client syncs, so no
+      // browser ever sees the text form — and the result is stored at once, so
+      // a second load cannot convert the same text again into a second copy.
+      // The Markdown every reader sees is unchanged, so the snapshot and the
+      // plan's place in "recent" are left as they are.
+      const converted = migrateBodies(document);
+      if (converted > 0) {
+        await this.prisma.plan.update({
+          where: { id: planId },
+          data: { ydoc: Buffer.from(Y.encodeStateAsUpdate(document)), updatedAt: plan.updatedAt },
+        });
+        this.logger.log(`plan ${planId}: converted ${converted} node bodies to blocks`);
+      }
       return;
     }
 

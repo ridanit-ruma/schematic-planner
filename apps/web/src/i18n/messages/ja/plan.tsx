@@ -44,7 +44,6 @@ export const plan: Messages['plan'] = {
     tags: 'タグ',
     tagsHint: 'カンマ区切り',
     detail: '詳細',
-    detailHint: 'Markdown。キャンバス上でも Markdown として表示されます',
     nothingYet: 'まだ何もありません',
     deleteNode: 'ノードを削除',
     deleteNodeNote: 'ノードと、そこにつながるすべての接続を削除します。',
