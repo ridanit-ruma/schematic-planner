@@ -25,11 +25,24 @@ interface I18nState {
   setLocale: (locale: Locale) => Promise<void>;
 }
 
+// Which choice is the latest. Catalogs arrive in any order, and one picked a
+// moment ago must not land on top of the one picked after it.
+let latest = 0;
+
 export const useI18n = create<I18nState>((set) => ({
   locale: DEFAULT_LOCALE,
   messages: en,
   setLocale: async (locale) => {
-    const messages = await loaders[locale]();
+    const request = ++latest;
+    let messages: Messages;
+    try {
+      messages = await loaders[locale]();
+    } catch {
+      // Same case as initI18n: a deploy replaced the chunk under an open tab.
+      // The screen stays in the language it is in rather than breaking.
+      return;
+    }
+    if (request !== latest) return;
     remember(locale);
     apply(locale);
     set({ locale, messages });
@@ -66,7 +79,14 @@ export function currentLocale(): Locale {
  */
 export function formatLocale(locale: Locale = currentLocale()): string {
   const tags = navigator.languages ?? [navigator.language];
-  return tags.find((tag) => matchLocale([tag]) === locale) ?? locale;
+  // matchLocale answers English for a language it does not speak, so the
+  // language itself has to agree too, or English takes a German tag.
+  const language = locale.split('-')[0]?.toLowerCase();
+  return (
+    tags.find(
+      (tag) => tag.split('-')[0]?.toLowerCase() === language && matchLocale([tag]) === locale,
+    ) ?? locale
+  );
 }
 
 /**
