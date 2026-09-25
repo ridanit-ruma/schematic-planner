@@ -7,9 +7,8 @@ import {
   type PlanOp,
   type Vocabulary,
 } from '@schematic/schema';
-import { nodeBodyFragment } from '@schematic/ydoc';
 import { Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import type * as Y from 'yjs';
 
@@ -28,6 +27,7 @@ import {
 import { useT, type Messages } from '@/i18n';
 import { DEFAULT_WORDS, type PlanWords } from '@/lib/vocabulary';
 import { BodyEditor, type Awareness } from './editor/BodyEditor';
+import { watchNodeBody } from './node-body';
 import { SIDE_PANEL } from './side-panel';
 
 /** Picked like any other value, and caught before it reaches the node. */
@@ -128,8 +128,15 @@ export function Inspector({
       apply(value);
     };
   // The shared fragment the body is edited in, so two people and an agent
-  // writing in one body merge rather than overwrite each other.
-  const body = useMemo(() => nodeBodyFragment(doc, node.slug), [doc, node.slug]);
+  // writing in one body merge rather than overwrite each other. Found in an
+  // effect, since finding it can write to the document, and followed if the
+  // node is replaced under the same slug.
+  const [bound, setBound] = useState<{ slug: string; fragment: Y.XmlFragment | undefined }>();
+  useEffect(
+    () => watchNodeBody(doc, node.slug, (fragment) => setBound({ slug: node.slug, fragment })),
+    [doc, node.slug],
+  );
+  const body = bound?.slug === node.slug ? bound.fragment : undefined;
 
   const patch = (changes: Partial<PlanNode>): void => {
     onApplyOps([{ op: 'upsert_node', node: { slug: node.slug, ...changes } }]);
