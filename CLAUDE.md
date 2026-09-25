@@ -90,12 +90,24 @@ Front-end changes need a rebuild and re-copy on this setup; there is no hot relo
   database someone is using.
 - Auth endpoints allow 10 requests a minute (`RATE_LIMIT_AUTH_MAX`). The API smoke test
   trips it on a second run.
-- `pnpm --filter @schematic/api smoke` expects 11 MCP tools; there are 21 now, so that
-  check is stale.
+- `pnpm --filter @schematic/api smoke` expects 11 MCP tools; there are 21 now (still 21
+  after the canvas-and-workspace round), so that check is stale.
+- **`nest start` needs the workspace packages built first.** The API (and Vite) import
+  `@schematic/*` from their `dist/`, which a fresh clone or worktree does not have (and
+  `packages/body` is new): run `pnpm turbo run build --filter='@schematic/api^...'`
+  before starting it, and again after changing a package.
+- `prisma migrate diff` against a migrated database shows a drift on
+  `PlanChange_batchId_idx`. It is pre-existing and nobody's change; don't write a
+  migration for it as part of unrelated work.
 - `canvas-check` needs a signed-in account with a project and a plan already present,
   and a browser: the Playwright Chromium already in the Nix store works via
   `CHROME_PATH=$(ls -d /nix/store/*-playwright-browsers/chromium-*/chrome-linux64/chrome | head -1)`. `at least one container is drawn at its own bounds` fails at HEAD as
   well. Run it against a separate database, not one in use.
+  It also runs against the Vite dev server rather than the one-origin build: the check
+  calls `/api/...` from the page, so give Vite a throwaway config with a `server.proxy`
+  entry for `/api` → the API (`rewrite` the prefix off, `ws: true` for `/api/collab`)
+  and run the API with `ACCESS_TOKEN_TTL=3h` — a full run outlasts the default 15-minute
+  token.
 - Next writes `AGENTS.md`/`CLAUDE.md` into `apps/www` on `next dev`; they are gitignored.
 - The UI speaks English, Korean, Japanese, Simplified and Traditional Chinese (README,
   Conventions). A new string goes into all five catalogs in the same change; `tsc` fails
