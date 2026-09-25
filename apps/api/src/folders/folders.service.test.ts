@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { PrismaService } from '../common/prisma.service.js';
 import type { AccessService } from '../workspaces/access.service.js';
-import { isTrashed } from './folder-tree.js';
+import { isTrashed, wouldLoop } from './folder-tree.js';
 import { FoldersService } from './folders.service.js';
 
 interface Row {
@@ -28,24 +28,46 @@ function service(seed: Omit<Row, 'updatedAt'>[]): { folders: FoldersService; row
   const matches = (row: Row, where: Record<string, unknown>): boolean =>
     Object.entries(where).every(([field, wanted]) => row[field as keyof Row] === wanted);
 
+  const folder = {
+    findMany: async ({ where }: { where: Record<string, unknown> }) =>
+      rows
+        .filter((row) => matches(row, where))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((row) => ({ ...row, _count: { plans: 0 } })),
+    create: async ({ data }: { data: Omit<Row, 'id' | 'deletedAt' | 'updatedAt'> }) => {
+      made += 1;
+      const row = { id: `new-${made}`, deletedAt: null, updatedAt: at, ...data };
+      rows.push(row);
+      return row;
+    },
+    update: async ({ where, data }: { where: { id: string }; data: Partial<Row> }) => {
+      const row = rows.find((candidate) => candidate.id === where.id) as Row;
+      Object.assign(row, data);
+      return row;
+    },
+  };
+
+  // One lock, held the way Postgres holds a row lock: a second transaction that
+  // asks for it waits until the first one ends.
+  let held: Promise<void> = Promise.resolve();
   const prisma = {
-    folder: {
-      findMany: async ({ where }: { where: Record<string, unknown> }) =>
-        rows
-          .filter((row) => matches(row, where))
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map((row) => ({ ...row, _count: { plans: 0 } })),
-      create: async ({ data }: { data: Omit<Row, 'id' | 'deletedAt' | 'updatedAt'> }) => {
-        made += 1;
-        const row = { id: `new-${made}`, deletedAt: null, updatedAt: at, ...data };
-        rows.push(row);
-        return row;
-      },
-      update: async ({ where, data }: { where: { id: string }; data: Partial<Row> }) => {
-        const row = rows.find((candidate) => candidate.id === where.id) as Row;
-        Object.assign(row, data);
-        return row;
-      },
+    folder,
+    $transaction: async (work: (tx: unknown) => Promise<unknown>) => {
+      let release = (): void => {};
+      const tx = {
+        folder,
+        $queryRaw: async () => {
+          const before = held;
+          held = new Promise((resolve) => (release = resolve));
+          await before;
+          return [];
+        },
+      };
+      try {
+        return await work(tx);
+      } finally {
+        release();
+      }
     },
   } as unknown as PrismaService;
 
@@ -194,6 +216,17 @@ describe('moving a folder', () => {
       BadRequestException,
     );
     expect(rows.find((row) => row.id === 'specs')?.parentId).toBeNull();
+  });
+
+  /* Each move alone is fine; both at once would leave two folders inside each other. */
+  it('refuses the second of two moves that together would make a loop', async () => {
+    const { folders, rows } = service(seed);
+    const results = await Promise.allSettled([
+      folders.update('u', 'specs', { parentId: 'notes' }),
+      folders.update('u', 'notes', { parentId: 'specs' }),
+    ]);
+    expect(results.map((result) => result.status).sort()).toEqual(['fulfilled', 'rejected']);
+    expect(rows.some((row) => wouldLoop(rows, row.id, row.parentId))).toBe(false);
   });
 
   it('refuses a parent in another project', async () => {

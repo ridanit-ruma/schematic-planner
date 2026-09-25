@@ -8,7 +8,13 @@ import {
 import { PrismaService } from '../common/prisma.service.js';
 import { AccessService } from '../workspaces/access.service.js';
 import type { CreateFolderInput, UpdateFolderInput } from './folders.dto.js';
-import { pathOf, siblingNamed, trashedFolderIds, wouldLoop } from './folder-tree.js';
+import {
+  lockFolderTrees,
+  pathOf,
+  siblingNamed,
+  trashedFolderIds,
+  wouldLoop,
+} from './folder-tree.js';
 
 export interface FolderSummary {
   id: string;
@@ -101,33 +107,38 @@ export class FoldersService {
   /** A rename, a move to another parent in the same project, or both. */
   async update(userId: string, folderId: string, input: UpdateFolderInput): Promise<FolderRecord> {
     const access = await this.access.requireFolder(userId, folderId, 'EDITOR');
-    const folders = await this.prisma.folder.findMany({
-      where: { projectId: access.projectId },
-      select: { id: true, parentId: true, name: true, deletedAt: true },
-    });
-    const self = folders.find((folder) => folder.id === folderId);
-    if (self === undefined) throw new NotFoundException('Folder not found');
+    // Checked and written under the tree's lock: two moves that each pass
+    // against the same reading could otherwise close a loop between them.
+    return this.prisma.$transaction(async (tx) => {
+      await lockFolderTrees(tx, [access.projectId]);
+      const folders = await tx.folder.findMany({
+        where: { projectId: access.projectId },
+        select: { id: true, parentId: true, name: true, deletedAt: true },
+      });
+      const self = folders.find((folder) => folder.id === folderId);
+      if (self === undefined) throw new NotFoundException('Folder not found');
 
-    const parentId = input.parentId === undefined ? self.parentId : input.parentId;
-    const name = input.name ?? self.name;
+      const parentId = input.parentId === undefined ? self.parentId : input.parentId;
+      const name = input.name ?? self.name;
 
-    if (parentId !== self.parentId && parentId !== null) {
-      await this.requireParent(userId, access.projectId, parentId);
-      if (wouldLoop(folders, folderId, parentId)) {
-        throw new BadRequestException('A folder cannot go inside itself or a folder inside it');
+      if (parentId !== self.parentId && parentId !== null) {
+        await this.requireParent(userId, access.projectId, parentId);
+        if (wouldLoop(folders, folderId, parentId)) {
+          throw new BadRequestException('A folder cannot go inside itself or a folder inside it');
+        }
       }
-    }
-    // Asked only when something changes, so a pair of twins made before names
-    // were unique can still be told apart by renaming either of them.
-    if (parentId !== self.parentId || name !== self.name) {
-      this.refuseClash(folders, parentId, name, folderId);
-    }
+      // Asked only when something changes, so a pair of twins made before names
+      // were unique can still be told apart by renaming either of them.
+      if (parentId !== self.parentId || name !== self.name) {
+        this.refuseClash(folders, parentId, name, folderId);
+      }
 
-    const folder = await this.prisma.folder.update({
-      where: { id: folderId },
-      data: { name, parentId },
+      const folder = await tx.folder.update({
+        where: { id: folderId },
+        data: { name, parentId },
+      });
+      return record(folder);
     });
-    return record(folder);
   }
 
   /**
