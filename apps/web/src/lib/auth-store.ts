@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import { auth, setAccessToken, type AuthUser } from './api.js';
+import { auth, onSessionLost, setAccessToken, type AuthUser } from './api.js';
 
 export type AuthStatus = 'loading' | 'signed-in' | 'signed-out';
 
@@ -54,3 +54,11 @@ export const useAuth = create<AuthState>((set) => ({
     set({ status: 'signed-out', user: null });
   },
 }));
+
+// A refresh the server refused ends the session here too, so RequireAuth sends
+// the person to sign in and back, rather than leaving a signed-in screen whose
+// every request goes out with no token.
+onSessionLost(() => {
+  if (useAuth.getState().status !== 'signed-out')
+    useAuth.setState({ status: 'signed-out', user: null });
+});

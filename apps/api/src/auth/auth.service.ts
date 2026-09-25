@@ -34,6 +34,33 @@ export interface AuthResult {
   readonly accessToken: string;
   readonly refreshToken: string;
   readonly refreshExpiresAt: Date;
+  /** The session row behind the refresh token. */
+  readonly sessionId: string;
+}
+
+/** How long a rotated refresh token may still be exchanged, if its successor is unused. */
+export const ROTATION_GRACE_MS = 30_000;
+
+export type RefreshVerdict = 'rotate' | 'replay' | 'refuse';
+
+/**
+ * What a presented refresh token is good for.
+ *
+ * `replay` is the case a lost response leaves behind: the token was rotated a
+ * moment ago and the successor has never been presented, so the browser most
+ * likely never received it. A successor that has itself been used proves the
+ * browser did, and then the old token turning up again is reuse.
+ */
+export function refreshVerdict(
+  session: { readonly expiresAt: Date; readonly replacedAt: Date | null },
+  successor: { readonly replacedAt: Date | null } | null,
+  now: number,
+): RefreshVerdict {
+  if (session.expiresAt.getTime() < now) return 'refuse';
+  if (session.replacedAt === null) return 'rotate';
+  if (now - session.replacedAt.getTime() > ROTATION_GRACE_MS) return 'refuse';
+  if (successor === null || successor.replacedAt !== null) return 'refuse';
+  return 'replay';
 }
 
 @Injectable()
@@ -186,33 +213,92 @@ export class AuthService {
   }
 
   /**
-   * Refresh tokens rotate: the presented one is consumed and a new one issued.
-   * A token that is replayed after rotation no longer matches any session.
+   * Refresh tokens rotate: the presented one is marked replaced and a successor
+   * issued.
+   *
+   * The successor travels back in a Set-Cookie on one response, and a response
+   * can be lost — a page unloaded mid-request, a connection dropped on the way
+   * back. Deleting the old session at once turned that into a lost session: the
+   * browser still held the old cookie and nothing would take it. So a replaced
+   * token presented again within ROTATION_GRACE_MS, while its successor is still
+   * unused, is exchanged once more and the unused successor dropped. After the
+   * window, or once the successor has been used, it is refused as before.
    */
   async refresh(token: string, userAgent?: string): Promise<AuthResult> {
+    const now = new Date();
     const session = await this.prisma.session.findUnique({
       where: { tokenHash: hashToken(token) },
       include: { user: true },
     });
+    if (session === null) throw new UnauthorizedException('Session expired');
 
-    if (session === null || session.expiresAt.getTime() < Date.now()) {
-      if (session !== null) await this.prisma.session.delete({ where: { id: session.id } });
+    const successor =
+      session.replacedById === null
+        ? null
+        : await this.prisma.session.findUnique({
+            where: { id: session.replacedById },
+            select: { replacedAt: true },
+          });
+    const verdict = refreshVerdict(session, successor, now.getTime());
+
+    if (verdict === 'refuse') {
+      await this.prisma.session.deleteMany({ where: { id: session.id } });
       throw new UnauthorizedException('Session expired');
     }
-
-    await this.prisma.session.delete({ where: { id: session.id } });
     // A refreshed session is also a fresh answer about standing: an account
     // suspended a minute ago should not be handed another quarter of an hour.
     if (session.user.suspendedAt !== null) {
+      await this.prisma.session.deleteMany({ where: { id: session.id } });
       throw new UnauthorizedException('This account has been suspended');
     }
+
     const { id, email, name, avatarUrl, instanceRole } = session.user;
-    return this.issue({ id, email, name, avatarUrl, instanceRole }, userAgent);
+    const result = await this.issue({ id, email, name, avatarUrl, instanceRole }, userAgent);
+
+    // Conditional, so two requests presenting the same token at the same moment
+    // cannot both be answered: the one that loses gives its session back.
+    const { count } = await this.prisma.session.updateMany({
+      where:
+        verdict === 'rotate'
+          ? { id: session.id, replacedAt: null }
+          : { id: session.id, replacedById: session.replacedById },
+      data:
+        verdict === 'rotate'
+          ? { replacedAt: now, replacedById: result.sessionId }
+          : { replacedById: result.sessionId },
+    });
+    if (count === 0) {
+      await this.prisma.session.deleteMany({ where: { id: result.sessionId } });
+      throw new UnauthorizedException('Session expired');
+    }
+    if (verdict === 'replay' && session.replacedById !== null) {
+      // Never seen by the browser, or it would have been presented instead.
+      await this.prisma.session.deleteMany({
+        where: { id: session.replacedById, replacedAt: null },
+      });
+    }
+    return result;
   }
 
   async logout(token: string | undefined): Promise<void> {
     if (token === undefined) return;
-    await this.prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } });
+    const session = await this.prisma.session.findUnique({
+      where: { tokenHash: hashToken(token) },
+      select: { id: true, replacedById: true },
+    });
+    if (session === null) return;
+    // Signing out with a token whose successor never arrived must end that
+    // successor too, or it would sit in the sessions list for a month.
+    await this.prisma.session.deleteMany({
+      where: {
+        OR: [
+          { id: session.id },
+          ...(session.replacedById === null
+            ? []
+            : [{ id: session.replacedById, replacedAt: null }]),
+        ],
+      },
+    });
   }
 
   async updateProfile(userId: string, input: UpdateProfileInput): Promise<AuthUser> {
@@ -253,7 +339,8 @@ export class AuthService {
 
   async sessions(userId: string, currentToken?: string) {
     const sessions = await this.prisma.session.findMany({
-      where: { userId },
+      // A replaced session is a token in its grace period, not a device.
+      where: { userId, replacedAt: null },
       orderBy: { createdAt: 'desc' },
     });
     const currentHash = currentToken === undefined ? null : hashToken(currentToken);
@@ -369,7 +456,7 @@ export class AuthService {
     const refreshToken = randomToken();
     const refreshExpiresAt = new Date(Date.now() + durationToMs(this.config.refreshTokenTtl));
 
-    await this.prisma.session.create({
+    const session = await this.prisma.session.create({
       data: {
         userId: user.id,
         tokenHash: hashToken(refreshToken),
@@ -377,9 +464,15 @@ export class AuthService {
         ...(userAgent !== undefined && { userAgent: userAgent.slice(0, 300) }),
       },
     });
+    // Replaced sessions are only worth keeping through their grace period.
+    // Cleared here, for this person, rather than by a job: every sign-in and
+    // refresh passes through, and nothing else reads them.
+    await this.prisma.session.deleteMany({
+      where: { userId: user.id, replacedAt: { lt: new Date(Date.now() - ROTATION_GRACE_MS) } },
+    });
 
     const accessToken = await this.jwt.signAsync({ sub: user.id, email: user.email });
-    return { user, accessToken, refreshToken, refreshExpiresAt };
+    return { user, accessToken, refreshToken, refreshExpiresAt, sessionId: session.id };
   }
 
   private async freeSlug(name: string): Promise<string> {

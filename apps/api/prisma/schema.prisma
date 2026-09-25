@@ -73,6 +73,13 @@ model Session {
   userAgent String?
   expiresAt DateTime
   createdAt DateTime @default(now())
+  /// When this refresh token was exchanged for a successor. A replaced session
+  /// is kept for a short grace period so that a response lost on the way back
+  /// does not lose the session with it; it is no longer a signed-in device.
+  replacedAt   DateTime?
+  /// The session it was exchanged for. Not a relation: the successor may be
+  /// gone (signed out, revoked) while this row waits to be cleaned up.
+  replacedById String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

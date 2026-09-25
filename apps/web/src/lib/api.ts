@@ -177,44 +177,154 @@ export class ApiError extends Error {
  */
 let accessToken: string | null = null;
 let refreshing: Promise<boolean> | null = null;
+let renewal: ReturnType<typeof setTimeout> | undefined;
+let sessionLost: () => void = () => undefined;
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
+  scheduleRenewal();
 }
 
 export function currentAccessToken(): string | null {
   return accessToken;
 }
 
+/**
+ * Called when the server has said the session is over — the refresh cookie is
+ * missing, expired or revoked — so the screen can stop claiming to be signed
+ * in. Carrying on instead sent every later request with no token at all, and
+ * the person met "Missing access token" and a canvas that said the plan was
+ * not there.
+ */
+export function onSessionLost(handler: () => void): void {
+  sessionLost = handler;
+}
+
+/** Renew this long before the access token runs out, at most. */
+const RENEW_AHEAD_MS = 60_000;
+/** After a renewal the server could not answer, try again this much later: well inside
+ * the grace period in which the server still takes a cookie whose answer was lost. */
+const RETRY_RENEWAL_MS = 10_000;
+
+/** Never renew sooner than this after a token arrives, whatever it claims. */
+const MIN_RENEWAL_MS = 5_000;
+
+/**
+ * How long after an access token arrives it should be renewed, or null when it
+ * cannot be read: a minute before it expires, or halfway through its life when
+ * it lives less than two minutes.
+ *
+ * Measured from its lifetime (`exp - iat`, both the server's clock) rather than
+ * from `exp` against this machine's clock, so a clock that is wrong cannot make
+ * every token look expired on arrival and renew it in a loop.
+ */
+export function renewalDelay(token: string): number | null {
+  const payload = token.split('.')[1];
+  if (payload === undefined) return null;
+  try {
+    const claims = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as {
+      exp?: unknown;
+      iat?: unknown;
+    };
+    if (typeof claims.exp !== 'number' || typeof claims.iat !== 'number') return null;
+    const lifetime = (claims.exp - claims.iat) * 1000;
+    return Math.max(MIN_RENEWAL_MS, lifetime - Math.min(RENEW_AHEAD_MS, lifetime / 2));
+  } catch {
+    return null;
+  }
+}
+
+/** When the token in hand is due for renewal, by this machine's clock. */
+let renewAt = Infinity;
+
+/**
+ * Renewing ahead of expiry rather than after a 401 means a tab left open does
+ * not come back holding a dead token, and the collaboration socket, which is
+ * only authenticated when it connects, always has a live one to reconnect with.
+ */
+function scheduleRenewal(): void {
+  clearTimeout(renewal);
+  renewal = undefined;
+  renewAt = Infinity;
+  if (accessToken === null) return;
+  const delay = renewalDelay(accessToken);
+  if (delay === null) return;
+  renewAt = Date.now() + delay;
+  renewal = setTimeout(() => void refreshAccessToken(), delay);
+}
+
+/*
+ * A hidden tab's timers are throttled and a sleeping machine's do not run at
+ * all, so coming back is also a moment to check.
+ */
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || accessToken === null) return;
+    if (Date.now() >= renewAt) void refreshAccessToken();
+  });
+}
+
+type RefreshOutcome = 'renewed' | 'lost' | 'unavailable';
+
+async function exchangeCookie(): Promise<RefreshOutcome> {
+  for (let attempt = 0; ; attempt += 1) {
+    let response: Response | null = null;
+    try {
+      response = await fetch(`${config.apiUrl}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // The request may or may not have reached the server. If it did, the
+      // server rotated the cookie and the answer is gone with the connection;
+      // its grace period takes the old cookie once more, so asking again is safe.
+    }
+    if (response?.ok === true) {
+      const body = (await response.json()) as { accessToken: string };
+      setAccessToken(body.accessToken);
+      return 'renewed';
+    }
+    // Only the API's own answer that there is no session ends it. Being turned
+    // away for asking too often, a server that is down, or something in front
+    // of it answering instead is not the same as not being signed in, and
+    // treating them alike signed people out of perfectly good sessions.
+    if (response?.status === 401) return 'lost';
+    if (attempt >= 1) return 'unavailable';
+    const after = Number(response?.headers.get('retry-after'));
+    await new Promise((resolve) =>
+      setTimeout(
+        resolve,
+        Math.min(Number.isFinite(after) && after > 0 ? after * 1000 : 1000, 5000),
+      ),
+    );
+  }
+}
+
+/**
+ * One refresh at a time, in this tab and across every tab of this origin.
+ *
+ * Rotation spends the cookie: two requests presenting the same one race, and
+ * the one that loses is told the session is over. Within a tab the in-flight
+ * promise is shared; across tabs a Web Lock queues them, so the second tab
+ * presents the cookie the first one was just given.
+ */
 async function refreshAccessToken(): Promise<boolean> {
-  // Single-flight: a page that fires several requests at once must not send
-  // several refreshes, because rotation would invalidate its own new token.
   refreshing ??= (async () => {
     try {
-      for (let attempt = 0; ; attempt += 1) {
-        const response = await fetch(`${config.apiUrl}/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-        });
-        if (response.ok) {
-          const body = (await response.json()) as { accessToken: string };
-          accessToken = body.accessToken;
-          return true;
-        }
-
-        // Being turned away for asking too often is not the same as not being
-        // signed in. Treating the two alike put people on the sign-in screen
-        // holding a session that was still perfectly good.
-        const busy = response.status === 429 || response.status >= 500;
-        if (!busy || attempt >= 1) {
-          if (!busy) accessToken = null;
-          return false;
-        }
-        const after = Number(response.headers.get('retry-after'));
-        await new Promise((resolve) =>
-          setTimeout(resolve, Math.min(Number.isFinite(after) ? after * 1000 : 1000, 5000)),
-        );
+      const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
+      const outcome =
+        locks === undefined
+          ? await exchangeCookie()
+          : await locks.request('schematic-refresh', exchangeCookie);
+      if (outcome === 'lost') {
+        setAccessToken(null);
+        sessionLost();
+      } else if (outcome === 'unavailable' && accessToken !== null) {
+        // Nothing was decided, so the session is still there to renew.
+        clearTimeout(renewal);
+        renewal = setTimeout(() => void refreshAccessToken(), RETRY_RENEWAL_MS);
       }
+      return outcome === 'renewed';
     } finally {
       refreshing = null;
     }

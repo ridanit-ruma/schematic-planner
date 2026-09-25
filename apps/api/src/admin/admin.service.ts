@@ -152,7 +152,14 @@ export class AdminService {
       orderBy: { createdAt: 'asc' },
       include: {
         invitedVia: { select: { id: true, label: true } },
-        _count: { select: { memberships: true, sessions: true, apiKeys: true } },
+        _count: {
+          select: {
+            memberships: true,
+            // Replaced sessions are refresh tokens in their grace period.
+            sessions: { where: { replacedAt: null } },
+            apiKeys: true,
+          },
+        },
       },
     });
 
@@ -277,7 +284,7 @@ export class AdminService {
       this.prisma.planChange.count({ where: { apiKeyId: { not: null } } }),
       this.prisma.apiKey.count(),
       this.prisma.apiKey.count({ where: { revokedAt: null } }),
-      this.prisma.session.count({ where: { expiresAt: { gte: new Date() } } }),
+      this.prisma.session.count({ where: { expiresAt: { gte: new Date() }, replacedAt: null } }),
       this.prisma.planShare.count(),
       this.prisma.signupInvite.count({ where: { revokedAt: null } }),
     ]);
