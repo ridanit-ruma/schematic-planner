@@ -1,5 +1,15 @@
 import { exportPlan } from '@schematic/exporter';
-import { buildPlanGraph, topologicalOrder, type PlanDoc, type TraceResult } from '@schematic/schema';
+import {
+  DEFAULT_VOCABULARY,
+  buildPlanGraph,
+  categoryOf,
+  isSettled,
+  isWorkKind,
+  topologicalOrder,
+  type PlanDoc,
+  type TraceResult,
+  type Vocabulary,
+} from '@schematic/schema';
 import type { NamedFolder } from './workspace-scope.js';
 
 export type PlanView = 'outline' | 'detail' | 'graph' | 'markdown';
@@ -9,7 +19,11 @@ export type PlanView = 'outline' | 'detail' | 'graph' | 'markdown';
  * structure and never needs coordinates, and sending them would spend the
  * caller's context on numbers it cannot use.
  */
-export function renderPlan(doc: PlanDoc, view: PlanView): string {
+export function renderPlan(
+  doc: PlanDoc,
+  view: PlanView,
+  vocabulary: Vocabulary = DEFAULT_VOCABULARY,
+): string {
   if (view === 'graph') {
     return JSON.stringify(
       {
@@ -57,9 +71,9 @@ export function renderPlan(doc: PlanDoc, view: PlanView): string {
       .join('\n\n');
   }
 
-  if (view === 'detail') return outline(doc, { bodies: true });
+  if (view === 'detail') return outline(doc, { bodies: true, vocabulary });
 
-  return outline(doc);
+  return outline(doc, { vocabulary });
 }
 
 /**
@@ -125,7 +139,10 @@ function wiring(doc: PlanDoc, slug: string): string[] {
   return lines;
 }
 
-function outline(doc: PlanDoc, options: { bodies?: boolean } = {}): string {
+function outline(
+  doc: PlanDoc,
+  options: { bodies?: boolean; vocabulary?: Vocabulary } = {},
+): string {
   const graph = buildPlanGraph(doc);
   const lines = [`# ${doc.title}`];
   if (doc.description !== '') lines.push('', doc.description);
@@ -185,7 +202,7 @@ function outline(doc: PlanDoc, options: { bodies?: boolean } = {}): string {
   // Where it has got to, on every read. A plan is a thing being approached,
   // and a reader — a person or an agent — who cannot see it getting closer is
   // reading a list.
-  const progress = progressLine(doc);
+  const progress = progressLine(doc, options.vocabulary);
   if (progress !== '') lines.push('', progress, 'next_task says what to do next.');
 
   if (doc.nodes.length === 0) lines.push('_empty plan_');
@@ -502,8 +519,12 @@ function precedence(doc: PlanDoc): Map<string, string[]> {
  * was back to deciding which lines to ignore. That is the judgement this
  * answer exists to remove.
  */
-function isWork(node: { kind: string; slug: string }, holds: ReadonlySet<string>): boolean {
-  return node.kind !== 'group' && node.kind !== 'note' && !holds.has(node.slug);
+function isWork(
+  node: { kind: string; slug: string },
+  holds: ReadonlySet<string>,
+  vocabulary: Vocabulary,
+): boolean {
+  return isWorkKind(vocabulary, node.kind) && !holds.has(node.slug);
 }
 
 /** Every node that has something nested under it. */
@@ -513,18 +534,22 @@ function holders(doc: PlanDoc): Set<string> {
   return held;
 }
 
-const SETTLED = new Set(['done', 'dropped']);
-
-/** Where a plan has got to, in one line. */
-export function progressLine(doc: PlanDoc): string {
+/**
+ * Where a plan has got to, in one line.
+ *
+ * Counted by what each status means, not by its id, so a project that calls
+ * its statuses something else still gets an answer.
+ */
+export function progressLine(doc: PlanDoc, vocabulary: Vocabulary = DEFAULT_VOCABULARY): string {
   const holds = holders(doc);
-  const work = doc.nodes.filter((node) => isWork(node, holds));
+  const work = doc.nodes.filter((node) => isWork(node, holds, vocabulary));
   if (work.length === 0) return '';
 
-  const count = (status: string) => work.filter((node) => node.status === status).length;
-  const settled = work.filter((node) => SETTLED.has(node.status)).length;
+  const count = (category: 'active' | 'blocked') =>
+    work.filter((node) => categoryOf(vocabulary, node.status) === category).length;
+  const settled = work.filter((node) => isSettled(vocabulary, node.status)).length;
   const parts = [`${settled} of ${work.length} done`];
-  if (count('in_progress') > 0) parts.push(`${count('in_progress')} in progress`);
+  if (count('active') > 0) parts.push(`${count('active')} in progress`);
   if (count('blocked') > 0) parts.push(`${count('blocked')} blocked`);
   return parts.join(' · ');
 }
@@ -543,11 +568,15 @@ export function progressLine(doc: PlanDoc): string {
  * So the body of what to do next comes back with the answer. One call, and the
  * next move is in hand.
  */
-export function renderNext(doc: PlanDoc, limit: number): string {
+export function renderNext(
+  doc: PlanDoc,
+  limit: number,
+  vocabulary: Vocabulary = DEFAULT_VOCABULARY,
+): string {
   const before = precedence(doc);
   const status = new Map(doc.nodes.map((node) => [node.slug, node.status]));
   const holds = holders(doc);
-  const work = doc.nodes.filter((node) => isWork(node, holds));
+  const work = doc.nodes.filter((node) => isWork(node, holds, vocabulary));
 
   if (work.length === 0) {
     return (
@@ -556,7 +585,7 @@ export function renderNext(doc: PlanDoc, limit: number): string {
     );
   }
 
-  const settledBy = (slug: string): boolean => SETTLED.has(status.get(slug) ?? 'idea');
+  const settledBy = (slug: string): boolean => isSettled(vocabulary, status.get(slug) ?? '');
   const waitingOn = (slug: string): string[] =>
     (before.get(slug) ?? []).filter((one) => status.has(one) && !settledBy(one));
 
@@ -573,14 +602,15 @@ export function renderNext(doc: PlanDoc, limit: number): string {
 
   for (const slug of ordered) {
     const node = bySlug.get(slug);
-    if (node === undefined || SETTLED.has(node.status)) continue;
-    if (node.status === 'in_progress') running.push(node);
-    else if (node.status === 'blocked') stuck.push(node);
+    if (node === undefined || isSettled(vocabulary, node.status)) continue;
+    const category = categoryOf(vocabulary, node.status);
+    if (category === 'active') running.push(node);
+    else if (category === 'blocked') stuck.push(node);
     else if (waitingOn(slug).length === 0) ready.push(node);
     else waiting.push(node);
   }
 
-  const lines = [`${doc.title}`, progressLine(doc), ''];
+  const lines = [`${doc.title}`, progressLine(doc, vocabulary), ''];
 
   const withBody = (node: (typeof work)[number]): void => {
     lines.push(`  ${node.slug} [${node.kind}/${node.status}] ${node.title}`);
@@ -645,4 +675,41 @@ export function renderNext(doc: PlanDoc, limit: number): string {
   }
 
   return lines.join('\n').trimEnd();
+}
+
+const CATEGORY_WORDS: Record<string, string> = {
+  todo: 'to do',
+  active: 'under way',
+  blocked: 'blocked',
+  done: 'done',
+  cancelled: 'dropped',
+};
+
+/**
+ * The words this project draws with, for an agent about to write into it.
+ *
+ * Ids are what an agent writes and reads back, so they lead; the name is what
+ * a person sees. Archived values are left out: they are there for nodes that
+ * already carry them, not to be chosen.
+ */
+export function renderVocabulary(vocabulary: Vocabulary): string {
+  const statuses = vocabulary.statuses
+    .filter((one) => !one.archived)
+    .map((one) => `  ${one.id} — ${one.name} (${CATEGORY_WORDS[one.category] ?? one.category})`);
+  const kinds = vocabulary.kinds
+    .filter((one) => !one.archived)
+    .map((one) => {
+      const what = one.id === 'group' ? ' (a box around others)' : one.work ? '' : ' (not work)';
+      return `  ${one.id} — ${one.name}${what}`;
+    });
+  const lines = [
+    'Statuses in this project (write the id):',
+    ...statuses,
+    'Kinds in this project (write the id):',
+    ...kinds,
+  ];
+  if (vocabulary.tags.length > 0) {
+    lines.push(`Tags already in use: ${vocabulary.tags.map((one) => one.name).join(', ')}`);
+  }
+  return lines.join('\n');
 }

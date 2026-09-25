@@ -114,6 +114,12 @@ model Project {
   /// plans under it can be brought back whole.
   deletedAt   DateTime?
   deletedById String?
+  /// The statuses, kinds and tags every plan in the project draws with. Null is
+  /// a project nobody has edited them in, and means the built-in defaults.
+  vocabulary  Json?
+  /// Bumped on every save, so two people editing the vocabulary at once get a
+  /// conflict rather than one silently undoing the other.
+  vocabularyVersion Int @default(0)
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   deletedBy User?     @relation("ProjectTrasher", fields: [deletedById], references: [id], onDelete: SetNull)

@@ -20,6 +20,7 @@ import { CurrentUser } from '../auth/current-user.decorator.js';
 import { Public } from '../auth/public.decorator.js';
 import { StrictRateLimit } from '../common/throttle.js';
 import { ZodPipe } from '../common/zod.pipe.js';
+import { VocabularyService } from '../projects/vocabulary.service.js';
 import { PlansService } from './plans.service.js';
 import { sharePreviewHtml } from './share-preview.js';
 import {
@@ -41,6 +42,7 @@ import {
 export class PlansController {
   constructor(
     private readonly plans: PlansService,
+    private readonly vocabulary: VocabularyService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -209,9 +211,10 @@ export class PlansController {
   @Get('share/:token/export')
   async exportShared(@Param('token') token: string, @Res() response: Response): Promise<void> {
     const doc = await this.plans.readShared(token);
+    const vocabulary = await this.vocabulary.ofPlan(doc.id);
     const { exportPlanToZip } = await import('@schematic/exporter');
     response.setHeader('Content-Type', 'application/zip');
     response.setHeader('Content-Disposition', `attachment; filename="${exportFileName(doc)}"`);
-    response.end(Buffer.from(await exportPlanToZip(doc)));
+    response.end(Buffer.from(await exportPlanToZip(doc, { vocabulary })));
   }
 }
