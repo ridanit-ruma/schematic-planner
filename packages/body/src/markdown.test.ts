@@ -210,6 +210,27 @@ describe('document shape', () => {
     expect(markdownToJSON(markdown)).toEqual(doc);
   });
 
+  it('keeps a divider under text in a list item a divider', () => {
+    const doc = {
+      type: 'doc',
+      content: [
+        {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: 'a' }] },
+                { type: 'horizontalRule' },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(markdownToJSON(jsonToMarkdown(doc))).toEqual(doc);
+  });
+
   it('escapes what would otherwise become syntax', () => {
     const doc = {
       type: 'doc',

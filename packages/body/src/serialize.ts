@@ -55,6 +55,11 @@ const OPTIONS: Options = {
   rule: '-',
   listItemIndent: 'one',
   incrementListMarker: true,
+  // A tight list item writes its blocks line after line, and `---` straight
+  // under a paragraph would underline it into a heading.
+  join: [
+    (left, right) => (left.type === 'paragraph' && right.type === 'thematicBreak' ? 1 : undefined),
+  ],
   extensions: [gfmToMarkdown({ tablePipeAlign: false })],
   handlers: { callout, details } as unknown as Options['handlers'],
 };
