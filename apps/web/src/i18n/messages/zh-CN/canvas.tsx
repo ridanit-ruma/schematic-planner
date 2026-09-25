@@ -38,6 +38,9 @@ export const canvas: Messages['canvas'] = {
     spacing: {
       handle: '拖动以调整间距',
     },
+    paste: {
+      notLoaded: '此项目的状态和类型尚未加载，因此没有粘贴。请稍后再试。',
+    },
     readingFrom: (by: string, from: string) => `${by} 正在从“${from}”开始阅读`,
   },
 };

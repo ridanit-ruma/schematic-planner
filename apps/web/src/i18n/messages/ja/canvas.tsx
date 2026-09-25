@@ -38,6 +38,10 @@ export const canvas: Messages['canvas'] = {
     spacing: {
       handle: 'ドラッグして間隔を変更',
     },
+    paste: {
+      notLoaded:
+        'このプロジェクトのステータスと種類がまだ読み込まれていないため、貼り付けませんでした。少し待ってからもう一度お試しください。',
+    },
     readingFrom: (by: string, from: string) => `${by}が${from}から読み進めています`,
   },
 };

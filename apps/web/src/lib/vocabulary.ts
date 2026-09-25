@@ -286,6 +286,9 @@ export function usePlanVocabulary(planId: string): PlanWords {
   const project = useProjectVocabulary(plan?.project.id ?? null);
   return {
     ...project,
+    // With no project known yet the defaults stand in, which is not the same
+    // as having read this plan's words.
+    loaded: plan !== null && project.loaded,
     plan,
     canEdit: plan?.canEdit ?? false,
     editHref:

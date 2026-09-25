@@ -194,6 +194,7 @@ export function PlanCanvas({
   onAddComment,
   handle,
   words,
+  onError,
 }: {
   connection: PlanConnection;
   readOnly: boolean;
@@ -206,9 +207,16 @@ export function PlanCanvas({
   handle?: RefObject<PlanCanvasHandle | null>;
   /**
    * Whether this person may change the project's vocabulary, and how. A paste
-   * from another project adds the kinds, statuses and tags this one lacks.
+   * from another project adds the kinds, statuses and tags this one lacks, and
+   * waits for them to have loaded.
    */
-  words?: { canEdit: boolean; edit: (edit: (vocabulary: Vocabulary) => Vocabulary) => Promise<void> };
+  words?: {
+    loaded: boolean;
+    canEdit: boolean;
+    edit: (edit: (vocabulary: Vocabulary) => Vocabulary) => Promise<void>;
+  };
+  /** Something the person asked for that could not be done. */
+  onError?: (error: unknown) => void;
 }) {
   const { store, doc } = connection.bound;
   const nodes = useStore(store, (state) => state.nodes);
@@ -817,6 +825,12 @@ export function PlanCanvas({
       undo?.manager?.stopCapturing();
     },
     paste: (payload, where) => {
+      // The defaults stand in until the project's words arrive; adapting to
+      // them would quietly turn its own statuses and kinds into the defaults.
+      if (words !== undefined && !words.loaded) {
+        onError?.(new Error(t.canvas.canvas.paste.notLoaded));
+        return;
+      }
       const at = where === 'pointer' ? hover.current : null;
       const adoption = adoptWords(payload, store.getState().vocabulary, words?.canEdit === true);
       if (adoption.add !== null && words !== undefined) void words.edit(adoption.add);

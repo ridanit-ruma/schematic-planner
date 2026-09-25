@@ -38,6 +38,10 @@ export const canvas = {
     spacing: {
       handle: 'Drag to change the spacing',
     },
+    paste: {
+      notLoaded:
+        "This project's statuses and kinds have not loaded yet, so nothing was pasted. Try again in a moment.",
+    },
     readingFrom: (by: string, from: string) => `${by} is reading from ${from}`,
   },
 };

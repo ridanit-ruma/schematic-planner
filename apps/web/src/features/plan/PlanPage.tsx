@@ -225,6 +225,7 @@ function PlanWorkspace({
             onAddComment={addComment}
             handle={canvas}
             words={words}
+            onError={setError}
           />
         </div>
         {selectedNode !== null ? (

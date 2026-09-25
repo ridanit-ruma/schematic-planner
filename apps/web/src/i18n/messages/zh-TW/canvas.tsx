@@ -38,6 +38,9 @@ export const canvas: Messages['canvas'] = {
     spacing: {
       handle: '拖曳以調整間距',
     },
+    paste: {
+      notLoaded: '此專案的狀態和類型尚未載入，因此沒有貼上。請稍後再試。',
+    },
     readingFrom: (by: string, from: string) => `${by} 正從 ${from} 開始讀取`,
   },
 };
