@@ -14,16 +14,17 @@ export const meta: PageMeta = {
     '把写好的计划变成一张你和 AI 智能体都能编辑的图，再导出为 Markdown 文件和 Obsidian Canvas。开源，可自托管。',
 };
 
-const AGENT_CALL = `create_plan({
-  title: "Billing rework",
-  nodes: [
-    { slug: "ledger-schema", title: "Ledger schema" },
-    { slug: "pricing-rules", title: "Pricing rules" },
-    { slug: "render-pdf",    title: "Render PDF" }
-  ],
-  edges: [
-    { from: "pricing-rules", to: "ledger-schema" },
-    { from: "render-pdf",    to: "pricing-rules" }
+const AGENT_CALL = `create_plan({ title: "Billing rework" })
+
+apply_ops({
+  planId: "…",
+  ops: [
+    { op: "upsert_node",
+      node: { slug: "pricing-rules", title: "Pricing rules" } },
+    { op: "upsert_node",
+      node: { slug: "render-pdf", title: "Render PDF" } },
+    { op: "upsert_edge",
+      edge: { from: "pricing-rules", to: "render-pdf" } }
   ]
 })`;
 
@@ -110,7 +111,7 @@ export default function Home() {
             <h2 className="text-xl font-medium tracking-[-0.02em] text-ink">智能体看到的是什么</h2>
             <p className="mt-3 max-w-[52ch] text-base leading-[1.65] text-ink-muted">
               一个 URL
-              加一个密钥，背后是十一个工具。无需安装，也无需跟着服务器同步更新。整份计划一次调用就能送达，之后的每处改动都经由同一个批量、原子的入口，所以四十个节点会同时出现在你的画布上，而不是一个接一个慢慢爬进来。
+              加一个密钥，背后是二十一个工具。无需安装，也无需跟着服务器同步更新。一次调用就能开启一份计划，在其中画的一切都经由同一个批量、原子的入口，所以四十个节点会同时出现在你的画布上，而不是一个接一个慢慢爬进来。
             </p>
             <p className="mt-3 max-w-[52ch] text-base leading-[1.65] text-ink-muted">
               节点通过你一眼就能认出的标识符来引用，所以重试不会造成第二次改动。

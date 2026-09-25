@@ -14,16 +14,17 @@ export const meta: PageMeta = {
     'Turn a written plan into a graph you and your AI agent both edit, then export it as Markdown files and an Obsidian Canvas. Open source, self-hostable.',
 };
 
-const AGENT_CALL = `create_plan({
-  title: "Billing rework",
-  nodes: [
-    { slug: "ledger-schema", title: "Ledger schema" },
-    { slug: "pricing-rules", title: "Pricing rules" },
-    { slug: "render-pdf",    title: "Render PDF" }
-  ],
-  edges: [
-    { from: "pricing-rules", to: "ledger-schema" },
-    { from: "render-pdf",    to: "pricing-rules" }
+const AGENT_CALL = `create_plan({ title: "Billing rework" })
+
+apply_ops({
+  planId: "…",
+  ops: [
+    { op: "upsert_node",
+      node: { slug: "pricing-rules", title: "Pricing rules" } },
+    { op: "upsert_node",
+      node: { slug: "render-pdf", title: "Render PDF" } },
+    { op: "upsert_edge",
+      edge: { from: "pricing-rules", to: "render-pdf" } }
   ]
 })`;
 
@@ -116,9 +117,9 @@ export default function Home() {
           <div>
             <h2 className="text-xl font-medium tracking-[-0.02em] text-ink">What an agent sees</h2>
             <p className="mt-3 max-w-[52ch] text-base leading-[1.65] text-ink-muted">
-              Eleven tools behind a URL and a key. Nothing to install, nothing to keep in step with
-              the server. A whole plan arrives in one call, and every change after that goes through
-              one batched, atomic door — so forty nodes appear on your canvas at once rather than
+              Twenty-one tools behind a URL and a key. Nothing to install, nothing to keep in step
+              with the server. One call opens a plan, and everything drawn in it goes through one
+              batched, atomic door — so forty nodes appear on your canvas at once rather than
               crawling in one at a time.
             </p>
             <p className="mt-3 max-w-[52ch] text-base leading-[1.65] text-ink-muted">
