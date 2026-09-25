@@ -6,12 +6,14 @@ import {
   type NodeProps,
 } from '@xyflow/react';
 import { CARD, isGroup } from '@schematic/schema';
-import { memo, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 
 import { STATUS_COLOR } from '@/components/ui/status';
 import { Markdown } from '@/components/ui/markdown';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { usePlanStore } from './store-context';
+import { useTitleEditing, type TitleEditor } from './title-editing';
 import { useWheelScroll } from './use-wheel-scroll';
 import type { PlanFlowNode } from './types';
 
@@ -170,6 +172,9 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
   const scroller = useRef<HTMLDivElement | null>(null);
   const [card, setCard] = useState<HTMLDivElement | null>(null);
   useWheelScroll(card, scroller);
+  const naming = useTitleEditing(id);
+  // Double-clicking a title types over it, where the canvas can be edited.
+  const rename = naming.editor === null ? undefined : () => naming.editor?.start(id);
 
   // A node that holds others is drawn as the boundary around them, labelled at
   // the top edge where nothing else sits. Drawn as a card it would land on top
@@ -201,7 +206,19 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
             className="h-3.5 w-1 shrink-0"
             style={{ background: STATUS_COLOR[node.status] }}
           />
-          <span className="truncate text-xs font-medium text-ink">{node.title}</span>
+          {naming.editing && naming.editor !== null ? (
+            <TitleField
+              slug={id}
+              title={node.title}
+              fresh={naming.fresh}
+              editor={naming.editor}
+              className="text-xs"
+            />
+          ) : (
+            <span className="truncate text-xs font-medium text-ink" onDoubleClick={rename}>
+              {node.title}
+            </span>
+          )}
           <span className="slug truncate text-ink-faint">{node.slug}</span>
           <span className="ml-auto shrink-0 text-2xs text-ink-faint">{childCount}</span>
         </div>
@@ -264,7 +281,22 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
       <span aria-hidden className="w-1 shrink-0" style={{ background: STATUS_COLOR[node.status] }} />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col px-3 py-2">
-        <p className="truncate text-sm leading-snug font-medium text-ink">{node.title}</p>
+        {naming.editing && naming.editor !== null ? (
+          <TitleField
+            slug={id}
+            title={node.title}
+            fresh={naming.fresh}
+            editor={naming.editor}
+            className="text-sm leading-snug"
+          />
+        ) : (
+          <p
+            className="truncate text-sm leading-snug font-medium text-ink"
+            onDoubleClick={rename}
+          >
+            {node.title}
+          </p>
+        )}
         <p className="slug mt-0.5 truncate text-ink-faint">{node.slug}</p>
         {hasBody ? (
           /* A long body is scrolled, not dragged — the note next door already
@@ -303,6 +335,90 @@ function Card({ id, data, selected }: NodeProps<PlanFlowNode>) {
         className={HANDLE}
       />
     </>
+  );
+}
+
+/**
+ * A title being typed on the card.
+ *
+ * Enter or leaving the field keeps it; Escape leaves the title as it was — and
+ * takes away a node that was made a moment ago to be named. One of them, once:
+ * the field goes as soon as either happens, and a blur arriving after Escape
+ * is not a second answer.
+ */
+function TitleField({
+  slug,
+  title,
+  fresh,
+  editor,
+  className,
+}: {
+  slug: string;
+  title: string;
+  fresh: boolean;
+  editor: TitleEditor;
+  className: string;
+}) {
+  const t = useT();
+  const [value, setValue] = useState(fresh ? '' : title);
+  const settled = useRef(false);
+  const field = useRef<HTMLInputElement | null>(null);
+
+  /*
+   * Focused by hand rather than with autoFocus. A node React Flow has not
+   * measured yet is drawn hidden, and a hidden field refuses focus without a
+   * word — so a card made a moment ago opened for typing and took none. It is
+   * tried again each frame until the card is shown.
+   */
+  useEffect(() => {
+    let frame = 0;
+    let tries = 0;
+    const attempt = (): void => {
+      const input = field.current;
+      if (input === null) return;
+      input.focus({ preventScroll: true });
+      if (document.activeElement === input) {
+        input.select();
+        return;
+      }
+      tries += 1;
+      if (tries < 60) frame = requestAnimationFrame(attempt);
+    };
+    attempt();
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  const finish = (keep: boolean): void => {
+    if (settled.current) return;
+    settled.current = true;
+    if (keep) editor.commit(slug, value);
+    else editor.cancel(slug);
+  };
+
+  return (
+    <input
+      ref={field}
+      value={value}
+      placeholder={t.canvas.canvas.card.untitled}
+      aria-label={t.canvas.canvas.card.title}
+      maxLength={200}
+      onChange={(event) => setValue(event.target.value)}
+      onBlur={() => finish(true)}
+      onKeyDown={(event) => {
+        // Nothing typed here is a shortcut for the canvas.
+        event.stopPropagation();
+        if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+          event.preventDefault();
+          finish(true);
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          finish(false);
+        }
+      }}
+      className={cn(
+        'nodrag nopan nowheel -mx-1 w-[calc(100%+0.5rem)] min-w-0 rounded-sm bg-surface-3 px-1 font-medium text-ink ring-1 ring-accent outline-none placeholder:text-ink-faint',
+        className,
+      )}
+    />
   );
 }
 

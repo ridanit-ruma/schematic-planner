@@ -7,6 +7,12 @@ export interface Undo {
   readonly redo: () => void;
   readonly canUndo: boolean;
   readonly canRedo: boolean;
+  /**
+   * The history itself, for the few gestures that are one step made of two
+   * writes some seconds apart: a node dropped and then named is one thing to
+   * take back, not two. Null until the document is open.
+   */
+  readonly manager: Y.UndoManager | null;
 }
 
 /**
@@ -57,6 +63,7 @@ export function usePlanUndo(doc: Y.Doc): Undo {
     redo: () => manager?.redo(),
     canUndo: state.canUndo,
     canRedo: state.canRedo,
+    manager,
   };
 }
 

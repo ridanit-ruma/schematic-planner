@@ -4,6 +4,8 @@ export const canvas: Messages['canvas'] = {
   canvas: {
     menu: {
       addNode: 'ここにノードを追加',
+      tidyUp: '間隔を揃える',
+      duplicate: '複製',
       noteOnNode: 'このノードにコメント',
       noteHere: 'ここにコメント',
       groupNodes: (count: number) => `${count}個のノードをグループ化`,
@@ -28,6 +30,13 @@ export const canvas: Messages['canvas'] = {
       stopSnapping: 'グリッドへのスナップを解除',
       snappingTo: (step: number) => `${step}px グリッドにスナップ中`,
       notSnapping: 'グリッドにスナップしていません',
+    },
+    card: {
+      untitled: '無題',
+      title: 'ノードのタイトル',
+    },
+    spacing: {
+      handle: 'ドラッグして間隔を変更',
     },
     readingFrom: (by: string, from: string) => `${by}が${from}から読み進めています`,
   },

@@ -65,6 +65,9 @@
   --danger: #ef4444;
   /* Reserved for agents and live collaborators — never for ordinary chrome. */
   --collab: #8b5cf6;
+  /* Measurements drawn while arranging: the equal gaps a drag has found and
+     the handles that change them. Pink, as every drawing tool draws them. */
+  --measure: #f472b6;
 }
 
 @theme inline {
@@ -85,6 +88,7 @@
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
   --color-collab: var(--collab);
+  --color-measure: var(--measure);
   --color-group: var(--group);
   --color-group-head: var(--group-head);
 
