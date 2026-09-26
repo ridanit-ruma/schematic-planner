@@ -449,3 +449,29 @@ export function linesAsPayload(text: string): ClipboardPayload | null {
     words: { statuses: [], kinds: [], tags: [] },
   };
 }
+
+/** How long after the middle button a paste is taken to be its doing, in ms. */
+const MIDDLE_PASTE_MS = 500;
+
+/**
+ * Tells a paste the middle button made from one somebody asked for.
+ *
+ * On Linux a middle click pastes the primary selection: whatever text was last
+ * dragged over, in any window, often by accident. The canvas makes nodes out of
+ * pasted text, and the middle button is how it pans — so a click meant to move
+ * the view made a node out of half a sentence. The browser gives such a paste
+ * nothing that marks it, only the button that came just before it; noted on
+ * press and on release, because some browsers paste when a drag ends.
+ */
+export function middleClickGuard(): {
+  note: (event: { button: number; timeStamp: number }) => void;
+  pasting: (now: number) => boolean;
+} {
+  let last = Number.NEGATIVE_INFINITY;
+  return {
+    note: (event) => {
+      if (event.button === 1) last = event.timeStamp;
+    },
+    pasting: (now) => now - last < MIDDLE_PASTE_MS,
+  };
+}

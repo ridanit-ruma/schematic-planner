@@ -13,6 +13,7 @@ import {
   CLIPBOARD_MIME,
   adoptWords,
   clipboardForms,
+  middleClickGuard,
   copyPayload,
   linesAsPayload,
   pasteOps,
@@ -273,5 +274,31 @@ describe('the clipboard', () => {
   it('has nothing to paste from an empty clipboard', () => {
     expect(readClipboard(() => '')).toBeNull();
     expect(linesAsPayload('  \n ')).toBeNull();
+  });
+});
+
+/*
+ * On Linux the middle button pastes the primary selection — whatever text was
+ * last dragged over, anywhere. The canvas turns pasted text into nodes, so a
+ * middle click meant to pan made a node out of half a sentence.
+ */
+describe('a paste after the middle button', () => {
+  it('is the middle button pasting, for a moment after it is pressed', () => {
+    const guard = middleClickGuard();
+    guard.note({ button: 1, timeStamp: 1000 });
+    expect(guard.pasting(1200)).toBe(true);
+  });
+
+  it('is an ordinary paste once that moment has passed', () => {
+    const guard = middleClickGuard();
+    guard.note({ button: 1, timeStamp: 1000 });
+    expect(guard.pasting(3000)).toBe(false);
+  });
+
+  it('is not caused by the other buttons', () => {
+    const guard = middleClickGuard();
+    guard.note({ button: 0, timeStamp: 1000 });
+    guard.note({ button: 2, timeStamp: 1000 });
+    expect(guard.pasting(1100)).toBe(false);
   });
 });
