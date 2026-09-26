@@ -187,6 +187,12 @@ export interface PlanCanvasHandle {
 /** How far a paste or a duplicate lands from what it copied, when there is no pointer to put it at. */
 const PASTE_OFFSET = 20;
 
+/**
+ * How long after the pointer is let go a drag that React Flow never ended is
+ * taken as aborted. Longer than its own mouseup takes to arrive.
+ */
+const ABORTED_DRAG_MS = 150;
+
 export function PlanCanvas({
   connection,
   readOnly,
@@ -317,11 +323,53 @@ export function PlanCanvas({
   const lead = useRef<string | null>(null);
   /** Whether this drag leaves the originals where they are and drops copies. Read as it starts. */
   const copying = useRef(false);
+  /** Counts drags, so a clean-up meant for one cannot end the next. */
+  const dragCount = useRef(0);
   const [dragging, setDragging] = useState(false);
   const [guides, setGuides] = useState<Guide[]>([]);
   const [gaps, setGaps] = useState<GapMarker[]>([]);
   /** What was already selected when a Shift+box began; the box adds to it. */
   const keptSelection = useRef<ReadonlySet<string> | null>(null);
+
+  /** Puts away everything a drag draws and tells peers it is over. */
+  const endDrag = useCallback((): void => {
+    connection.publishDrag(null);
+    lead.current = null;
+    copying.current = false;
+    setDragging(false);
+    setGuides([]);
+    setGaps([]);
+  }, [connection]);
+
+  // React Flow ends a drag without a word when it aborts one — the node under
+  // the hand was deleted by somebody else mid-drag, a second finger landed —
+  // and the guides and gap sizes it drew would stay on the canvas. So once the
+  // pointer is let go, a drag that has not been told to stop is stopped here,
+  // and the store is put back to the document, which is where an aborted drag
+  // leaves the nodes.
+  useEffect(() => {
+    if (!dragging) return;
+    let timer: number | undefined;
+    const settle = (): void => {
+      const drag = dragCount.current;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        // Stopped as it should have been, or already followed by another drag.
+        if (lead.current === null || dragCount.current !== drag) return;
+        endDrag();
+        connection.bound.refresh();
+      }, ABORTED_DRAG_MS);
+    };
+    window.addEventListener('pointerup', settle);
+    window.addEventListener('pointercancel', settle);
+    window.addEventListener('blur', settle);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('pointerup', settle);
+      window.removeEventListener('pointercancel', settle);
+      window.removeEventListener('blur', settle);
+    };
+  }, [dragging, endDrag, connection]);
 
   /**
    * Where a set of dragged nodes lands, as one block led by the node under the
@@ -600,10 +648,10 @@ export function PlanCanvas({
    */
   const handleDragStop = useCallback(
     (_: unknown, node: PlanFlowNode, dragged: PlanFlowNode[]) => {
-      connection.publishDrag(null);
       const copy = copying.current;
-      copying.current = false;
-      setDragging(false);
+      // What the drag drew goes first, before anything below that could
+      // throw: a guide left behind stays on the canvas until a reload.
+      endDrag();
 
       // Placed in absolute coordinates, by the same rule the drag was drawn
       // with, so it lands where it was shown. Placed before the drop is
@@ -616,9 +664,6 @@ export function PlanCanvas({
         })),
         node.id,
       );
-      lead.current = null;
-      setGuides([]);
-      setGaps([]);
       const targets = dropTargets();
       disarm();
       if (placed === null) return;
@@ -674,6 +719,7 @@ export function PlanCanvas({
       disarm,
       doc,
       dropTargets,
+      endDrag,
       nodes,
       parentOf,
       placeDragged,
@@ -1381,6 +1427,7 @@ export function PlanCanvas({
         }}
         onNodeDragStart={(event, node) => {
           taken.current = true;
+          dragCount.current += 1;
           lead.current = node.id;
           // Alt is read as the drag begins, the way every drawing tool reads it:
           // letting go of it halfway does not turn a copy back into a move.
@@ -1433,8 +1480,8 @@ export function PlanCanvas({
           onSelect={selectComment}
         />
         <PeerCursors store={store} />
-        <AlignGuides guides={guides} />
-        <GapMarkers gaps={gaps} />
+        {dragging ? <AlignGuides guides={guides} /> : null}
+        {dragging ? <GapMarkers gaps={gaps} /> : null}
         {readOnly || dragging || members.length < 2 ? null : (
           <GapHandles
             members={members}
