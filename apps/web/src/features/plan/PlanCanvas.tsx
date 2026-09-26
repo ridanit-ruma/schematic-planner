@@ -61,6 +61,7 @@ import {
   adoptWords,
   clipboardForms,
   copyPayload,
+  middleClickGuard,
   pasteOps,
   readClipboard,
   type ClipboardPayload,
@@ -905,8 +906,11 @@ export function PlanCanvas({
       const payload = put(event);
       if (payload !== null) clipboardActions.current.remove(payload.nodes.map((each) => each.slug));
     };
+    const middle = middleClickGuard();
+    const onButton = (event: MouseEvent): void => middle.note(event);
     const onPaste = (event: ClipboardEvent): void => {
       if (readOnly || event.clipboardData === null || !ours(event)) return;
+      if (middle.pasting(event.timeStamp)) return;
       const data = event.clipboardData;
       const payload = readClipboard((type) => data.getData(type));
       if (payload === null) return;
@@ -927,11 +931,16 @@ export function PlanCanvas({
     document.addEventListener('cut', onCut);
     document.addEventListener('paste', onPaste);
     window.addEventListener('keydown', onKey);
+    // Captured, so a node or the pane stopping the press cannot hide it.
+    window.addEventListener('mousedown', onButton, true);
+    window.addEventListener('mouseup', onButton, true);
     return () => {
       document.removeEventListener('copy', onCopy);
       document.removeEventListener('cut', onCut);
       document.removeEventListener('paste', onPaste);
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('mousedown', onButton, true);
+      window.removeEventListener('mouseup', onButton, true);
     };
   }, [readOnly]);
 
