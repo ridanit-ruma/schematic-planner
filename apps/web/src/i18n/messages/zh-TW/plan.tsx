@@ -61,6 +61,10 @@ export const plan: Messages['plan'] = {
     labelHint: '顯示在連接線上。選填。',
     straighten: '拉直',
     removeConnection: '移除連接',
+    leaves: '從哪一邊出',
+    arrives: '從哪一邊進',
+    sidesHint: '指定了邊的連線會在兩邊之間畫成直角，不能彎折。改回自動即可彎折。',
+    sides: { auto: '自動', top: '上', right: '右', bottom: '下', left: '左' },
   },
   history: {
     title: '歷史紀錄',

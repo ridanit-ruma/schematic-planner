@@ -773,6 +773,13 @@ compute one; there is no equivalent here, because the router already draws the
 shortest sensible path and has no opinion worth storing. So an empty list means "not
 pushed aside" rather than "not laid out yet", and nothing on the server clears one.
 
+`fromSide` and `toSide` are the other two, picked in the connection's inspector: which
+side of each box the line leaves and reaches, `null` for the drawing's own choice. A
+line with a chosen side is drawn square between those sides by a simpler router —
+round both boxes when it has to come back on itself — and cannot be bent until both
+are automatic again. The canvas export writes them as JSON Canvas's own `fromSide` and
+`toSide`. Neither is part of the edge's id.
+
 What is stored is the corners of the route, and `legalize` in `edge-path.ts` turns
 whatever is stored into a legal one. Every node has one target handle on its left and
 one source handle on its right, so a line always leaves rightwards and arrives

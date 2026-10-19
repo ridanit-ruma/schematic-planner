@@ -100,6 +100,8 @@ function readEdge(edge: YEdge): unknown {
     carries: edge.get('carries') ?? null,
     labelPosition: edge.get('labelPosition') ?? null,
     waypoints: edge.get('waypoints') ?? [],
+    fromSide: edge.get('fromSide') ?? null,
+    toSide: edge.get('toSide') ?? null,
   };
 }
 
@@ -159,6 +161,8 @@ function writeEdge(target: YEdge, edge: PlanEdge): void {
   target.set('carries', edge.carries);
   target.set('labelPosition', edge.labelPosition);
   target.set('waypoints', edge.waypoints);
+  target.set('fromSide', edge.fromSide);
+  target.set('toSide', edge.toSide);
 }
 
 function writeComment(target: YComment, comment: PlanComment): void {

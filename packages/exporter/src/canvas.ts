@@ -184,9 +184,9 @@ export function toCanvas(
       edges.push({
         id: edge.id,
         fromNode: edge.from,
-        fromSide: 'bottom',
+        fromSide: edge.fromSide ?? 'bottom',
         toNode: edge.to,
-        toSide: 'top',
+        toSide: edge.toSide ?? 'top',
         ...(edge.label !== null && { label: edge.label }),
       });
     } else if (edge.kind === 'flows_to') {
@@ -195,28 +195,29 @@ export function toCanvas(
       edges.push({
         id: edge.id,
         fromNode: edge.from,
-        fromSide: 'right',
+        fromSide: edge.fromSide ?? 'right',
         toNode: edge.to,
-        toSide: 'left',
+        toSide: edge.toSide ?? 'left',
         ...(note !== null && { label: note }),
       });
     } else if (edge.kind === 'depends_on') {
-      // Drawn dependency-first so the arrows read in build order.
+      // Drawn dependency-first so the arrows read in build order, which turns
+      // the sides a person chose round with it.
       edges.push({
         id: edge.id,
         fromNode: edge.to,
-        fromSide: 'right',
+        fromSide: edge.toSide ?? 'right',
         toNode: edge.from,
-        toSide: 'left',
+        toSide: edge.fromSide ?? 'left',
         ...(edge.label !== null && { label: edge.label }),
       });
     } else {
       edges.push({
         id: edge.id,
         fromNode: edge.from,
-        fromSide: 'right',
+        fromSide: edge.fromSide ?? 'right',
         toNode: edge.to,
-        toSide: 'left',
+        toSide: edge.toSide ?? 'left',
         toEnd: 'none',
         ...(edge.label !== null && { label: edge.label }),
       });

@@ -173,6 +173,108 @@ function clamped(corners: readonly Position[], from: Position, to: Position): Po
   }));
 }
 
+/** Where a side of a box is, at its middle. */
+export function sidePoint(
+  box: { x: number; y: number; width: number; height: number },
+  side: Side,
+): Position {
+  switch (side) {
+    case 'left':
+      return { x: box.x, y: box.y + box.height / 2 };
+    case 'right':
+      return { x: box.x + box.width, y: box.y + box.height / 2 };
+    case 'top':
+      return { x: box.x + box.width / 2, y: box.y };
+    case 'bottom':
+      return { x: box.x + box.width / 2, y: box.y + box.height };
+  }
+}
+
+type Box = { x: number; y: number; width: number; height: number };
+
+/** Whether a straight run passes through the inside of a box; running along its edge does not. */
+function crosses(a: Position, b: Position, box: Box): boolean {
+  const inside = (low: number, high: number, at: number) => at > low + 0.5 && at < high - 0.5;
+  const overlaps = (low: number, high: number, p: number, q: number) =>
+    Math.max(Math.min(p, q), low + 0.5) < Math.min(Math.max(p, q), high - 0.5);
+  if (a.y === b.y) {
+    return inside(box.y, box.y + box.height, a.y) && overlaps(box.x, box.x + box.width, a.x, b.x);
+  }
+  return inside(box.x, box.x + box.width, a.x) && overlaps(box.y, box.y + box.height, a.y, b.y);
+}
+
+/** The direction a run heads in, or null for a run of no length. */
+function heading(a: Position, b: Position): Position | null {
+  if (a.x === b.x && a.y === b.y) return null;
+  return { x: Math.sign(b.x - a.x), y: Math.sign(b.y - a.y) };
+}
+
+/**
+ * A square route between two sides somebody chose, which may be the top or the
+ * bottom. The bendable router above assumes a line leaves rightwards and
+ * arrives leftwards; a line with chosen sides is drawn this way instead, and
+ * is not bent by hand.
+ *
+ * Rather than a rule per pair of sides, it tries the few shapes a person would
+ * draw — straight, one turn, a Z through the middle, and a detour round either
+ * side of both boxes — and takes the one that goes through no box, never turns
+ * straight back on itself, and has the fewest turns, then the shortest run.
+ */
+export function sideRoute(
+  source: Position,
+  sourceSide: Side,
+  target: Position,
+  targetSide: Side,
+  /** The two boxes, so the line can go round them rather than through. */
+  boxes: readonly (Box | null)[] = [],
+): Position[] {
+  const out = outward(sourceSide);
+  const into = outward(targetSide);
+  const from = { x: source.x + out.x * STUB, y: source.y + out.y * STUB };
+  const to = { x: target.x + into.x * STUB, y: target.y + into.y * STUB };
+  const known = boxes.filter((box): box is Box => box !== null);
+
+  const xs = [from.x, to.x, Math.round((from.x + to.x) / 2)];
+  const ys = [from.y, to.y, Math.round((from.y + to.y) / 2)];
+  xs.push(Math.max(...xs, ...known.map((box) => box.x + box.width)) + BYPASS);
+  xs.push(Math.min(...xs, ...known.map((box) => box.x)) - BYPASS);
+  ys.push(Math.max(...ys, ...known.map((box) => box.y + box.height)) + BYPASS);
+  ys.push(Math.min(...ys, ...known.map((box) => box.y)) - BYPASS);
+
+  const elbows: Position[][] = [[], [{ x: from.x, y: to.y }], [{ x: to.x, y: from.y }]];
+  for (const x of xs) {
+    elbows.push([{ x, y: from.y }, { x, y: to.y }]);
+    for (const y of ys) {
+      elbows.push([{ x: from.x, y }, { x, y }, { x, y: to.y }]);
+      elbows.push([{ x, y: from.y }, { x, y }, { x: to.x, y }]);
+    }
+  }
+  for (const y of ys) elbows.push([{ x: from.x, y }, { x: to.x, y }]);
+
+  let best: { route: Position[]; score: number } | null = null;
+  for (const elbow of elbows) {
+    const route = dedupe([source, from, ...elbow, to, target]);
+    let score = 0;
+    let previous: Position | null = null;
+    let square = true;
+    for (let index = 1; index < route.length; index += 1) {
+      const a = route[index - 1] as Position;
+      const b = route[index] as Position;
+      if (a.x !== b.x && a.y !== b.y) square = false;
+      const stub = index === 1 || index === route.length - 1;
+      if (!stub && known.some((box) => crosses(a, b, box))) score += 1_000_000;
+      const now = heading(a, b);
+      if (now === null) continue;
+      if (previous !== null && now.x === -previous.x && now.y === -previous.y) score += 100_000;
+      else if (previous !== null && (now.x !== previous.x || now.y !== previous.y)) score += 1_000;
+      score += Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
+      previous = now;
+    }
+    if (square && (best === null || score < best.score)) best = { route, score };
+  }
+  return best?.route ?? dedupe([source, from, to, target]);
+}
+
 /** Two corners in the same place are not a corner. */
 function dedupe(points: readonly Position[]): Position[] {
   const kept: Position[] = [];

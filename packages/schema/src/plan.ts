@@ -139,6 +139,10 @@ function fingerprint(value: string): string {
   return (hash >>> 0).toString(36);
 }
 
+/** The sides of a box a line can leave or reach. */
+export const EDGE_SIDES = ['top', 'right', 'bottom', 'left'] as const;
+export type EdgeSide = (typeof EDGE_SIDES)[number];
+
 export const planEdgeSchema = z.object({
   id: z.string().min(1).max(160),
   kind: z.enum(planEdgeKinds).default('depends_on'),
@@ -168,6 +172,14 @@ export const planEdgeSchema = z.object({
    * being drawn rather than read, and the honest answer is another node.
    */
   waypoints: z.array(positionSchema).max(WAYPOINT_MAX).default([]),
+  /**
+   * Which side of `from` the line leaves, and of `to` it reaches. Null leaves it
+   * to the drawing. Like waypoints, only a person sets these, and they are not
+   * part of the edge's identity: the same connection drawn another way round is
+   * still the same connection.
+   */
+  fromSide: z.enum(EDGE_SIDES).nullable().default(null),
+  toSide: z.enum(EDGE_SIDES).nullable().default(null),
 });
 export type PlanEdge = z.infer<typeof planEdgeSchema>;
 
@@ -190,6 +202,8 @@ export const planEdgeInputSchema = z.object({
   labelPosition: positionSchema.nullish(),
   /** Bends the line passes through. Only a person puts these here. */
   waypoints: z.array(positionSchema).max(WAYPOINT_MAX).nullish(),
+  fromSide: z.enum(EDGE_SIDES).nullish(),
+  toSide: z.enum(EDGE_SIDES).nullish(),
 });
 export type PlanEdgeInput = z.input<typeof planEdgeInputSchema>;
 
@@ -204,6 +218,8 @@ export function normalizeEdge(input: z.infer<typeof planEdgeInputSchema>): PlanE
     carries: input.carries ?? null,
     labelPosition: input.labelPosition ?? null,
     waypoints: input.waypoints ?? [],
+    fromSide: input.fromSide ?? null,
+    toSide: input.toSide ?? null,
   };
 }
 

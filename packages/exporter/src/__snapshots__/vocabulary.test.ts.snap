@@ -854,7 +854,9 @@ status: planned
       "via": null,
       "carries": null,
       "labelPosition": null,
-      "waypoints": []
+      "waypoints": [],
+      "fromSide": null,
+      "toSide": null
     }
   ],
   "comments": [],
@@ -1226,7 +1228,9 @@ Exported from Schematic Planner. \`plan.json\` holds the same content in machine
       "via": null,
       "carries": null,
       "labelPosition": null,
-      "waypoints": []
+      "waypoints": [],
+      "fromSide": null,
+      "toSide": null
     },
     {
       "id": "contains:foundation>auth",
@@ -1237,7 +1241,9 @@ Exported from Schematic Planner. \`plan.json\` holds the same content in machine
       "via": null,
       "carries": null,
       "labelPosition": null,
-      "waypoints": []
+      "waypoints": [],
+      "fromSide": null,
+      "toSide": null
     },
     {
       "id": "contains:editor>canvas",
@@ -1248,7 +1254,9 @@ Exported from Schematic Planner. \`plan.json\` holds the same content in machine
       "via": null,
       "carries": null,
       "labelPosition": null,
-      "waypoints": []
+      "waypoints": [],
+      "fromSide": null,
+      "toSide": null
     },
     {
       "id": "depends_on:auth>database",
@@ -1259,7 +1267,9 @@ Exported from Schematic Planner. \`plan.json\` holds the same content in machine
       "via": null,
       "carries": null,
       "labelPosition": null,
-      "waypoints": []
+      "waypoints": [],
+      "fromSide": null,
+      "toSide": null
     },
     {
       "id": "depends_on:editor>foundation",
@@ -1270,7 +1280,9 @@ Exported from Schematic Planner. \`plan.json\` holds the same content in machine
       "via": null,
       "carries": null,
       "labelPosition": null,
-      "waypoints": []
+      "waypoints": [],
+      "fromSide": null,
+      "toSide": null
     }
   ],
   "comments": [],

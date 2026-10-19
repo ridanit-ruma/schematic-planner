@@ -61,6 +61,10 @@ export const plan: Messages['plan'] = {
     labelHint: '显示在连线上。可选。',
     straighten: '拉直',
     removeConnection: '移除连接',
+    leaves: '从哪一边出',
+    arrives: '从哪一边进',
+    sidesHint: '指定了边的连线会在两边之间画成直角，不能弯折。改回自动即可弯折。',
+    sides: { auto: '自动', top: '上', right: '右', bottom: '下', left: '左' },
   },
   history: {
     title: '历史记录',
