@@ -127,6 +127,10 @@ model Project {
   /// Bumped on every save, so two people editing the vocabulary at once get a
   /// conflict rather than one silently undoing the other.
   vocabularyVersion Int @default(0)
+  /// The tables and boards saved for everyone in the project. Null is none.
+  views        Json?
+  /// Bumped on every save, the way the vocabulary's is.
+  viewsVersion Int @default(0)
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   deletedBy User?     @relation("ProjectTrasher", fields: [deletedById], references: [id], onDelete: SetNull)

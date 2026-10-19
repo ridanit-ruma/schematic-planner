@@ -43,7 +43,7 @@ export function BoardView({
   const [over, setOver] = useState<string | null>(null);
 
   return (
-    <div className="flex h-full gap-3 overflow-x-auto p-3">
+    <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-3">
       {columns.map(({ status, nodes: cards }) => {
         // The column of undefined statuses takes no drops: there is no one status to set.
         const target = readOnly || status === null ? null : status.id;
