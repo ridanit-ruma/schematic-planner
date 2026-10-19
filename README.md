@@ -1033,12 +1033,11 @@ Services, with nothing cluster-specific in it: no host, no storage class, no
 ingress controller, no secret. An installation supplies those in an overlay —
 `deploy/k8s/README.md` says exactly which.
 
-`deploy/release.sh` is what puts a commit into a cluster that has no registry in
-front of it. It builds the images on the node that will run them, loads them
-straight into containerd, and commits the resulting tag to the private
-repository the cluster's GitOps controller reads. **Building is not deploying —
-the commit at the end is.** Every step skips what has already been done, so an
-interrupted release is finished by running it again.
+`deploy/release.sh` is what puts a commit into production. It builds both images
+from the commit with rootless podman, pushes them to GHCR, and commits the
+resulting tag to the private repository the cluster's GitOps controller reads.
+**Building is not deploying — the commit at the end is.** Every step skips what
+has already been done, so an interrupted release is finished by running it again.
 
 Two shapes there are not preferences:
 

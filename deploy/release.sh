@@ -4,34 +4,24 @@
 #
 #   ./deploy/release.sh              # whatever is checked out here
 #   ./deploy/release.sh <commit>     # a particular one
-#   FORCE=1 ./deploy/release.sh      # rebuild even what is already there
 #
-# There is no registry. The images are built on the node that runs them and
-# loaded straight into its containerd; what says which of them is running is a
-# tag committed to the private infrastructure repository, which Flux reads and
-# which is therefore the only thing that decides what the cluster serves.
-# Building is not deploying — the commit at the end is.
+# Builds both images here with rootless podman, pushes them to GHCR, and points
+# the overlay in the private infrastructure repository (server-flux) at the
+# commit. Flux reads that repository and is therefore the only thing that decides
+# what the cluster serves: building is not deploying — the commit at the end is.
 #
-# It runs from a workstation rather than on the node, because the credentials
-# that may write to the infrastructure repository are here and should stay here.
-# The node holds a read-only deploy key and nothing else.
+# The packages are private; the cluster pulls them with a hand-made `ghcr-pull`
+# Secret. Pushing needs a gh token with write:packages
+# (`gh auth refresh -h github.com -s write:packages`).
 #
-# The build is detached on the node and this only watches it, and every step
-# asks whether it has already been done. Both are for the same reason: a release
-# is minutes of building on the far end of an ssh connection, and the machine
-# this runs from has 3.6GB of memory, so the thing watching is the first thing
-# something decides to stop. Watching is cheap to lose. Building is not — hence
-# setsid on the other end, and a rerun that picks up wherever it got to.
+# Every step skips what has already been done, so an interrupted release is
+# finished by running it again.
 set -euo pipefail
 
-NODE="${NODE:-rumavm}"
-# A checkout of this repository on the node, used only as a build context.
-NODE_REPO="${NODE_REPO:-schematic-planner}"
-INFRA="${INFRA:-$HOME/server-infrastructure}"
-OVERLAY="$INFRA/apps/schematic-planner/kustomization.yaml"
+FLUX="${FLUX:-$HOME/server-flux}"
+OVERLAY="$FLUX/apps/schematic-planner/kustomization.yaml"
+REGISTRY="${REGISTRY:-ghcr.io/ridanit-ruma}"
 SITE_URL="${SITE_URL:-https://schematic-planner.com}"
-BUILDER="${BUILDER:-podman}"
-FORCE="${FORCE:-}"
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 sha="$(git -C "$here" rev-parse "${1:-HEAD}")"
@@ -39,135 +29,78 @@ short="${sha:0:12}"
 say() { printf '\n== %s\n' "$*"; }
 skip() { printf '   (already done: %s)\n' "$*"; }
 
-if [ -n "$(git -C "$here" status --porcelain)" ]; then
-  echo "the working tree has changes; what is released has to be a commit" >&2
-  exit 1
-fi
+# The overlay fetches deploy/k8s from GitHub at this commit, so it has to be there.
 if ! git -C "$here" merge-base --is-ancestor "$sha" origin/main 2>/dev/null; then
-  echo "$short is not on origin/main — push it first, or the node cannot fetch it" >&2
+  echo "$short is not on origin/main — push it first" >&2
   exit 1
 fi
 
-# ---------------------------------------------------------------- build
+# NixOS without podman installed: borrow it from nixpkgs for the length of the run.
+if command -v podman >/dev/null; then
+  podman() { command podman "$@"; }
+else
+  podman() { nix shell nixpkgs#podman -c podman "$@"; }
+fi
 
-built() { ssh "$NODE" "$BUILDER image exists schematic-planner.local/$1:$short" 2>/dev/null; }
-# The bracket keeps the pattern from matching the shell that carries it: the
-# command line asking the question contains the question, and pgrep -f reads
-# command lines.
-building() { [ "$(ssh "$NODE" "pgrep -fc 'release-buil[d] $1 $short' || true")" != "0" ]; }
+# ---------------------------------------------------------------- build and push
 
-for image in api web; do
-  if [ -z "$FORCE" ] && built "$image"; then
-    skip "$image:$short is built"
-    continue
-  fi
-  case "$image" in
-    api) dockerfile='apps/api/Dockerfile' ;;
-    web) dockerfile='deploy/Dockerfile.web' ;;
-  esac
-  log="\$HOME/.release-$image-$short.log"
+if ! podman login --get-login ghcr.io >/dev/null 2>&1; then
+  gh auth token | podman login ghcr.io -u "$(gh api user -q .login)" --password-stdin
+fi
 
-  if building "$image"; then
-    say "$image at $short is already building on $NODE — watching"
-  else
-    say "building $image at $short on $NODE"
-    # setsid, so losing this connection does not lose the build. The marker in
-    # the command line is how a later run finds it again.
-    #
-    # Timed out, and its exit ignored, because this connection only has to start
-    # the build: the loop below is what decides whether one is running. It has
-    # hung for an hour after the build it launched had finished and been tagged,
-    # holding the whole release behind an ssh channel that would not close — and
-    # killing that ssh took the script down with it, silently, mid-release.
-    timeout 60 ssh -n "$NODE" "cd \$HOME/$NODE_REPO && git fetch -q origin && git checkout -q $sha &&
-      setsid nohup bash -c 'exec -a \"release-build $image $short\" \
-        $BUILDER build -f $dockerfile \
-          --build-arg NEXT_PUBLIC_SITE_URL=$SITE_URL \
-          --build-arg NEXT_PUBLIC_APP_URL= \
-          -t schematic-planner.local/$image:$short .' >$log 2>&1 </dev/null &
-      sleep 1" || true
-  fi
-
-  # A ceiling, because every question here goes over ssh and a connection that
-  # answers nothing reads as "still building" — which is a wait with no end. An
-  # hour is longer than any build this has ever taken.
-  waited=0
-  while ! built "$image"; do
-    # Asked again before giving up: the two questions are two round trips, and a
-    # step that finishes between them has neither a process nor -- to the answer
-    # already in hand -- a result, which reads as a failure and is not one.
-    if ! building "$image" && ! built "$image"; then
-      echo "the build of $image stopped without producing an image; its log is $log on $NODE" >&2
-      ssh "$NODE" "tail -20 $log" >&2 || true
-      exit 1
-    fi
-    if [ "$waited" -ge 240 ]; then
-      echo "gave up waiting for $image after an hour; its log is $log on $NODE" >&2
-      exit 1
-    fi
-    waited=$((waited + 1))
-    sleep 15
-  done
-  echo "   built $image:$short"
-done
-
-# ---------------------------------------------------------------- load
-
-# k3s runs its own containerd, which does not share podman's image store and
-# keeps images under the k8s.io namespace rather than the default one.
-#
-# Detached for the same reason the build is: this takes a couple of minutes for
-# a gigabyte of image, and losing the connection halfway leaves a partial import
-# and nothing to show for the wait.
-loaded() {
-  [ "$(ssh "$NODE" "sudo k3s ctr --namespace k8s.io images ls -q 2>/dev/null | grep -cx schematic-planner.local/$1:$short || true")" != "0" ]
-}
-loading() { [ "$(ssh "$NODE" "pgrep -fc 'release-loa[d] $1 $short' || true")" != "0" ]; }
+# Built from the commit itself, never the working tree: what is released has to
+# be a commit, and changes lying around here are not one.
+ctx=""
+trap '[ -n "$ctx" ] && rm -rf "$ctx"' EXIT
 
 for image in api web; do
-  if [ -z "$FORCE" ] && loaded "$image"; then
-    skip "$image:$short is in containerd"
+  ref="$REGISTRY/schematic-planner-$image:$short"
+  # Asked of GitHub rather than the registry: podman cannot inspect a remote
+  # single-arch image without pulling it.
+  if gh api "/user/packages/container/schematic-planner-$image/versions" --paginate \
+      -q '.[].metadata.container.tags[]' 2>/dev/null | grep -qx "$short"; then
+    skip "$ref is in the registry"
     continue
   fi
-  log="\$HOME/.release-load-$image-$short.log"
-
-  if loading "$image"; then
-    say "$image at $short is already loading — watching"
-  else
-    say "loading $image into the cluster"
-    ssh "$NODE" "setsid nohup bash -c 'exec -a \"release-load $image $short\" bash -c \
-      \"$BUILDER save --format docker-archive schematic-planner.local/$image:$short | sudo k3s ctr --namespace k8s.io images import -\"' \
-      >$log 2>&1 </dev/null & sleep 1"
-  fi
-
-  while ! loaded "$image"; do
-    if ! loading "$image" && ! loaded "$image"; then
-      echo "the import of $image stopped without landing; its log is $log on $NODE" >&2
-      ssh "$NODE" "tail -20 $log" >&2 || true
-      exit 1
+  if ! podman image exists "$ref"; then
+    if [ -z "$ctx" ]; then
+      ctx="$(mktemp -d)"
+      git -C "$here" archive "$sha" | tar -x -C "$ctx"
     fi
-    sleep 15
-  done
-  echo "   loaded $image:$short"
+    case "$image" in
+      api) dockerfile='apps/api/Dockerfile' ;;
+      web) dockerfile='deploy/Dockerfile.web' ;;
+    esac
+    say "building $image at $short"
+    # The site's address is baked into the web build; the app's is left blank
+    # because one origin serves both.
+    podman build -f "$ctx/$dockerfile" \
+      --build-arg NEXT_PUBLIC_SITE_URL="$SITE_URL" \
+      --build-arg NEXT_PUBLIC_APP_URL= \
+      --label org.opencontainers.image.source=https://github.com/ridanit-ruma/schematic-planner \
+      -t "$ref" "$ctx"
+  fi
+  say "pushing $ref"
+  podman push "$ref"
 done
 
 # ---------------------------------------------------------------- release
 
 say "pointing the cluster at it"
-git -C "$INFRA" pull --ff-only
+[ -d "$FLUX" ] || gh repo clone ridanit-ruma/server-flux "$FLUX"
+git -C "$FLUX" pull -q --ff-only
 sed -i \
-  -e "s|\(newTag: \).*\( # api\)|\1$short\2|" \
-  -e "s|\(newTag: \).*\( # web\)|\1$short\2|" \
+  -e "s|\(newTag: \)[0-9a-f]*|\1$short|" \
   -e "s|\(schematic-planner//deploy/k8s?ref=\)[0-9a-f]*|\1$sha|" \
   "$OVERLAY"
 
-if git -C "$INFRA" diff --quiet -- "$OVERLAY"; then
+if git -C "$FLUX" diff --quiet -- "$OVERLAY"; then
   skip "the cluster is already pointed at $short"
 else
-  git -C "$INFRA" commit -q -m "schematic-planner: $short" -- "$OVERLAY"
-  git -C "$INFRA" push -q
+  git -C "$FLUX" commit -q -m "schematic-planner: $short" -- "$OVERLAY"
+  git -C "$FLUX" push -q
 fi
 
 say "released $short"
-echo "  ssh $NODE 'KUBECONFIG=/etc/rancher/k3s/k3s.yaml flux reconcile kustomization apps --with-source'"
-echo "  ssh $NODE 'kubectl -n schematic-planner rollout status deploy/schematic-planner-api'"
+echo "  ssh server 'flux reconcile kustomization apps --with-source'"
+echo "  ssh server 'kubectl -n schematic-planner rollout status deploy/schematic-planner-api'"
