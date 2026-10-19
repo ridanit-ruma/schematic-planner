@@ -4,10 +4,14 @@ import {
   buildPlanGraph,
   categoryOf,
   isSettled,
-  isWorkKind,
+  precedence,
   topologicalOrder,
+  workNodes,
+  workState,
+  type Diagnostic,
   type PlanDoc,
   type TraceResult,
+  type Validation,
   type Vocabulary,
 } from '@schematic/schema';
 import type { NamedFolder } from './workspace-scope.js';
@@ -66,7 +70,9 @@ export function renderPlan(
       ...doc,
       nodes: doc.nodes.map((node) => ({ ...node, position: null, pinned: false, size: null })),
     };
-    return exportPlan(withoutPlacement, { canvas: false, planJson: false })
+    // No plan.md either: it repeats this same structure, and next_task is where
+    // an agent learns what is ready.
+    return exportPlan(withoutPlacement, { canvas: false, planJson: false, summary: false })
       .files.map((file) => `### ${file.path}\n\n${file.content}`)
       .join('\n\n');
   }
@@ -505,60 +511,13 @@ export function matchingLine(body: string, needles: readonly string[]): string |
 }
 
 /**
- * What has to come before what, for ordering and for readiness.
- *
- * A flow says the thing it leaves comes first. A `depends_on` points the other
- * way round — at what must exist already — and means the same thing. `contains`
- * is nesting and `relates_to` carries no structure, so neither says anything
- * about order.
- */
-function precedence(doc: PlanDoc): Map<string, string[]> {
-  const before = new Map<string, string[]>();
-  for (const edge of doc.edges) {
-    if (edge.kind === 'contains' || edge.kind === 'relates_to') continue;
-    const [after, first] = edge.kind === 'depends_on' ? [edge.from, edge.to] : [edge.to, edge.from];
-    const list = before.get(after) ?? [];
-    list.push(first);
-    before.set(after, list);
-  }
-  return before;
-}
-
-/**
- * A node nobody works on: the boxes that hold things, and the remarks beside
- * them.
- *
- * Holding others is the second way to be a box, and the canvas has always drawn
- * it that way — a node with children is the boundary around them whatever it
- * calls itself. A Plan groups its tasks under features, so without this the
- * four slices of a Plan were offered as four things to start, and the reader
- * was back to deciding which lines to ignore. That is the judgement this
- * answer exists to remove.
- */
-function isWork(
-  node: { kind: string; slug: string },
-  holds: ReadonlySet<string>,
-  vocabulary: Vocabulary,
-): boolean {
-  return isWorkKind(vocabulary, node.kind) && !holds.has(node.slug);
-}
-
-/** Every node that has something nested under it. */
-function holders(doc: PlanDoc): Set<string> {
-  const held = new Set<string>();
-  for (const edge of doc.edges) if (edge.kind === 'contains') held.add(edge.from);
-  return held;
-}
-
-/**
  * Where a plan has got to, in one line.
  *
  * Counted by what each status means, not by its id, so a project that calls
  * its statuses something else still gets an answer.
  */
 export function progressLine(doc: PlanDoc, vocabulary: Vocabulary = DEFAULT_VOCABULARY): string {
-  const holds = holders(doc);
-  const work = doc.nodes.filter((node) => isWork(node, holds, vocabulary));
+  const work = workNodes(doc, vocabulary);
   if (work.length === 0) return '';
 
   const count = (category: 'active' | 'blocked') =>
@@ -589,41 +548,13 @@ export function renderNext(
   limit: number,
   vocabulary: Vocabulary = DEFAULT_VOCABULARY,
 ): string {
-  const before = precedence(doc);
-  const status = new Map(doc.nodes.map((node) => [node.slug, node.status]));
-  const holds = holders(doc);
-  const work = doc.nodes.filter((node) => isWork(node, holds, vocabulary));
+  const { work, running, ready, stuck, waiting } = workState(doc, vocabulary);
 
   if (work.length === 0) {
     return (
       `${doc.title} has nothing to work on.\n` +
       'Every node in it is a box or a note. Tasks are drawn with apply_ops.'
     );
-  }
-
-  const settledBy = (slug: string): boolean => isSettled(vocabulary, status.get(slug) ?? '');
-  const waitingOn = (slug: string): string[] =>
-    (before.get(slug) ?? []).filter((one) => status.has(one) && !settledBy(one));
-
-  const ordered = topologicalOrder(
-    work.map((node) => node.slug),
-    before,
-  ).order;
-  const bySlug = new Map(work.map((node) => [node.slug, node]));
-
-  const running: typeof work = [];
-  const ready: typeof work = [];
-  const waiting: typeof work = [];
-  const stuck: typeof work = [];
-
-  for (const slug of ordered) {
-    const node = bySlug.get(slug);
-    if (node === undefined || isSettled(vocabulary, node.status)) continue;
-    const category = categoryOf(vocabulary, node.status);
-    if (category === 'active') running.push(node);
-    else if (category === 'blocked') stuck.push(node);
-    else if (waitingOn(slug).length === 0) ready.push(node);
-    else waiting.push(node);
   }
 
   const lines = [`${doc.title}`, progressLine(doc, vocabulary), ''];
@@ -685,8 +616,8 @@ export function renderNext(
 
   if (waiting.length > 0) {
     lines.push('Waiting on unfinished work:');
-    for (const node of waiting) {
-      lines.push(`  ${node.slug} — needs ${waitingOn(node.slug).join(', ')}`);
+    for (const { node, on } of waiting) {
+      lines.push(`  ${node.slug} — needs ${on.join(', ')}`);
     }
   }
 
@@ -728,4 +659,42 @@ export function renderVocabulary(vocabulary: Vocabulary): string {
     lines.push(`Tags already in use: ${vocabulary.tags.map((one) => one.name).join(', ')}`);
   }
   return lines.join('\n');
+}
+
+/** What `validate` found, one line each, worst first. */
+export function renderValidation(doc: PlanDoc, result: Validation): string {
+  const titles = new Map(doc.nodes.map((node) => [node.slug, node.title]));
+  const name = (slug: string): string => `"${titles.get(slug) ?? slug}" (${slug})`;
+  const count = (severity: Diagnostic['severity'], noun: string): string => {
+    const n = result.diagnostics.filter((one) => one.severity === severity).length;
+    return `${n} ${noun}${n === 1 ? '' : 's'}`;
+  };
+  const head = `Checked ${result.checked} ${result.checked === 1 ? 'node or edge' : 'nodes and edges'} in ${doc.title}`;
+  if (result.diagnostics.length === 0) return `${head}. Nothing to report.`;
+
+  const line = (one: Diagnostic): string => {
+    const [first = ''] = one.nodes;
+    switch (one.rule) {
+      case 'dependency-cycle':
+        // The members of a cycle, not a path through it: which depends_on closes
+        // the loop is for get_plan to show.
+        return (
+          `dependency cycle among ${one.nodes.join(', ')}. ` +
+          'None of these can be started first; remove one depends_on.'
+        );
+      case 'isolated-node':
+        return `${name(first)} is connected to nothing.`;
+      case 'outside-flow':
+        return `${name(first)} is work outside every flow.`;
+      case 'unknown-kind':
+        return `${name(first)} has kind "${one.params['kind']}", which the project does not define.`;
+      case 'unknown-status':
+        return `${name(first)} has status "${one.params['status']}", which the project does not define.`;
+    }
+  };
+  return [
+    `${head}: ${count('error', 'error')}, ${count('warning', 'warning')}, ${count('info', 'note')}.`,
+    '',
+    ...result.diagnostics.map((one) => `${one.severity.padEnd(7)} ${line(one)}`),
+  ].join('\n');
 }

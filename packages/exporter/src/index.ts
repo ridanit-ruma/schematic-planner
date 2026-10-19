@@ -4,3 +4,4 @@ export * from './canvas.js';
 export * from './bundle.js';
 export * from './inline.js';
 export * from './zip.js';
+export * from './fences.js';

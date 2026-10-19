@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { planDocSchema } from '@schematic/schema';
+import { DEFAULT_VOCABULARY, planDocSchema } from '@schematic/schema';
 
 import { exportPlan } from './bundle.js';
+import { READY_LISTED, d2String, planDiagram, planSummary } from './fences.js';
 import { samplePlan } from './fixtures.js';
 
 const pathsOf = (doc = samplePlan()) => exportPlan(doc).files.map((file) => file.path);
@@ -18,6 +19,7 @@ describe('exportPlan', () => {
       '02-Editor/README.md',
       '02-Editor/Canvas.md',
       'plan.canvas',
+      'plan.md',
       'plan.json',
     ]);
   });
@@ -74,7 +76,12 @@ describe('exportPlan', () => {
       updatedAt: '2026-01-01T00:00:00.000Z',
     });
     const bundle = exportPlan(empty);
-    expect(bundle.files.map((f) => f.path)).toEqual(['README.md', 'plan.canvas', 'plan.json']);
+    expect(bundle.files.map((f) => f.path)).toEqual([
+      'README.md',
+      'plan.canvas',
+      'plan.md',
+      'plan.json',
+    ]);
     expect(bundle.files[0]?.content).toContain('_This plan has no nodes yet._');
   });
 
@@ -104,8 +111,56 @@ describe('exportPlan', () => {
       '01-A.md',
       '02-B.md',
       'plan.canvas',
+      'plan.md',
       'plan.json',
     ]);
     expect(bundle.files[0]?.content).toContain('## Warnings');
+  });
+});
+
+describe('plan.md', () => {
+  it('quotes D2 ids and escapes what would break a string', () => {
+    expect(d2String('Say "hi"\nthen \\ leave')).toBe('"Say \\"hi\\" then \\\\ leave"');
+    expect(d2String('Budget ${cost}')).toBe('"Budget \\${cost}"');
+  });
+
+  it('draws nesting as containers and names a nested node by its path', () => {
+    const doc = planDocSchema.parse({
+      id: 'p',
+      title: 'P',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [
+        { slug: 'box', title: 'Box', kind: 'group' },
+        { slug: 'inner', title: 'Inner "one"' },
+        { slug: 'outer', title: 'Outer' },
+      ],
+      edges: [
+        { id: 'c', kind: 'contains', from: 'box', to: 'inner' },
+        { id: 'f', kind: 'flows_to', from: 'inner', to: 'outer', via: 'click' },
+        { id: 'd', kind: 'depends_on', from: 'outer', to: 'inner' },
+      ],
+    });
+    expect(planDiagram(doc).split('\n')).toEqual([
+      'direction: right',
+      '"box": "Box" {',
+      '  "inner": "Inner \\"one\\""',
+      '}',
+      '"outer": "Outer"',
+      '"box"."inner" -> "outer": "click"',
+      '"outer" -> "box"."inner": "depends on"',
+    ]);
+  });
+
+  it('says how many ready tasks it left out', () => {
+    const doc = planDocSchema.parse({
+      id: 'p',
+      title: 'Many',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: Array.from({ length: READY_LISTED + 3 }, (_, i) => ({
+        slug: `t-${i}`,
+        title: `T ${i}`,
+      })),
+    });
+    expect(planSummary(doc, DEFAULT_VOCABULARY)).toContain('- …and 3 more, left out here.');
   });
 });

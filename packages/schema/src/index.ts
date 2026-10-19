@@ -10,3 +10,5 @@ export * from './group.js';
 export * from './card.js';
 export * from './vocabulary.js';
 export * from './views.js';
+export * from './diagnostics.js';
+export * from './work.js';

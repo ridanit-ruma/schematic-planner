@@ -59,7 +59,7 @@ Linux host rather than the maintainer's NixOS machine.
 - The first account on an empty database becomes OWNER; don't sign up on a database
   someone is using.
 - Auth allows 10 requests a minute, so a second `smoke` run trips it; its MCP tool
-  count (11) is stale — there are 21.
+  count (11) is stale — there are 22.
 - `canvas-check` needs a separate database with an account, project and plan, Vite (with
   an `/api` proxy, `ws: true`) rather than the one-origin build, `ACCESS_TOKEN_TTL=3h`,
   and `CHROME_PATH` pointing at the Nix store's Playwright Chromium. `at least one

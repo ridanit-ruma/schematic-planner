@@ -345,6 +345,7 @@ at once.
 | `get_plan(id, { view })`        | `view`: `outline` \| `graph` \| `markdown`. Positions and styling are excluded by default to keep responses small. The answer ends with the project's vocabulary — the kinds and statuses it offers, by id and name with what each status means, and the tags already used — and the plan's `revision` |
 | `read_nodes(id, slugs)`         | The full bodies of the nodes named, as Markdown, with what each is wired to and what holds it |
 | `next_task(id)`                 | Where a plan has got to and what can be started now. It goes by status category and the kind's `work` flag, not by fixed ids: work in an `active` status is listed as already started, `blocked` work with the notes left on it, and `todo` work is ready once everything flowing into it and everything it depends on is settled (`done` or `cancelled`). Ready tasks come with their bodies |
+| `validate(id)`                  | Rules that hold for any plan, worst first: a `depends_on` cycle (an error), a node connected to nothing, work outside every flow in a plan that has flows, and kinds or statuses the project does not define. Read-only; what it finds is fixed through `apply_ops` |
 | `plan_history(id)`              | Who changed what, newest first, people and agents alike |
 | `create_project(name)`          | A project to draw in, rather than everything piling into the workspace default |
 | `create_plan(spec)`             | Opens an empty plan and hands back its id; drawing is `apply_ops`. Takes a workspace and project slug, and a folder path to file it in at once; with one workspace reachable neither slug is needed, and with several it names them rather than guessing. The answer carries the project's vocabulary, so the first batch can use its words |
@@ -425,6 +426,7 @@ plan-export.zip
 │   └── 02-Auth.md
 ├── 02-Editor/
 │   └── Canvas.md          no prefix: nothing here depends on anything here
+├── plan.md                one document: where the work stands, what is ready, a D2 diagram
 ├── plan.canvas            Obsidian Canvas, original coordinates preserved
 └── plan.json              machine-readable source of the same content
 ```
@@ -452,7 +454,7 @@ way and a reader should not have to check which.
 
 **A node cannot take a name the bundle has already written.** The overview is
 `README.md`, every container owns the `README.md` of its own directory, and the
-root also holds `plan.canvas` and `plan.json`. A zip keeps the last entry written
+root also holds `plan.md`, `plan.canvas` and `plan.json`. A zip keeps the last entry written
 for a path and says nothing, so a node titled `README` used to replace the
 overview silently. Those names are reserved per level now.
 
@@ -770,6 +772,18 @@ ever writes. A node has a position because something has to, and layout will hap
 compute one; there is no equivalent here, because the router already draws the
 shortest sensible path and has no opinion worth storing. So an empty list means "not
 pushed aside" rather than "not laid out yet", and nothing on the server clears one.
+
+`fromSide` and `toSide` are the other two, picked in the connection's inspector: which
+side of each box the line leaves and reaches, `null` for the drawing's own choice. A
+line with a chosen side is drawn square between those sides by a simpler router —
+round both boxes when it has to come back on itself — and cannot be bent until both
+are automatic again. The canvas export writes them as JSON Canvas's own `fromSide` and
+`toSide`. Neither is part of the edge's id.
+
+An `upsert_edge` that does not mention a line's drawing — `waypoints`,
+`labelPosition`, `fromSide`, `toSide` — keeps what is there, so an agent rewriting
+what sets a flow off does not throw away the bends a person drew. `null` or `[]`
+still clears them.
 
 What is stored is the corners of the route, and `legalize` in `edge-path.ts` turns
 whatever is stored into a legal one. Every node has one target handle on its left and
@@ -1222,7 +1236,7 @@ Still missing:
 - [x] A node's detail as a block editor several people write in at once
 - [ ] GitHub and Google sign-in callbacks
 - [ ] Email: invitations, address changes, password reset
-- [ ] Plan version history and restore
+- [x] Plan version history and restore
 
 ## Non-goals
 

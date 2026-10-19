@@ -63,6 +63,10 @@ export const plan: Messages['plan'] = {
     labelHint: '線の上に表示されます。任意。',
     straighten: 'まっすぐにする',
     removeConnection: '接続を削除',
+    leaves: '出る辺',
+    arrives: '入る辺',
+    sidesHint: '辺を指定した線はその間を直角に描き、曲げられません。自動に戻すと曲げられます。',
+    sides: { auto: '自動', top: '上', right: '右', bottom: '下', left: '左' },
   },
   history: {
     title: '履歴',
@@ -172,6 +176,50 @@ export const plan: Messages['plan'] = {
     noTag: 'タグなし',
     rows: '行',
     columns: '列',
+  },
+  diagnostics: {
+    title: '点検',
+    open: 'プランを点検',
+    hide: '点検を隠す',
+    clean: (checked: number) => `問題はありません。ノードと接続を ${checked} 件確認しました。`,
+    severity: { error: 'エラー', warning: '警告', info: '注記' },
+    rules: {
+      dependencyCycle: (names: string[]) =>
+        `互いに循環して依存しています：${names.join('、')}。どれも先に始めることができません。`,
+      isolatedNode: (name: string) => `「${name}」は何ともつながっていません。`,
+      outsideFlow: (name: string) => `「${name}」はどのフローにも入っていない作業です。`,
+      unknownKind: (name: string, kind: string) =>
+        `「${name}」の種類「${kind}」はこのプロジェクトで定義されていません。`,
+      unknownStatus: (name: string, status: string) =>
+        `「${name}」のステータス「${status}」はこのプロジェクトで定義されていません。`,
+    },
+  },
+  sources: {
+    title: '出典',
+    open: '出典',
+    hide: '出典を隠す',
+    from: 'このプランの出典',
+    into: 'このプランを出典とするプラン',
+    noneFrom: 'このプランには出典がありません。エージェントが set_plan_sources で設定します。',
+    noneInto: 'このプランを出典に挙げているプランはありません。',
+    elsewhere: '開けないプラン',
+    gone: '削除されたプラン',
+    state: { missing: '見つかりません', moved: '別のプロジェクトにあります' },
+  },
+  versions: {
+    title: 'バージョン',
+    open: 'バージョン',
+    hide: 'バージョンを隠す',
+    save: '保存',
+    labelHint: 'このバージョンの名前（任意）',
+    saved: '保存したバージョン',
+    beforeAgent: 'エージェントの変更前',
+    beforeRestore: '復元の前',
+    restore: '復元',
+    restoreTitle: 'このバージョンに復元しますか？',
+    restoreDescription:
+      'プランはその時点の状態に戻り、全員にそのまま表示されます。現在の状態は先にバージョンとして残すので、元に戻せます。',
+    empty: 'まだありません。エージェントが変更する前と、誰かが保存したときにバージョンが残ります。',
   },
   titleBlock: {
     planSettings: 'プラン設定',

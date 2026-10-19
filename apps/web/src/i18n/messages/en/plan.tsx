@@ -60,6 +60,11 @@ export const plan = {
     labelHint: 'Drawn on the line. Optional.',
     straighten: 'Straighten',
     removeConnection: 'Remove connection',
+    leaves: 'Leaves from',
+    arrives: 'Arrives at',
+    sidesHint:
+      'A line with a chosen side is drawn square between them and cannot be bent. Automatic gives the bends back.',
+    sides: { auto: 'Automatic', top: 'Top', right: 'Right', bottom: 'Bottom', left: 'Left' },
   },
   history: {
     title: 'History',
@@ -172,6 +177,52 @@ export const plan = {
     noTag: 'No tag',
     rows: 'Rows',
     columns: 'Columns',
+  },
+  diagnostics: {
+    title: 'Checks',
+    open: 'Check the plan',
+    hide: 'Hide checks',
+    clean: (checked: number) =>
+      `Nothing to report. Checked ${checked} ${checked === 1 ? 'node or edge' : 'nodes and edges'}.`,
+    severity: { error: 'Error', warning: 'Warning', info: 'Note' },
+    rules: {
+      dependencyCycle: (names: string[]) =>
+        `These depend on each other in a cycle: ${names.join(', ')}. None of them can be started first.`,
+      isolatedNode: (name: string) => `“${name}” is connected to nothing.`,
+      outsideFlow: (name: string) => `“${name}” is work outside every flow.`,
+      unknownKind: (name: string, kind: string) =>
+        `“${name}” has the kind “${kind}”, which this project does not define.`,
+      unknownStatus: (name: string, status: string) =>
+        `“${name}” has the status “${status}”, which this project does not define.`,
+    },
+  },
+  sources: {
+    title: 'Sources',
+    open: 'Sources',
+    hide: 'Hide sources',
+    from: 'Written from',
+    into: 'Written into',
+    noneFrom: 'This plan names no source. An agent sets them with set_plan_sources.',
+    noneInto: 'No plan names this one as its source.',
+    elsewhere: 'A plan you cannot open',
+    gone: 'A deleted plan',
+    state: { missing: 'Missing', moved: 'In another project' },
+  },
+  versions: {
+    title: 'Versions',
+    open: 'Versions',
+    hide: 'Hide versions',
+    save: 'Save',
+    labelHint: 'Name this version (optional)',
+    saved: 'Saved',
+    beforeAgent: "Before an agent's change",
+    beforeRestore: 'Before a restore',
+    restore: 'Restore',
+    restoreTitle: 'Restore this version?',
+    restoreDescription:
+      'The plan goes back to how it was then, for everyone. How it is now is kept as a version first, so this can be undone.',
+    empty:
+      'None yet. One is kept before every change an agent makes, and whenever somebody saves one.',
   },
   titleBlock: {
     planSettings: 'Plan settings',

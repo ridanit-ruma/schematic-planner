@@ -1,10 +1,4 @@
-import {
-  normalizeEdge,
-  planEdgeInputSchema,
-  uniqueSlug,
-  type PlanOp,
-  type Position,
-} from '@schematic/schema';
+import { uniqueSlug, type PlanOp, type Position } from '@schematic/schema';
 import { nodesMap } from '@schematic/ydoc';
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
@@ -217,6 +211,6 @@ export function useNodeDraft(options: {
 function line(kind: 'contains' | 'flows_to', from: string, to: string): PlanOp {
   return {
     op: 'upsert_edge',
-    edge: normalizeEdge(planEdgeInputSchema.parse({ kind, from, to })),
+    edge: { kind, from, to },
   };
 }

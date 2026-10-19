@@ -21,10 +21,13 @@ import { downloadExport, plans } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { useDocumentTitle } from '@/lib/use-document-title';
 import { usePlanVocabulary } from '@/lib/vocabulary';
+import { DiagnosticsPanel } from './DiagnosticsPanel';
 import { EdgeInspector } from './EdgeInspector';
 import { HistoryPanel } from './HistoryPanel';
 import { Inspector } from './Inspector';
 import { PlanCanvas, type PlanCanvasHandle } from './PlanCanvas';
+import { SourcesPanel } from './SourcesPanel';
+import { VersionsPanel } from './VersionsPanel';
 import { TitleBlock } from './TitleBlock';
 import { usePlanDocument } from './use-plan-document';
 import { usePlanUndo, useUndoKeys } from './use-undo';
@@ -89,7 +92,7 @@ function PlanWorkspace({
   const setVocabulary = connection.bound.setVocabulary;
   useEffect(() => setVocabulary(words.vocabulary), [setVocabulary, words.vocabulary]);
 
-  const { setCenter } = useReactFlow();
+  const { setCenter, fitView } = useReactFlow();
   const undo = usePlanUndo(doc);
   useUndoKeys(undo);
   // Adding a node happens on the canvas: it is made there and named on the card.
@@ -97,7 +100,17 @@ function PlanWorkspace({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   // One panel at a time on the right: opening the history puts down whatever
   // was selected, and selecting something puts the history away.
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [panel, setPanel] = useState<'history' | 'checks' | 'sources' | 'versions' | null>(null);
+  const toggle = (which: NonNullable<typeof panel>) => (): void => {
+    setPanel((open) => (open === which ? null : which));
+    select(null);
+  };
+  // What the checks read: the document itself, since the canvas's edges leave
+  // out the containment it draws as boxes. Read again whenever the drawing changes.
+  const plan = useMemo(
+    () => (panel === 'checks' ? readPlanDoc(doc).doc : null),
+    [panel, doc, nodes, edges],
+  );
   /** Where the last jump stopped, so the button walks the notes rather than
       returning to the same one. */
   const [atNote, setAtNote] = useState(0);
@@ -244,11 +257,14 @@ function PlanWorkspace({
         onExport={() => void exportZip()}
         onShare={() => void share()}
         settingsHref={`/plan/${planId}/settings`}
-        historyOpen={historyOpen}
-        onHistory={() => {
-          setHistoryOpen((open) => !open);
-          select(null);
-        }}
+        historyOpen={panel === 'history'}
+        onHistory={toggle('history')}
+        checksOpen={panel === 'checks'}
+        onChecks={toggle('checks')}
+        sourcesOpen={panel === 'sources'}
+        onSources={toggle('sources')}
+        versionsOpen={panel === 'versions'}
+        onVersions={toggle('versions')}
       />
 
       {(error ?? reading.saved.error) !== null ? (
@@ -346,11 +362,27 @@ function PlanWorkspace({
             onStraighten={() => routeEdge(selectedEdgeData.id, [])}
             onClose={() => selectEdge(null)}
           />
-        ) : historyOpen ? (
+        ) : panel === 'checks' && plan !== null ? (
+          <DiagnosticsPanel
+            plan={plan}
+            vocabulary={words.vocabulary}
+            vocabularyLoaded={words.loaded}
+            onShow={(slug) => {
+              select(slug);
+              if (view === 'canvas')
+                void fitView({ nodes: [{ id: slug }], duration: 320, maxZoom: 1 });
+            }}
+            onClose={() => setPanel(null)}
+          />
+        ) : panel === 'versions' ? (
+          <VersionsPanel planId={planId} canEdit={words.canEdit} onClose={() => setPanel(null)} />
+        ) : panel === 'sources' ? (
+          <SourcesPanel planId={planId} onClose={() => setPanel(null)} />
+        ) : panel === 'history' ? (
           <HistoryPanel
             planId={planId}
             vocabulary={words.vocabulary}
-            onClose={() => setHistoryOpen(false)}
+            onClose={() => setPanel(null)}
           />
         ) : null}
       </div>

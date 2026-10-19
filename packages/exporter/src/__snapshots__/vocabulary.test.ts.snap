@@ -854,13 +854,69 @@ status: planned
       "via": null,
       "carries": null,
       "labelPosition": null,
-      "waypoints": []
+      "waypoints": [],
+      "fromSide": null,
+      "toSide": null
     }
   ],
   "comments": [],
   "id": "every-value",
   "updatedAt": "2026-01-01T00:00:00.000Z"
 }
+",
+  "plan.md": "# Every value
+
+## Status
+
+| Status | Nodes |
+| --- | ---: |
+| Idea | 3 |
+| Planned | 3 |
+| In progress | 3 |
+| Blocked | 3 |
+| Done | 3 |
+| Dropped | 3 |
+
+## Ready now
+
+- decision idea (\`decision-idea\`)
+- decision planned (\`decision-planned\`)
+- feature idea (\`feature-idea\`)
+- feature planned (\`feature-planned\`)
+- task idea (\`task-idea\`)
+- task planned (\`task-planned\`)
+
+## Structure
+
+\`\`\`diagram
+direction: right
+"feature-idea": "feature idea"
+"task-idea": "task idea"
+"decision-idea": "decision idea"
+"note-idea": "note idea"
+"feature-planned": "feature planned"
+"task-planned": "task planned"
+"decision-planned": "decision planned"
+"note-planned": "note planned"
+"feature-in-progress": "feature in_progress"
+"task-in-progress": "task in_progress"
+"decision-in-progress": "decision in_progress"
+"note-in-progress": "note in_progress"
+"feature-blocked": "feature blocked"
+"task-blocked": "task blocked"
+"decision-blocked": "decision blocked"
+"note-blocked": "note blocked"
+"feature-done": "feature done"
+"decision-done": "decision done"
+"note-done": "note done"
+"feature-dropped": "feature dropped"
+"task-dropped": "task dropped"
+"decision-dropped": "decision dropped"
+"note-dropped": "note dropped"
+"box": "Box" {
+  "task-done": "task done"
+}
+\`\`\`
 ",
   "task blocked.md": "---
 slug: task-blocked
@@ -1172,7 +1228,9 @@ Exported from Schematic Planner. \`plan.json\` holds the same content in machine
       "via": null,
       "carries": null,
       "labelPosition": null,
-      "waypoints": []
+      "waypoints": [],
+      "fromSide": null,
+      "toSide": null
     },
     {
       "id": "contains:foundation>auth",
@@ -1183,7 +1241,9 @@ Exported from Schematic Planner. \`plan.json\` holds the same content in machine
       "via": null,
       "carries": null,
       "labelPosition": null,
-      "waypoints": []
+      "waypoints": [],
+      "fromSide": null,
+      "toSide": null
     },
     {
       "id": "contains:editor>canvas",
@@ -1194,7 +1254,9 @@ Exported from Schematic Planner. \`plan.json\` holds the same content in machine
       "via": null,
       "carries": null,
       "labelPosition": null,
-      "waypoints": []
+      "waypoints": [],
+      "fromSide": null,
+      "toSide": null
     },
     {
       "id": "depends_on:auth>database",
@@ -1205,7 +1267,9 @@ Exported from Schematic Planner. \`plan.json\` holds the same content in machine
       "via": null,
       "carries": null,
       "labelPosition": null,
-      "waypoints": []
+      "waypoints": [],
+      "fromSide": null,
+      "toSide": null
     },
     {
       "id": "depends_on:editor>foundation",
@@ -1216,13 +1280,46 @@ Exported from Schematic Planner. \`plan.json\` holds the same content in machine
       "via": null,
       "carries": null,
       "labelPosition": null,
-      "waypoints": []
+      "waypoints": [],
+      "fromSide": null,
+      "toSide": null
     }
   ],
   "comments": [],
   "id": "plan-1",
   "updatedAt": "2026-01-01T00:00:00.000Z"
 }
+",
+  "plan.md": "# Schematic Planner
+
+The plan for the planner.
+
+## Status
+
+| Status | Nodes |
+| --- | ---: |
+| Idea | 1 |
+| In progress | 1 |
+| Done | 1 |
+
+## Ready now
+
+- Canvas (\`canvas\`)
+
+## Structure
+
+\`\`\`diagram
+direction: right
+"foundation": "Foundation" {
+  "auth": "Auth"
+  "database": "Database"
+}
+"editor": "Editor" {
+  "canvas": "Canvas"
+}
+"foundation"."auth" -> "foundation"."database": "depends on"
+"editor" -> "foundation": "depends on"
+\`\`\`
 ",
 }
 `;

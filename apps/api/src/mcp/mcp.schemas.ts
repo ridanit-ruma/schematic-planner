@@ -419,3 +419,7 @@ export const movePlanShape = {
         'Pass null for the project top level',
     ),
 };
+
+export const validateShape = {
+  planId: z.string().min(1),
+};

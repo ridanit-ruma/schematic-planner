@@ -73,6 +73,11 @@ export const plan: Messages['plan'] = {
     labelHint: '선 위에 표시됩니다. 선택 사항입니다.',
     straighten: '직선으로',
     removeConnection: '연결 삭제',
+    leaves: '나가는 면',
+    arrives: '들어오는 면',
+    sidesHint:
+      '면을 지정한 선은 두 면 사이를 직각으로 그리며, 구부릴 수 없습니다. 자동으로 두면 구부릴 수 있습니다.',
+    sides: { auto: '자동', top: '위', right: '오른쪽', bottom: '아래', left: '왼쪽' },
   },
   history: {
     title: '기록',
@@ -186,6 +191,51 @@ export const plan: Messages['plan'] = {
     noTag: '태그 없음',
     rows: '행',
     columns: '열',
+  },
+  diagnostics: {
+    title: '점검',
+    open: '플랜 점검',
+    hide: '점검 숨기기',
+    clean: (checked: number) => `문제가 없습니다. 노드와 연결 ${checked}개를 확인했습니다.`,
+    severity: { error: '오류', warning: '경고', info: '참고' },
+    rules: {
+      dependencyCycle: (names: string[]) =>
+        `서로 순환하며 의존합니다: ${names.join(', ')}. 이 중 어느 것도 먼저 시작할 수 없습니다.`,
+      isolatedNode: (name: string) => `${quoted(name, '이')} 아무것과도 연결되어 있지 않습니다.`,
+      outsideFlow: (name: string) => `${quoted(name, '이')} 어떤 흐름에도 속하지 않은 작업입니다.`,
+      unknownKind: (name: string, kind: string) =>
+        `${quoted(name)}의 종류 ${quoted(kind, '이')} 이 프로젝트에 정의되어 있지 않습니다.`,
+      unknownStatus: (name: string, status: string) =>
+        `${quoted(name)}의 상태 ${quoted(status, '이')} 이 프로젝트에 정의되어 있지 않습니다.`,
+    },
+  },
+  sources: {
+    title: '출처',
+    open: '출처',
+    hide: '출처 숨기기',
+    from: '이 플랜의 출처',
+    into: '이 플랜을 출처로 삼은 플랜',
+    noneFrom: '이 플랜에는 출처가 없습니다. 에이전트가 set_plan_sources로 지정합니다.',
+    noneInto: '이 플랜을 출처로 지정한 플랜이 없습니다.',
+    elsewhere: '열 수 없는 플랜',
+    gone: '삭제된 플랜',
+    state: { missing: '없음', moved: '다른 프로젝트에 있음' },
+  },
+  versions: {
+    title: '버전',
+    open: '버전',
+    hide: '버전 숨기기',
+    save: '저장',
+    labelHint: '이 버전의 이름 (선택)',
+    saved: '저장한 버전',
+    beforeAgent: '에이전트가 바꾸기 전',
+    beforeRestore: '복원하기 전',
+    restore: '복원',
+    restoreTitle: '이 버전으로 복원할까요?',
+    restoreDescription:
+      '플랜이 그때 상태로 돌아가며, 모두에게 그대로 보입니다. 지금 상태를 먼저 버전으로 남겨 두므로 되돌릴 수 있습니다.',
+    empty:
+      '아직 없습니다. 에이전트가 플랜을 바꾸기 전마다, 그리고 누군가 저장할 때마다 버전이 남습니다.',
   },
   titleBlock: {
     planSettings: '플랜 설정',

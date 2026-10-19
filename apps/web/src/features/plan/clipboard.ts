@@ -150,6 +150,8 @@ export function copyPayload(
         carries: edge.carries,
         labelPosition: edge.labelPosition,
         waypoints: edge.waypoints,
+        fromSide: edge.fromSide,
+        toSide: edge.toSide,
       })),
     holders,
     words: wordsFor(

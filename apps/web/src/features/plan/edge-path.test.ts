@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { labelAt, legalize, midpoint, pathOf, routeOf, type Side } from './edge-path';
+import {
+  labelAt,
+  legalize,
+  midpoint,
+  pathOf,
+  routeOf,
+  sidePoint,
+  sideRoute,
+  type Side,
+} from './edge-path';
 
 const source = { x: 0, y: 0 };
 const target = { x: 400, y: 200 };
@@ -321,5 +330,78 @@ describe('where the writing on a line sits', () => {
   it('answers for a line with nothing to sit on', () => {
     expect(labelAt([{ x: 7, y: 9 }])).toEqual({ x: 7, y: 9 });
     expect(labelAt([])).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe('sideRoute', () => {
+  it('leaves and arrives square along the chosen sides', () => {
+    const route = sideRoute({ x: 0, y: 0 }, 'bottom', { x: 100, y: 200 }, 'top');
+    expect(route[1]).toEqual({ x: 0, y: 12 });
+    expect(route[route.length - 2]).toEqual({ x: 100, y: 188 });
+    for (let i = 1; i < route.length; i += 1) {
+      const a = route[i - 1]!;
+      const b = route[i]!;
+      expect(a.x === b.x || a.y === b.y).toBe(true);
+    }
+  });
+
+  it('turns once when one end is vertical and the other horizontal', () => {
+    expect(sideRoute({ x: 0, y: 0 }, 'bottom', { x: 100, y: 100 }, 'left')).toEqual([
+      { x: 0, y: 0 },
+      { x: 0, y: 12 },
+      { x: 0, y: 100 },
+      { x: 88, y: 100 },
+      { x: 100, y: 100 },
+    ]);
+  });
+
+  it('goes round both boxes rather than through them when it has to come back', () => {
+    const lower = { x: 0, y: 200, width: 100, height: 50 };
+    const upper = { x: 0, y: 0, width: 100, height: 50 };
+    const route = sideRoute({ x: 50, y: 250 }, 'bottom', { x: 50, y: 0 }, 'top', [lower, upper]);
+    expect(Math.max(...route.map((point) => point.x))).toBeGreaterThan(100);
+  });
+
+  /** Whether any run between the stubs goes through the inside of a box. */
+  const throughABox = (route: { x: number; y: number }[], boxes: (typeof lower)[]) =>
+    route.slice(1, -1).some((a, index) => {
+      const b = route[index + 2];
+      if (b === undefined || index + 2 === route.length - 1) return false;
+      return boxes.some((box) =>
+        a.y === b.y
+          ? a.y > box.y &&
+            a.y < box.y + box.height &&
+            Math.max(Math.min(a.x, b.x), box.x) < Math.min(Math.max(a.x, b.x), box.x + box.width)
+          : a.x > box.x &&
+            a.x < box.x + box.width &&
+            Math.max(Math.min(a.y, b.y), box.y) < Math.min(Math.max(a.y, b.y), box.y + box.height),
+      );
+    });
+  const lower = { x: 0, y: 200, width: 100, height: 50 };
+
+  it('does not cut through a box when only one side is chosen', () => {
+    const above = { x: 300, y: 0, width: 100, height: 50 };
+    const route = sideRoute({ x: 50, y: 250 }, 'bottom', { x: 300, y: 25 }, 'left', [lower, above]);
+    expect(throughABox(route, [lower, above])).toBe(false);
+    const behind = { x: -300, y: 400, width: 100, height: 50 };
+    const back = sideRoute({ x: 50, y: 250 }, 'bottom', { x: -300, y: 425 }, 'left', [
+      lower,
+      behind,
+    ]);
+    expect(throughABox(back, [lower, behind])).toBe(false);
+  });
+
+  it('does not cut through a box when both ends leave from the same side', () => {
+    const other = { x: 300, y: 400, width: 100, height: 50 };
+    const route = sideRoute({ x: 50, y: 250 }, 'bottom', { x: 350, y: 450 }, 'bottom', [
+      lower,
+      other,
+    ]);
+    expect(throughABox(route, [lower, other])).toBe(false);
+  });
+
+  it('finds the middle of a side', () => {
+    expect(sidePoint({ x: 10, y: 20, width: 100, height: 40 }, 'top')).toEqual({ x: 60, y: 20 });
+    expect(sidePoint({ x: 10, y: 20, width: 100, height: 40 }, 'right')).toEqual({ x: 110, y: 40 });
   });
 });
