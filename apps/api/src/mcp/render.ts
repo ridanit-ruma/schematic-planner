@@ -309,13 +309,7 @@ export function renderTrace(result: TraceResult): string {
   if (detail.length > 0) {
     lines.push('', '---', '');
     for (const node of detail) {
-      lines.push(
-        `## ${node.title} (${node.slug})`,
-        `status: ${node.status}`,
-        '',
-        node.body.trim(),
-        '',
-      );
+      lines.push(`## ${node.title} (${node.slug})`, `status: ${node.status}`, '', node.body.trim(), '');
     }
   }
 
@@ -421,8 +415,7 @@ export function renderHistory(entries: readonly PlanChange[]): string {
       batch = entry.batchId;
       lines.push('', `${whom(entry)} — ${entry.at.toISOString()}`);
     }
-    const detail =
-      entry.detail === null || entry.detail === '' ? '' : ` — ${oneLine(entry.detail)}`;
+    const detail = entry.detail === null || entry.detail === '' ? '' : ` — ${oneLine(entry.detail)}`;
     lines.push(`  ${entry.kind} ${entry.subject} (${entry.label})${detail}`);
   }
 

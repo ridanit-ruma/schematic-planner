@@ -201,7 +201,9 @@ describe('renderNodes', () => {
       { slug: 'form', title: 'Form', body: 'Two fields and a button.', tags: ['ui'] },
       { slug: 'api', title: 'API' },
     ],
-    edges: [{ id: 'f1', kind: 'flows_to', from: 'form', to: 'api', via: 'click Sign in' }],
+    edges: [
+      { id: 'f1', kind: 'flows_to', from: 'form', to: 'api', via: 'click Sign in' },
+    ],
   });
 
   it('gives back what a node actually says', () => {
@@ -375,12 +377,7 @@ describe('renderFound', () => {
   };
 
   it('groups hits under the drawing they are in, with a link to it', () => {
-    const rendered = renderFound(
-      [hit, { ...hit, slug: 'login-form', title: 'Login form' }],
-      'login',
-      url,
-      3,
-    );
+    const rendered = renderFound([hit, { ...hit, slug: 'login-form', title: 'Login form' }], 'login', url, 3);
     expect(rendered).toContain('Sign in — acme / web / specs');
     expect(rendered).toContain('https://example.test/plan/p1');
     expect(rendered.match(/https:\/\/example.test/g)).toHaveLength(1);
@@ -424,20 +421,8 @@ describe('where a plan has got to', () => {
       title: 'Chain',
       updatedAt: '2026-01-01T00:00:00.000Z',
       nodes: [
-        {
-          slug: 'first',
-          kind: 'task',
-          title: 'First',
-          body: 'Do this one first.',
-          status: statuses['first'] ?? 'planned',
-        },
-        {
-          slug: 'second',
-          kind: 'task',
-          title: 'Second',
-          body: 'Then this.',
-          status: statuses['second'] ?? 'planned',
-        },
+        { slug: 'first', kind: 'task', title: 'First', body: 'Do this one first.', status: statuses['first'] ?? 'planned' },
+        { slug: 'second', kind: 'task', title: 'Second', body: 'Then this.', status: statuses['second'] ?? 'planned' },
         { slug: 'aside', kind: 'note', title: 'A remark', status: 'idea' },
         { slug: 'box', kind: 'group', title: 'A box', status: 'idea' },
       ],
@@ -599,13 +584,7 @@ describe('a project with its own statuses and kinds', () => {
     statuses: [
       ...DEFAULT_VOCABULARY.statuses,
       { id: 'in-review', name: 'In review', color: 'purple', category: 'active', archived: false },
-      {
-        id: 'waiting',
-        name: 'Waiting on legal',
-        color: 'red',
-        category: 'blocked',
-        archived: false,
-      },
+      { id: 'waiting', name: 'Waiting on legal', color: 'red', category: 'blocked', archived: false },
       { id: 'shipped', name: 'Shipped', color: 'green', category: 'done', archived: false },
       { id: 'retired', name: 'Retired', color: 'gray', category: 'todo', archived: true },
     ],

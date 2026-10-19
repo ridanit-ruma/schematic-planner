@@ -255,9 +255,10 @@ export const agentOpSchema = z.discriminatedUnion('op', [
   z.object({
     op: z.literal('rename_node'),
     from: slugSchema.describe("The node's current identifier."),
-    to: slugSchema.describe(
-      'The identifier it should answer to from now on. Every edge, note anchor and containment pointing at it moves with it. Fails if another node already uses it.',
-    ),
+    to: slugSchema
+      .describe(
+        "The identifier it should answer to from now on. Every edge, note anchor and containment pointing at it moves with it. Fails if another node already uses it.",
+      ),
   }),
   z.object({ op: z.literal('upsert_edge'), edge: agentEdgeSchema }),
   z.object({
@@ -358,7 +359,7 @@ export const deletePlanShape = {
   confirmTitle: z
     .string()
     .min(1)
-    .describe("The plan's exact title. Required so a wrong id cannot delete the wrong plan"),
+    .describe('The plan\'s exact title. Required so a wrong id cannot delete the wrong plan'),
 };
 
 export const listFoldersShape = { workspace: workspaceArg, projectSlug: projectArg };

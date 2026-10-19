@@ -394,8 +394,9 @@ export class McpFactory {
                   planTitle: doc.title,
                   workspace: target.slug,
                   project: project.slug,
-                  folder:
-                    summary.folderId === null ? null : (drawerName.get(summary.folderId) ?? null),
+                  folder: summary.folderId === null
+                    ? null
+                    : (drawerName.get(summary.folderId) ?? null),
                 };
 
                 for (const node of doc.nodes) {
