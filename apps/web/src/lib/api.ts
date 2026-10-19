@@ -551,6 +551,16 @@ export const folders = {
   remove: (id: string) => api<{ ok: true }>(`/folders/${id}`, { method: 'DELETE' }),
 };
 
+/** A plan as it was at one moment: saved by a person, or kept before an agent's write or a restore. */
+export interface PlanVersionSummary {
+  id: string;
+  reason: 'saved' | 'before-agent' | 'before-restore';
+  label: string | null;
+  at: string;
+  by: ChangeAuthor | null;
+  nodes: number;
+}
+
 /** What a plan was written from, resolved as of now, and what was written from it. */
 export interface PlanProvenance {
   sources: {
@@ -583,6 +593,11 @@ export const plans = {
   navigation: (planId: string) => api<PlanNavigation>(`/plans/${planId}/navigation`),
   changes: (planId: string) => api<PlanChangeRecord[]>(`/plans/${planId}/changes`),
   provenance: (planId: string) => api<PlanProvenance>(`/plans/${planId}/provenance`),
+  versions: (planId: string) => api<PlanVersionSummary[]>(`/plans/${planId}/versions`),
+  saveVersion: (planId: string, label: string | null) =>
+    api<{ id: string }>(`/plans/${planId}/versions`, { method: 'POST', ...json({ label }) }),
+  restoreVersion: (planId: string, versionId: string) =>
+    api<PlanDoc>(`/plans/${planId}/versions/${versionId}/restore`, { method: 'POST' }),
   remove: (planId: string) => api<{ ok: true }>(`/plans/${planId}`, { method: 'DELETE' }),
   applyOps: (planId: string, ops: PlanOp[]) =>
     api<PlanDoc>(`/plans/${planId}/ops`, { method: 'POST', ...json({ ops }) }),

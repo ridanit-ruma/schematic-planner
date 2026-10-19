@@ -38,6 +38,7 @@ model User {
   sessions    Session[]
   apiKeys     ApiKey[]
   planChanges PlanChange[]
+  planVersions PlanVersion[]
   invitesSent Invite[]        @relation("InviteCreator")
   plansTrashed    Plan[]    @relation("PlanTrasher")
   projectsTrashed Project[] @relation("ProjectTrasher")
@@ -252,6 +253,7 @@ model Plan {
   deletedBy User?      @relation("PlanTrasher", fields: [deletedById], references: [id], onDelete: SetNull)
   share     PlanShare?
   changes   PlanChange[]
+  versions  PlanVersion[]
 
   @@index([projectId])
   @@index([projectId, deletedAt])
@@ -278,6 +280,31 @@ model PlanChange {
   subject  String
   label    String
   detail   String?
+
+  createdAt DateTime @default(now())
+
+  plan Plan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([planId, createdAt])
+}
+
+/// A plan as it was at one moment, to come back to.
+///
+/// The history says what changed; this keeps what it changed from. Taken when a
+/// person saves one, before every batch an agent writes, and before a restore,
+/// so a restore can itself be undone. Only the newest are kept per plan.
+model PlanVersion {
+  id       String  @id @default(cuid())
+  planId   String
+  userId   String?
+  /// Set when it was taken before an agent's write, to name the agent.
+  apiKeyId String?
+  /// `saved`, `before-agent` or `before-restore`.
+  reason   String
+  label    String?
+  /// The read model at that moment: a PlanDoc.
+  doc      Json
 
   createdAt DateTime @default(now())
 

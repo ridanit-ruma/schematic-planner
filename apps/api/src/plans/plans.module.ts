@@ -5,6 +5,8 @@ import { AuthModule } from '../auth/auth.module.js';
 import { CollabGateway } from '../collab/collab.gateway.js';
 import { CollabService } from '../collab/collab.service.js';
 import { PlanDocumentsService } from './plan-documents.service.js';
+import { PlanVersionsController } from './plan-versions.controller.js';
+import { PlanVersionsService } from './plan-versions.service.js';
 import { PlansController } from './plans.controller.js';
 import { PlansService } from './plans.service.js';
 
@@ -16,8 +18,8 @@ import { PlansService } from './plans.service.js';
   // AuthModule for JwtService: the collaboration socket verifies the same
   // access token the REST API does.
   imports: [AuthModule],
-  controllers: [PlansController],
-  providers: [PlansService, PlanDocumentsService, CollabService, CollabGateway],
+  controllers: [PlansController, PlanVersionsController],
+  providers: [PlansService, PlanDocumentsService, PlanVersionsService, CollabService, CollabGateway],
   exports: [PlansService, CollabService, PlanDocumentsService],
 })
 export class PlansModule {}

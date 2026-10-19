@@ -24,6 +24,7 @@ import {
   planRevision,
   planRevisionFromUpdate,
   commitLayout,
+  readPlanDoc,
 } from '@schematic/ydoc';
 
 import { randomUUID } from 'node:crypto';
@@ -43,6 +44,7 @@ import { AccessService } from '../workspaces/access.service.js';
 import { VocabularyService } from '../projects/vocabulary.service.js';
 import type { Role } from '../workspaces/roles.js';
 import { PlanDocumentsService, type ChangeActor } from './plan-documents.service.js';
+import { recordVersion } from './plan-version-record.js';
 import type { CreatePlanInput, LayoutInput, ShareInput, UpdatePlanInput } from './plans.dto.js';
 
 export interface PlanSummary {
@@ -237,7 +239,7 @@ export class PlansService {
    * Read in one query rather than joined onto each row: a page of history is
    * usually one or two agents working, and the key is what says which.
    */
-  private async agentNames(
+  async agentNames(
     rows: readonly ({ apiKeyId: string | null } | undefined)[],
   ): Promise<Map<string, string>> {
     const ids = [...new Set(rows.map((row) => row?.apiKeyId).filter((id) => id !== null && id !== undefined))];
@@ -573,6 +575,8 @@ export class PlansService {
     // just added is the tail of the same call, not a second thing that
     // happened, and the history should not report it as one.
     const batched: ChangeActor = { ...actor, batchId: actor.batchId ?? randomUUID() };
+    // What the plan was before an agent's batch, so a person can take it back.
+    let before: PlanDoc | null = null;
 
     const applied = await this.refusingStale(() =>
       this.collab.withDocument(
@@ -586,12 +590,15 @@ export class PlansService {
           const current = planRevision(document);
           if (current !== expectedRevision) throw new StaleRevisionError(expectedRevision, current);
         }
+        if (actor.apiKeyId != null) before = readPlanDoc(document).doc;
         applyOpsToDoc(document, ops, ORIGIN_AGENT);
         return this.documents.project(planId, document).doc;
       },
       batched,
       ),
     );
+
+    if (before !== null) await recordVersion(this.prisma, planId, before, 'before-agent', actor);
 
     // Agents declare structure and never coordinates, so everything they add
     // arrives unplaced. Placing it here is what keeps that promise: without it a

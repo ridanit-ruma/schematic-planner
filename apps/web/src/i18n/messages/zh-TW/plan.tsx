@@ -194,6 +194,21 @@ export const plan: Messages['plan'] = {
     gone: '已刪除的計畫',
     state: { missing: '缺失', moved: '在其他專案中' },
   },
+  versions: {
+    title: '版本',
+    open: '版本',
+    hide: '隱藏版本',
+    save: '儲存',
+    labelHint: '為此版本命名（選填）',
+    saved: '已儲存的版本',
+    beforeAgent: '代理修改之前',
+    beforeRestore: '還原之前',
+    restore: '還原',
+    restoreTitle: '還原到這個版本？',
+    restoreDescription:
+      '計畫會回到當時的樣子，所有人都會看到。目前的狀態會先保存為一個版本，因此可以復原。',
+    empty: '還沒有版本。每次代理修改之前，以及有人儲存時，都會保留一個版本。',
+  },
   titleBlock: {
     planSettings: '計畫設定',
     nextNote: '前往下一則未解決的留言',
