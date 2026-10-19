@@ -134,6 +134,14 @@ export const plan: Messages['plan'] = {
     resolve: '解决',
     deleteNote: '删除评论',
   },
+  views: {
+    switchView: '视图',
+    canvas: '画布',
+    table: '表格',
+    board: '看板',
+    otherStatuses: '其他状态',
+    empty: '还没有节点',
+  },
   titleBlock: {
     planSettings: '计划设置',
     nextNote: '转到下一条未解决的评论',

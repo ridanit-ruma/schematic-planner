@@ -2,7 +2,7 @@ import { uniqueSlug, type PlanOp, type Position } from '@schematic/schema';
 import { ORIGIN_LAYOUT, ORIGIN_LOCAL, applyOps, commitLayout, readPlanDoc } from '@schematic/ydoc';
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 import { useStore } from 'zustand';
 
 import { useExplorer } from '@/components/explorer/explorer-context';
@@ -22,6 +22,9 @@ import { PlanCanvas, type PlanCanvasHandle } from './PlanCanvas';
 import { TitleBlock } from './TitleBlock';
 import { usePlanDocument } from './use-plan-document';
 import { usePlanUndo, useUndoKeys } from './use-undo';
+import { BoardView } from './views/BoardView';
+import { readView, type PlanView } from './views/plan-view';
+import { TableView } from './views/TableView';
 
 export function PlanPage() {
   const { planId = '' } = useParams();
@@ -90,6 +93,20 @@ function PlanWorkspace({
       returning to the same one. */
   const [atNote, setAtNote] = useState(0);
   const [error, setError] = useState<unknown>(null);
+
+  // The view is in the address, so a link or a reload opens the plan the way it was being read.
+  const [params, setParams] = useSearchParams();
+  const view = readView(params.get('view'));
+  const showView = (next: PlanView): void =>
+    setParams(
+      (current) => {
+        if (next === 'canvas') current.delete('view');
+        else current.set('view', next);
+        return current;
+      },
+      { replace: true },
+    );
+  const planNodes = useMemo(() => nodes.map((node) => node.data.node), [nodes]);
 
   const openNotes = useMemo(() => comments.filter((comment) => !comment.resolved), [comments]);
 
@@ -182,22 +199,32 @@ function PlanWorkspace({
         title={title === '' ? t.plan.page.untitled : title}
         nodeCount={nodes.length}
         openNotes={openNotes.length}
-        onNextNote={() => {
-          const next = openNotes[atNote % openNotes.length];
-          setAtNote((index) => index + 1);
-          if (next?.position == null) return;
-          selectComment(next.id);
-          void setCenter(next.position.x + 100, next.position.y + 40, { duration: 320 });
-        }}
+        onNextNote={
+          view !== 'canvas'
+            ? undefined
+            : () => {
+                const next = openNotes[atNote % openNotes.length];
+                setAtNote((index) => index + 1);
+                if (next?.position == null) return;
+                selectComment(next.id);
+                void setCenter(next.position.x + 100, next.position.y + 40, { duration: 320 });
+              }
+        }
         peers={peers}
         self={self}
-        onFollow={(peer) => {
-          if (peer.cursor == null) return;
-          void setCenter(peer.cursor.x, peer.cursor.y, { duration: 320 });
-        }}
+        onFollow={
+          view !== 'canvas'
+            ? undefined
+            : (peer) => {
+                if (peer.cursor == null) return;
+                void setCenter(peer.cursor.x, peer.cursor.y, { duration: 320 });
+              }
+        }
         status={status}
         readOnly={false}
-        onAddNode={() => canvas.current?.addNode()}
+        view={view}
+        onView={showView}
+        onAddNode={view === 'canvas' ? () => canvas.current?.addNode() : undefined}
         onArrange={() => void arrange()}
         onExport={() => void exportZip()}
         onShare={() => void share()}
@@ -217,16 +244,34 @@ function PlanWorkspace({
 
       <div className="relative flex min-h-0 flex-1">
         <div className="min-w-0 flex-1">
-          <PlanCanvas
-            connection={connection}
-            readOnly={false}
-            onApplyOps={apply}
-            undo={undo}
-            onAddComment={addComment}
-            handle={canvas}
-            words={words}
-            onError={setError}
-          />
+          {view === 'table' ? (
+            <TableView
+              nodes={planNodes}
+              vocabulary={words.vocabulary}
+              selected={selected}
+              onSelect={select}
+            />
+          ) : view === 'board' ? (
+            <BoardView
+              nodes={planNodes}
+              vocabulary={words.vocabulary}
+              selected={selected}
+              readOnly={false}
+              onSelect={select}
+              onApplyOps={apply}
+            />
+          ) : (
+            <PlanCanvas
+              connection={connection}
+              readOnly={false}
+              onApplyOps={apply}
+              undo={undo}
+              onAddComment={addComment}
+              handle={canvas}
+              words={words}
+              onError={setError}
+            />
+          )}
         </div>
         {selectedNode !== null ? (
           <Inspector

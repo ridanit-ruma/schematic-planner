@@ -156,6 +156,14 @@ export const plan: Messages['plan'] = {
     resolve: '해결',
     deleteNote: '댓글 삭제',
   },
+  views: {
+    switchView: '보기',
+    canvas: '캔버스',
+    table: '표',
+    board: '보드',
+    otherStatuses: '기타 상태',
+    empty: '아직 노드가 없습니다',
+  },
   titleBlock: {
     planSettings: '플랜 설정',
     nextNote: '다음 미해결 댓글로 이동',

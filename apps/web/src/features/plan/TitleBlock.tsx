@@ -1,6 +1,7 @@
 import type { Presence } from '@schematic/ydoc';
 import {
   Clock,
+  Columns3,
   Crosshair,
   Download,
   Link2,
@@ -8,7 +9,9 @@ import {
   MoreHorizontal,
   Plus,
   Settings,
+  Table2,
   Wand2,
+  Workflow,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 
@@ -18,6 +21,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import type { ConnectionStatus } from './use-plan-document';
+import { PLAN_VIEWS, type PlanView } from './views/plan-view';
 
 /**
  * The title block of an engineering drawing: what the sheet is, what state it is
@@ -41,6 +45,8 @@ export function TitleBlock({
   onFollow,
   status,
   readOnly,
+  view,
+  onView,
   onAddNode,
   onArrange,
   onExport,
@@ -62,7 +68,11 @@ export function TitleBlock({
   onFollow?: (peer: Presence) => void;
   status: ConnectionStatus;
   readOnly: boolean;
-  onAddNode: () => void;
+  /** Which way the plan is being looked at. No switch is offered without `onView`. */
+  view?: PlanView;
+  onView?: (view: PlanView) => void;
+  /** Nodes are added on the canvas; without this the button is not offered. */
+  onAddNode?: () => void;
   onArrange: () => void;
   onExport: () => void;
   onShare: () => void;
@@ -114,7 +124,11 @@ export function TitleBlock({
 
       <Here peers={peers} self={self} onFollow={onFollow} />
 
-      {readOnly ? null : (
+      {view === undefined || onView === undefined ? null : (
+        <ViewSwitch view={view} onView={onView} />
+      )}
+
+      {readOnly || onAddNode === undefined ? null : (
         <div className="flex items-center gap-1">
           <Tooltip content={t.plan.titleBlock.addNode}>
             <Button size="sm" variant="ghost" onClick={onAddNode}>
@@ -165,6 +179,40 @@ export function TitleBlock({
         )}
       </DropdownMenu>
     </header>
+  );
+}
+
+const VIEW_ICONS = { canvas: Workflow, table: Table2, board: Columns3 } as const;
+
+/** One button per view, pressed for the one on screen. */
+function ViewSwitch({ view, onView }: { view: PlanView; onView: (view: PlanView) => void }) {
+  const t = useT();
+  return (
+    <div
+      role="group"
+      aria-label={t.plan.views.switchView}
+      className="flex shrink-0 items-center rounded-md border border-rule p-0.5"
+    >
+      {PLAN_VIEWS.map((one) => {
+        const Icon = VIEW_ICONS[one];
+        return (
+          <Tooltip key={one} content={t.plan.views[one]}>
+            <button
+              type="button"
+              aria-label={t.plan.views[one]}
+              aria-pressed={one === view}
+              onClick={() => onView(one)}
+              className={cn(
+                'grid size-6 place-items-center rounded-sm transition-colors',
+                one === view ? 'bg-surface-3 text-ink' : 'text-ink-muted hover:text-ink',
+              )}
+            >
+              <Icon className="size-3.5" />
+            </button>
+          </Tooltip>
+        );
+      })}
+    </div>
   );
 }
 

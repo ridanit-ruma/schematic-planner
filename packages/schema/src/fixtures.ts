@@ -4,6 +4,7 @@ interface NodeSeed {
   slug: string;
   title?: string;
   kind?: string;
+  status?: string;
 }
 
 interface EdgeSeed {
