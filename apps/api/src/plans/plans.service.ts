@@ -12,6 +12,7 @@ import {
   normalizeEdge,
   planDocFromSnapshot,
   planEdgeInputSchema,
+  restoreOps,
   type PlanDoc,
   type PlanOp,
   type PlanSpec,
@@ -636,6 +637,33 @@ export class PlansService {
     );
   }
 
+  /**
+   * Writes `target` back over the plan. The operations are worked out against
+   * the plan as it stands inside the write, so nothing a collaborator adds just
+   * before survives the restore unrecorded; what was replaced is returned, to be
+   * kept as a version.
+   */
+  async restoreTo(
+    userId: string,
+    planId: string,
+    target: PlanDoc,
+  ): Promise<{ before: PlanDoc; after: PlanDoc }> {
+    await this.access.requirePlan(userId, planId, 'EDITOR');
+    let before: PlanDoc | null = null;
+    const after = await this.collab.withDocument(
+      planId,
+      (document) => {
+        const current = readPlanDoc(document).doc;
+        before = current;
+        applyOpsToDoc(document, restoreOps(current, target), ORIGIN_AGENT);
+        return this.documents.project(planId, document).doc;
+      },
+      { userId, batchId: randomUUID() },
+    );
+    if (before === null) throw new NotFoundException('Plan not found');
+    return { before, after };
+  }
+
   async layout(
     userId: string,
     planId: string,
@@ -645,6 +673,7 @@ export class PlansService {
     await this.access.requirePlan(userId, planId, 'EDITOR');
 
     const doc = await this.current(planId);
+    if (actor.apiKeyId != null) await recordVersion(this.prisma, planId, doc, 'before-agent', actor);
     const { positions, sizes, labels } = await layoutPlan(doc, {
       direction: input.direction,
       scope: input.scope,
