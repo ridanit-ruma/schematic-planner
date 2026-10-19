@@ -193,6 +193,7 @@ export const plan: Messages['plan'] = {
     into: '以本計畫為來源的計畫',
     noneFrom: '本計畫沒有來源。由代理透過 set_plan_sources 設定。',
     noneInto: '沒有計畫把本計畫列為來源。',
+    elsewhere: '你無法開啟的計畫',
     gone: '已刪除的計畫',
     state: { missing: '缺失', moved: '在其他專案中' },
   },

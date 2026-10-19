@@ -212,6 +212,7 @@ export const plan: Messages['plan'] = {
     into: '이 플랜을 출처로 삼은 플랜',
     noneFrom: '이 플랜에는 출처가 없습니다. 에이전트가 set_plan_sources로 지정합니다.',
     noneInto: '이 플랜을 출처로 지정한 플랜이 없습니다.',
+    elsewhere: '열 수 없는 플랜',
     gone: '삭제된 플랜',
     state: { missing: '없음', moved: '다른 프로젝트에 있음' },
   },

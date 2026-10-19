@@ -199,6 +199,7 @@ export const plan = {
     into: 'Written into',
     noneFrom: 'This plan names no source. An agent sets them with set_plan_sources.',
     noneInto: 'No plan names this one as its source.',
+    elsewhere: 'A plan you cannot open',
     gone: 'A deleted plan',
     state: { missing: 'Missing', moved: 'In another project' },
   },

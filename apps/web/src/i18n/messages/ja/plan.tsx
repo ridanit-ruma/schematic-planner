@@ -198,6 +198,7 @@ export const plan: Messages['plan'] = {
     into: 'このプランを出典とするプラン',
     noneFrom: 'このプランには出典がありません。エージェントが set_plan_sources で設定します。',
     noneInto: 'このプランを出典に挙げているプランはありません。',
+    elsewhere: '開けないプラン',
     gone: '削除されたプラン',
     state: { missing: '見つかりません', moved: '別のプロジェクトにあります' },
   },

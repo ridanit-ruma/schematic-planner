@@ -188,6 +188,7 @@ export const plan: Messages['plan'] = {
     into: '以本计划为来源的计划',
     noneFrom: '本计划没有来源。由代理通过 set_plan_sources 设置。',
     noneInto: '没有计划把本计划列为来源。',
+    elsewhere: '你无法打开的计划',
     gone: '已删除的计划',
     state: { missing: '缺失', moved: '在其他项目中' },
   },

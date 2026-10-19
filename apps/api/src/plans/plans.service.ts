@@ -378,6 +378,12 @@ export class PlansService {
     });
     if (plan === null) throw new NotFoundException('Plan not found');
 
+    // A plan moved into a workspace this reader is not in keeps its place in the
+    // list, but not its title: citing it must not show it to them.
+    const reach = (
+      await this.prisma.membership.findMany({ where: { userId }, select: { workspaceId: true } })
+    ).map((membership) => membership.workspaceId);
+
     const [rows, sourcedBy] = await Promise.all([
       plan.sourceSpecIds.length === 0
         ? Promise.resolve([])
@@ -389,16 +395,27 @@ export class PlansService {
               projectId: true,
               deletedAt: true,
               folder: { select: { name: true } },
+              project: { select: { workspaceId: true } },
             },
           }),
       this.prisma.plan.findMany({
-        where: { sourceSpecIds: { has: planId }, deletedAt: null },
+        where: {
+          sourceSpecIds: { has: planId },
+          deletedAt: null,
+          project: { workspaceId: { in: reach } },
+        },
         orderBy: { updatedAt: 'desc' },
         select: { id: true, title: true },
       }),
     ]);
 
-    return { sources: resolveSources(plan.sourceSpecIds, plan.projectId, rows), sourcedBy };
+    const hidden = new Set(
+      rows.filter((row) => !reach.includes(row.project.workspaceId)).map((row) => row.id),
+    );
+    const sources = resolveSources(plan.sourceSpecIds, plan.projectId, rows).map((source) =>
+      hidden.has(source.id) ? { ...source, title: null, folder: null } : source,
+    );
+    return { sources, sourcedBy };
   }
 
   /** Replaces the set outright, or refuses the whole of it. */
