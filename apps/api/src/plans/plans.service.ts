@@ -12,6 +12,7 @@ import {
   normalizeEdge,
   planDocFromSnapshot,
   planEdgeInputSchema,
+  restoreOps,
   type PlanDoc,
   type PlanOp,
   type PlanSpec,
@@ -380,6 +381,12 @@ export class PlansService {
     });
     if (plan === null) throw new NotFoundException('Plan not found');
 
+    // A plan moved into a workspace this reader is not in keeps its place in the
+    // list, but not its title: citing it must not show it to them.
+    const reach = (
+      await this.prisma.membership.findMany({ where: { userId }, select: { workspaceId: true } })
+    ).map((membership) => membership.workspaceId);
+
     const [rows, sourcedBy] = await Promise.all([
       plan.sourceSpecIds.length === 0
         ? Promise.resolve([])
@@ -391,16 +398,27 @@ export class PlansService {
               projectId: true,
               deletedAt: true,
               folder: { select: { name: true } },
+              project: { select: { workspaceId: true } },
             },
           }),
       this.prisma.plan.findMany({
-        where: { sourceSpecIds: { has: planId }, deletedAt: null },
+        where: {
+          sourceSpecIds: { has: planId },
+          deletedAt: null,
+          project: { workspaceId: { in: reach } },
+        },
         orderBy: { updatedAt: 'desc' },
         select: { id: true, title: true },
       }),
     ]);
 
-    return { sources: resolveSources(plan.sourceSpecIds, plan.projectId, rows), sourcedBy };
+    const hidden = new Set(
+      rows.filter((row) => !reach.includes(row.project.workspaceId)).map((row) => row.id),
+    );
+    const sources = resolveSources(plan.sourceSpecIds, plan.projectId, rows).map((source) =>
+      hidden.has(source.id) ? { ...source, title: null, folder: null } : source,
+    );
+    return { sources, sourcedBy };
   }
 
   /** Replaces the set outright, or refuses the whole of it. */
@@ -619,6 +637,33 @@ export class PlansService {
     );
   }
 
+  /**
+   * Writes `target` back over the plan. The operations are worked out against
+   * the plan as it stands inside the write, so nothing a collaborator adds just
+   * before survives the restore unrecorded; what was replaced is returned, to be
+   * kept as a version.
+   */
+  async restoreTo(
+    userId: string,
+    planId: string,
+    target: PlanDoc,
+  ): Promise<{ before: PlanDoc; after: PlanDoc }> {
+    await this.access.requirePlan(userId, planId, 'EDITOR');
+    let before: PlanDoc | null = null;
+    const after = await this.collab.withDocument(
+      planId,
+      (document) => {
+        const current = readPlanDoc(document).doc;
+        before = current;
+        applyOpsToDoc(document, restoreOps(current, target), ORIGIN_AGENT);
+        return this.documents.project(planId, document).doc;
+      },
+      { userId, batchId: randomUUID() },
+    );
+    if (before === null) throw new NotFoundException('Plan not found');
+    return { before, after };
+  }
+
   async layout(
     userId: string,
     planId: string,
@@ -628,6 +673,7 @@ export class PlansService {
     await this.access.requirePlan(userId, planId, 'EDITOR');
 
     const doc = await this.current(planId);
+    if (actor.apiKeyId != null) await recordVersion(this.prisma, planId, doc, 'before-agent', actor);
     const { positions, sizes, labels } = await layoutPlan(doc, {
       direction: input.direction,
       scope: input.scope,

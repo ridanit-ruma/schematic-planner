@@ -6,6 +6,7 @@ import { Problem, Spinner } from '@/components/ui/feedback';
 import { Pill, UNKNOWN_COLOR, paletteVar } from '@/components/ui/vocabulary';
 import { useT } from '@/i18n';
 import { plans, type PlanProvenance } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { SIDE_PANEL } from './side-panel';
 
 /**
@@ -23,6 +24,7 @@ export function SourcesPanel({ planId, onClose }: { planId: string; onClose: () 
 
   useEffect(() => {
     let live = true;
+    setError(null);
     plans
       .provenance(planId)
       .then((provenance) => live && setFound({ planId, provenance }))
@@ -64,9 +66,18 @@ export function SourcesPanel({ planId, onClose }: { planId: string; onClose: () 
                 <ul className="space-y-1">
                   {provenance.sources.map((source) => (
                     <li key={source.id} className="flex items-center gap-2 text-sm">
-                      {source.state === 'missing' ? (
-                        <span className="min-w-0 flex-1 truncate text-ink-muted line-through">
-                          {source.title ?? t.plan.sources.gone}
+                      {source.state === 'missing' || source.title === null ? (
+                        // A title the server held back is a plan this reader cannot open.
+                        <span
+                          className={cn(
+                            'min-w-0 flex-1 truncate text-ink-muted',
+                            source.state === 'missing' && 'line-through',
+                          )}
+                        >
+                          {source.title ??
+                            (source.state === 'missing'
+                              ? t.plan.sources.gone
+                              : t.plan.sources.elsewhere)}
                         </span>
                       ) : (
                         <Link
