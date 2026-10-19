@@ -1,8 +1,14 @@
-import { uniqueSlug, type PlanOp, type Position } from '@schematic/schema';
+import {
+  applyFilter,
+  isEmptyFilter,
+  uniqueSlug,
+  type PlanOp,
+  type Position,
+} from '@schematic/schema';
 import { ORIGIN_LAYOUT, ORIGIN_LOCAL, applyOps, commitLayout, readPlanDoc } from '@schematic/ydoc';
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router';
+import { useParams } from 'react-router';
 import { useStore } from 'zustand';
 
 import { useExplorer } from '@/components/explorer/explorer-context';
@@ -23,8 +29,9 @@ import { TitleBlock } from './TitleBlock';
 import { usePlanDocument } from './use-plan-document';
 import { usePlanUndo, useUndoKeys } from './use-undo';
 import { BoardView } from './views/BoardView';
-import { readView, type PlanView } from './views/plan-view';
 import { TableView } from './views/TableView';
+import { usePlanView } from './views/use-plan-view';
+import { ViewBar } from './views/ViewBar';
 
 export function PlanPage() {
   const { planId = '' } = useParams();
@@ -94,19 +101,25 @@ function PlanWorkspace({
   const [atNote, setAtNote] = useState(0);
   const [error, setError] = useState<unknown>(null);
 
-  // The view is in the address, so a link or a reload opens the plan the way it was being read.
-  const [params, setParams] = useSearchParams();
-  const view = readView(params.get('view'));
-  const showView = (next: PlanView): void =>
-    setParams(
-      (current) => {
-        if (next === 'canvas') current.delete('view');
-        else current.set('view', next);
-        return current;
-      },
-      { replace: true },
-    );
-  const planNodes = useMemo(() => nodes.map((node) => node.data.node), [nodes]);
+  const reading = usePlanView(words.plan?.project.id ?? null);
+  const { view } = reading;
+  const tags = useMemo(
+    () => [
+      ...new Set([
+        ...words.vocabulary.tags.map((tag) => tag.name),
+        ...nodes.flatMap((node) => node.data.node.tags),
+      ]),
+    ],
+    [nodes, words.vocabulary.tags],
+  );
+  const planNodes = useMemo(
+    () =>
+      applyFilter(
+        nodes.map((node) => node.data.node),
+        reading.filter,
+      ),
+    [nodes, reading.filter],
+  );
 
   const openNotes = useMemo(() => comments.filter((comment) => !comment.resolved), [comments]);
 
@@ -223,7 +236,7 @@ function PlanWorkspace({
         status={status}
         readOnly={false}
         view={view}
-        onView={showView}
+        onView={reading.showView}
         onAddNode={view === 'canvas' ? () => canvas.current?.addNode() : undefined}
         onArrange={() => void arrange()}
         onExport={() => void exportZip()}
@@ -236,19 +249,38 @@ function PlanWorkspace({
         }}
       />
 
-      {error !== null ? (
+      {(error ?? reading.saved.error) !== null ? (
         <div className="border-b border-rule px-3 py-2">
-          <Problem error={error} />
+          <Problem error={error ?? reading.saved.error} />
         </div>
       ) : null}
 
       <div className="relative flex min-h-0 flex-1">
-        <div className="min-w-0 flex-1">
-          {view === 'table' ? (
+        <div className="flex min-w-0 flex-1 flex-col">
+          {view !== 'canvas' ? (
+            <ViewBar
+              type={view}
+              filter={reading.filter}
+              onFilter={reading.setFilter}
+              vocabulary={words.vocabulary}
+              tags={tags}
+              views={reading.saved.views}
+              current={reading.current}
+              canSave={words.canEdit}
+              onOpen={reading.openSaved}
+              onSave={reading.saved.save}
+            />
+          ) : null}
+          {reading.pending ? (
+            <div className="grid flex-1 place-items-center">
+              <Spinner />
+            </div>
+          ) : view === 'table' ? (
             <TableView
               nodes={planNodes}
               vocabulary={words.vocabulary}
               selected={selected}
+              filtered={!isEmptyFilter(reading.filter)}
               onSelect={select}
             />
           ) : view === 'board' ? (
@@ -261,16 +293,18 @@ function PlanWorkspace({
               onApplyOps={apply}
             />
           ) : (
-            <PlanCanvas
-              connection={connection}
-              readOnly={false}
-              onApplyOps={apply}
-              undo={undo}
-              onAddComment={addComment}
-              handle={canvas}
-              words={words}
-              onError={setError}
-            />
+            <div className="min-h-0 flex-1">
+              <PlanCanvas
+                connection={connection}
+                readOnly={false}
+                onApplyOps={apply}
+                undo={undo}
+                onAddComment={addComment}
+                handle={canvas}
+                words={words}
+                onError={setError}
+              />
+            </div>
           )}
         </div>
         {selectedNode !== null ? (

@@ -8,26 +8,33 @@ import { cn } from '@/lib/utils';
 /**
  * Every node in the plan as a row, in the order the document holds them.
  *
- * Nothing is filtered out: this is the view to find whatever the drawing makes
- * hard to find. A row opens the same inspector the canvas does.
+ * Unfiltered, nothing is left out: this is the view to find whatever the
+ * drawing makes hard to find. A row opens the same inspector the canvas does.
  */
 export function TableView({
   nodes,
   vocabulary,
   selected,
+  filtered,
   onSelect,
 }: {
   nodes: readonly PlanNode[];
+  /** Whether a filter is narrowing the list, so an empty one says why. */
+  filtered: boolean;
   vocabulary: Vocabulary;
   selected: string | null;
   onSelect: (slug: string) => void;
 }) {
   const t = useT();
   if (nodes.length === 0) {
-    return <p className="p-6 text-sm text-ink-muted">{t.plan.views.empty}</p>;
+    return (
+      <p className="p-6 text-sm text-ink-muted">
+        {filtered ? t.plan.views.noMatch : t.plan.views.empty}
+      </p>
+    );
   }
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="min-h-0 flex-1 overflow-y-auto p-3">
       <Table>
         <THead>
           <TH>{t.plan.inspector.title}</TH>
