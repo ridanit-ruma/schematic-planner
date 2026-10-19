@@ -169,6 +169,22 @@ export const plan: Messages['plan'] = {
     rows: '列',
     columns: '欄',
   },
+  diagnostics: {
+    title: '檢查',
+    open: '檢查計畫',
+    hide: '隱藏檢查',
+    clean: (checked: number) => `沒有問題。已檢查 ${checked} 個節點與連線。`,
+    severity: { error: '錯誤', warning: '警告', info: '提示' },
+    rules: {
+      dependencyCycle: (names: string[]) =>
+        `這些節點循環依賴：${names.join('、')}。其中任何一個都無法先開始。`,
+      isolatedNode: (name: string) => `「${name}」沒有任何連線。`,
+      outsideFlow: (name: string) => `「${name}」是不在任何流程中的工作。`,
+      unknownKind: (name: string, kind: string) => `「${name}」的類型「${kind}」未在此專案中定義。`,
+      unknownStatus: (name: string, status: string) =>
+        `「${name}」的狀態「${status}」未在此專案中定義。`,
+    },
+  },
   titleBlock: {
     planSettings: '計畫設定',
     nextNote: '前往下一則未解決的留言',

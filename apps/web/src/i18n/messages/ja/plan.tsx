@@ -173,6 +173,23 @@ export const plan: Messages['plan'] = {
     rows: '行',
     columns: '列',
   },
+  diagnostics: {
+    title: '点検',
+    open: 'プランを点検',
+    hide: '点検を隠す',
+    clean: (checked: number) => `問題はありません。ノードと接続を ${checked} 件確認しました。`,
+    severity: { error: 'エラー', warning: '警告', info: '注記' },
+    rules: {
+      dependencyCycle: (names: string[]) =>
+        `互いに循環して依存しています：${names.join('、')}。どれも先に始めることができません。`,
+      isolatedNode: (name: string) => `「${name}」は何ともつながっていません。`,
+      outsideFlow: (name: string) => `「${name}」はどのフローにも入っていない作業です。`,
+      unknownKind: (name: string, kind: string) =>
+        `「${name}」の種類「${kind}」はこのプロジェクトで定義されていません。`,
+      unknownStatus: (name: string, status: string) =>
+        `「${name}」のステータス「${status}」はこのプロジェクトで定義されていません。`,
+    },
+  },
   titleBlock: {
     planSettings: 'プラン設定',
     nextNote: '次の未解決コメントへ',

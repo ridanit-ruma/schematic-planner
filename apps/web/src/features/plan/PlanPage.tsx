@@ -21,6 +21,7 @@ import { downloadExport, plans } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { useDocumentTitle } from '@/lib/use-document-title';
 import { usePlanVocabulary } from '@/lib/vocabulary';
+import { DiagnosticsPanel } from './DiagnosticsPanel';
 import { EdgeInspector } from './EdgeInspector';
 import { HistoryPanel } from './HistoryPanel';
 import { Inspector } from './Inspector';
@@ -89,7 +90,7 @@ function PlanWorkspace({
   const setVocabulary = connection.bound.setVocabulary;
   useEffect(() => setVocabulary(words.vocabulary), [setVocabulary, words.vocabulary]);
 
-  const { setCenter } = useReactFlow();
+  const { setCenter, fitView } = useReactFlow();
   const undo = usePlanUndo(doc);
   useUndoKeys(undo);
   // Adding a node happens on the canvas: it is made there and named on the card.
@@ -98,6 +99,13 @@ function PlanWorkspace({
   // One panel at a time on the right: opening the history puts down whatever
   // was selected, and selecting something puts the history away.
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [checksOpen, setChecksOpen] = useState(false);
+  // What the checks read: the document itself, since the canvas's edges leave
+  // out the containment it draws as boxes. Read again whenever the drawing changes.
+  const plan = useMemo(
+    () => (checksOpen ? readPlanDoc(doc).doc : null),
+    [checksOpen, doc, nodes, edges],
+  );
   /** Where the last jump stopped, so the button walks the notes rather than
       returning to the same one. */
   const [atNote, setAtNote] = useState(0);
@@ -247,6 +255,13 @@ function PlanWorkspace({
         historyOpen={historyOpen}
         onHistory={() => {
           setHistoryOpen((open) => !open);
+          setChecksOpen(false);
+          select(null);
+        }}
+        checksOpen={checksOpen}
+        onChecks={() => {
+          setChecksOpen((open) => !open);
+          setHistoryOpen(false);
           select(null);
         }}
       />
@@ -345,6 +360,18 @@ function PlanWorkspace({
             onApplyOps={apply}
             onStraighten={() => routeEdge(selectedEdgeData.id, [])}
             onClose={() => selectEdge(null)}
+          />
+        ) : checksOpen && plan !== null ? (
+          <DiagnosticsPanel
+            plan={plan}
+            vocabulary={words.vocabulary}
+            vocabularyLoaded={words.loaded}
+            onShow={(slug) => {
+              select(slug);
+              if (view === 'canvas')
+                void fitView({ nodes: [{ id: slug }], duration: 320, maxZoom: 1 });
+            }}
+            onClose={() => setChecksOpen(false)}
           />
         ) : historyOpen ? (
           <HistoryPanel

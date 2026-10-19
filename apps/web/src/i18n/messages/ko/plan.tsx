@@ -187,6 +187,23 @@ export const plan: Messages['plan'] = {
     rows: '행',
     columns: '열',
   },
+  diagnostics: {
+    title: '점검',
+    open: '플랜 점검',
+    hide: '점검 숨기기',
+    clean: (checked: number) => `문제가 없습니다. 노드와 연결 ${checked}개를 확인했습니다.`,
+    severity: { error: '오류', warning: '경고', info: '참고' },
+    rules: {
+      dependencyCycle: (names: string[]) =>
+        `서로 순환하며 의존합니다: ${names.join(', ')}. 이 중 어느 것도 먼저 시작할 수 없습니다.`,
+      isolatedNode: (name: string) => `${quoted(name, '이')} 아무것과도 연결되어 있지 않습니다.`,
+      outsideFlow: (name: string) => `${quoted(name, '이')} 어떤 흐름에도 속하지 않은 작업입니다.`,
+      unknownKind: (name: string, kind: string) =>
+        `${quoted(name)}의 종류 ${quoted(kind, '이')} 이 프로젝트에 정의되어 있지 않습니다.`,
+      unknownStatus: (name: string, status: string) =>
+        `${quoted(name)}의 상태 ${quoted(status, '이')} 이 프로젝트에 정의되어 있지 않습니다.`,
+    },
+  },
   titleBlock: {
     planSettings: '플랜 설정',
     nextNote: '다음 미해결 댓글로 이동',
