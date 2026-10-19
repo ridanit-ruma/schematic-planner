@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_VOCABULARY, planDocSchema, type Vocabulary } from '@schematic/schema';
+import {
+  DEFAULT_VOCABULARY,
+  planDocSchema,
+  validatePlan,
+  type Vocabulary,
+} from '@schematic/schema';
 
 import {
   matchingLine,
@@ -9,6 +14,7 @@ import {
   renderNext,
   renderNodes,
   renderPlan,
+  renderValidation,
   renderVocabulary,
 } from './render.js';
 
@@ -195,9 +201,7 @@ describe('renderNodes', () => {
       { slug: 'form', title: 'Form', body: 'Two fields and a button.', tags: ['ui'] },
       { slug: 'api', title: 'API' },
     ],
-    edges: [
-      { id: 'f1', kind: 'flows_to', from: 'form', to: 'api', via: 'click Sign in' },
-    ],
+    edges: [{ id: 'f1', kind: 'flows_to', from: 'form', to: 'api', via: 'click Sign in' }],
   });
 
   it('gives back what a node actually says', () => {
@@ -371,7 +375,12 @@ describe('renderFound', () => {
   };
 
   it('groups hits under the drawing they are in, with a link to it', () => {
-    const rendered = renderFound([hit, { ...hit, slug: 'login-form', title: 'Login form' }], 'login', url, 3);
+    const rendered = renderFound(
+      [hit, { ...hit, slug: 'login-form', title: 'Login form' }],
+      'login',
+      url,
+      3,
+    );
     expect(rendered).toContain('Sign in — acme / web / specs');
     expect(rendered).toContain('https://example.test/plan/p1');
     expect(rendered.match(/https:\/\/example.test/g)).toHaveLength(1);
@@ -415,8 +424,20 @@ describe('where a plan has got to', () => {
       title: 'Chain',
       updatedAt: '2026-01-01T00:00:00.000Z',
       nodes: [
-        { slug: 'first', kind: 'task', title: 'First', body: 'Do this one first.', status: statuses['first'] ?? 'planned' },
-        { slug: 'second', kind: 'task', title: 'Second', body: 'Then this.', status: statuses['second'] ?? 'planned' },
+        {
+          slug: 'first',
+          kind: 'task',
+          title: 'First',
+          body: 'Do this one first.',
+          status: statuses['first'] ?? 'planned',
+        },
+        {
+          slug: 'second',
+          kind: 'task',
+          title: 'Second',
+          body: 'Then this.',
+          status: statuses['second'] ?? 'planned',
+        },
         { slug: 'aside', kind: 'note', title: 'A remark', status: 'idea' },
         { slug: 'box', kind: 'group', title: 'A box', status: 'idea' },
       ],
@@ -578,7 +599,13 @@ describe('a project with its own statuses and kinds', () => {
     statuses: [
       ...DEFAULT_VOCABULARY.statuses,
       { id: 'in-review', name: 'In review', color: 'purple', category: 'active', archived: false },
-      { id: 'waiting', name: 'Waiting on legal', color: 'red', category: 'blocked', archived: false },
+      {
+        id: 'waiting',
+        name: 'Waiting on legal',
+        color: 'red',
+        category: 'blocked',
+        archived: false,
+      },
       { id: 'shipped', name: 'Shipped', color: 'green', category: 'done', archived: false },
       { id: 'retired', name: 'Retired', color: 'gray', category: 'todo', archived: true },
     ],
@@ -621,5 +648,43 @@ describe('a project with its own statuses and kinds', () => {
     expect(said).toContain('risk — Risk (not work)');
     expect(said).toContain('group — Group (a box around others)');
     expect(said).not.toContain('retired');
+  });
+});
+
+describe('renderValidation', () => {
+  const makeDoc = (
+    nodes: { slug: string; title?: string; kind?: string }[],
+    edges: { kind: string; from: string; to: string }[] = [],
+  ) =>
+    planDocSchema.parse({
+      id: 'p1',
+      title: 'Test plan',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: nodes.map((node) => ({ title: node.slug, ...node })),
+      edges: edges.map((edge) => ({ id: `${edge.kind}:${edge.from}>${edge.to}`, ...edge })),
+    });
+
+  it('says so when there is nothing to report', () => {
+    const doc = makeDoc([{ slug: 'a' }]);
+    expect(renderValidation(doc, validatePlan(doc, DEFAULT_VOCABULARY))).toBe(
+      'Checked 1 nodes and edges in Test plan. Nothing to report.',
+    );
+  });
+
+  it('writes each finding in English, worst first', () => {
+    const doc = makeDoc(
+      [{ slug: 'a', title: 'Alpha' }, { slug: 'b' }, { slug: 'lone', kind: 'epic' }],
+      [
+        { kind: 'depends_on', from: 'a', to: 'b' },
+        { kind: 'depends_on', from: 'b', to: 'a' },
+      ],
+    );
+    expect(renderValidation(doc, validatePlan(doc, DEFAULT_VOCABULARY)).split('\n')).toEqual([
+      'Checked 5 nodes and edges in Test plan: 1 error, 2 warnings, 0 notes.',
+      '',
+      'error   dependency cycle: a → b → a. None of these can be started first; remove one depends_on.',
+      'warning "lone" (lone) is connected to nothing.',
+      'warning "lone" (lone) has kind "epic", which the project does not define.',
+    ]);
   });
 });

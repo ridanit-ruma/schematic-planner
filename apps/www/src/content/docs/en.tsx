@@ -40,6 +40,10 @@ const TOOLS = [
     'next_task',
     'Where the plan has got to and what can be started now, each with its detail. It goes by what each status means rather than by its name: work already under way, work that is blocked, and work that is ready because everything before it is finished or given up.',
   ],
+  [
+    'validate',
+    'Checks a plan against rules that hold for any plan: a dependency cycle, a node connected to nothing, work outside every flow, and kinds or statuses the project does not define. It only reads; fixes go through apply_ops.',
+  ],
   ['plan_history', 'Who changed what, newest first — people and agents alike.'],
   ['create_project', 'A new project to draw in.'],
   [

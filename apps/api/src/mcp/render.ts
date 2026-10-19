@@ -6,8 +6,10 @@ import {
   isSettled,
   isWorkKind,
   topologicalOrder,
+  type Diagnostic,
   type PlanDoc,
   type TraceResult,
+  type Validation,
   type Vocabulary,
 } from '@schematic/schema';
 import type { NamedFolder } from './workspace-scope.js';
@@ -307,7 +309,13 @@ export function renderTrace(result: TraceResult): string {
   if (detail.length > 0) {
     lines.push('', '---', '');
     for (const node of detail) {
-      lines.push(`## ${node.title} (${node.slug})`, `status: ${node.status}`, '', node.body.trim(), '');
+      lines.push(
+        `## ${node.title} (${node.slug})`,
+        `status: ${node.status}`,
+        '',
+        node.body.trim(),
+        '',
+      );
     }
   }
 
@@ -413,7 +421,8 @@ export function renderHistory(entries: readonly PlanChange[]): string {
       batch = entry.batchId;
       lines.push('', `${whom(entry)} — ${entry.at.toISOString()}`);
     }
-    const detail = entry.detail === null || entry.detail === '' ? '' : ` — ${oneLine(entry.detail)}`;
+    const detail =
+      entry.detail === null || entry.detail === '' ? '' : ` — ${oneLine(entry.detail)}`;
     lines.push(`  ${entry.kind} ${entry.subject} (${entry.label})${detail}`);
   }
 
@@ -728,4 +737,40 @@ export function renderVocabulary(vocabulary: Vocabulary): string {
     lines.push(`Tags already in use: ${vocabulary.tags.map((one) => one.name).join(', ')}`);
   }
   return lines.join('\n');
+}
+
+/** What `validate` found, one line each, worst first. */
+export function renderValidation(doc: PlanDoc, result: Validation): string {
+  const titles = new Map(doc.nodes.map((node) => [node.slug, node.title]));
+  const name = (slug: string): string => `"${titles.get(slug) ?? slug}" (${slug})`;
+  const count = (severity: Diagnostic['severity'], noun: string): string => {
+    const n = result.diagnostics.filter((one) => one.severity === severity).length;
+    return `${n} ${noun}${n === 1 ? '' : 's'}`;
+  };
+  const head = `Checked ${result.checked} nodes and edges in ${doc.title}`;
+  if (result.diagnostics.length === 0) return `${head}. Nothing to report.`;
+
+  const line = (one: Diagnostic): string => {
+    const [first = ''] = one.nodes;
+    switch (one.rule) {
+      case 'dependency-cycle':
+        return (
+          `dependency cycle: ${[...one.nodes, first].join(' → ')}. ` +
+          'None of these can be started first; remove one depends_on.'
+        );
+      case 'isolated-node':
+        return `${name(first)} is connected to nothing.`;
+      case 'outside-flow':
+        return `${name(first)} is work outside every flow.`;
+      case 'unknown-kind':
+        return `${name(first)} has kind "${one.params['kind']}", which the project does not define.`;
+      case 'unknown-status':
+        return `${name(first)} has status "${one.params['status']}", which the project does not define.`;
+    }
+  };
+  return [
+    `${head}: ${count('error', 'error')}, ${count('warning', 'warning')}, ${count('info', 'note')}.`,
+    '',
+    ...result.diagnostics.map((one) => `${one.severity.padEnd(7)} ${line(one)}`),
+  ].join('\n');
 }

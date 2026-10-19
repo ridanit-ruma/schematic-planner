@@ -5,6 +5,7 @@ import {
   findNode,
   planOpsSchema,
   tracePlan,
+  validatePlan,
   type PlanDoc,
   type PlanOp,
 } from '@schematic/schema';
@@ -29,6 +30,7 @@ import {
   renderPlan,
   renderPlanList,
   renderTrace,
+  renderValidation,
   renderVocabulary,
   type Found,
 } from './render.js';
@@ -50,6 +52,7 @@ import {
   listProjectsShape,
   movePlanShape,
   nextTaskShape,
+  validateShape,
   planHistoryShape,
   readNodesShape,
   renameFolderShape,
@@ -391,9 +394,8 @@ export class McpFactory {
                   planTitle: doc.title,
                   workspace: target.slug,
                   project: project.slug,
-                  folder: summary.folderId === null
-                    ? null
-                    : (drawerName.get(summary.folderId) ?? null),
+                  folder:
+                    summary.folderId === null ? null : (drawerName.get(summary.folderId) ?? null),
                 };
 
                 for (const node of doc.nodes) {
@@ -441,6 +443,30 @@ export class McpFactory {
             this.vocabulary.ofPlan(planId),
           ]);
           return text(renderNext(doc, limit, vocabulary));
+        } catch (error) {
+          return failure(reason(error));
+        }
+      },
+    );
+
+    server.registerTool(
+      'validate',
+      {
+        title: 'Check a plan for structural problems',
+        description:
+          'Rules that hold for any plan: a depends_on cycle (error), a node connected to ' +
+          'nothing, work outside every flow when the plan has flows, and kinds or statuses the ' +
+          'project does not define. Read-only — it changes nothing; fix what it finds with ' +
+          'apply_ops. Worth calling after a large apply_ops.',
+        inputSchema: validateShape,
+      },
+      async ({ planId }) => {
+        try {
+          const [doc, vocabulary] = await Promise.all([
+            this.plans.read(identity.userId, planId),
+            this.vocabulary.ofPlan(planId),
+          ]);
+          return text(renderValidation(doc, validatePlan(doc, vocabulary)));
         } catch (error) {
           return failure(reason(error));
         }
