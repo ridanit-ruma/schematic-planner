@@ -139,6 +139,14 @@ export const plan: Messages['plan'] = {
     resolve: '標為已解決',
     deleteNote: '刪除留言',
   },
+  views: {
+    switchView: '檢視',
+    canvas: '畫布',
+    table: '表格',
+    board: '看板',
+    otherStatuses: '其他狀態',
+    empty: '尚無節點',
+  },
   titleBlock: {
     planSettings: '計畫設定',
     nextNote: '前往下一則未解決的留言',

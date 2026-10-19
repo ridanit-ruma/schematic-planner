@@ -142,6 +142,14 @@ export const plan = {
     resolve: 'Resolve',
     deleteNote: 'Delete note',
   },
+  views: {
+    switchView: 'View',
+    canvas: 'Canvas',
+    table: 'Table',
+    board: 'Board',
+    otherStatuses: 'Other statuses',
+    empty: 'No nodes yet',
+  },
   titleBlock: {
     planSettings: 'Plan settings',
     nextNote: 'Go to the next open note',

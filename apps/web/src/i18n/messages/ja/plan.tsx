@@ -142,6 +142,14 @@ export const plan: Messages['plan'] = {
     resolve: '解決',
     deleteNote: 'コメントを削除',
   },
+  views: {
+    switchView: '表示',
+    canvas: 'キャンバス',
+    table: '表',
+    board: 'ボード',
+    otherStatuses: 'その他のステータス',
+    empty: 'ノードはまだありません',
+  },
   titleBlock: {
     planSettings: 'プラン設定',
     nextNote: '次の未解決コメントへ',
