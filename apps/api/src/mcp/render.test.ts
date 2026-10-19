@@ -646,7 +646,7 @@ describe('renderValidation', () => {
   it('says so when there is nothing to report', () => {
     const doc = makeDoc([{ slug: 'a' }]);
     expect(renderValidation(doc, validatePlan(doc, DEFAULT_VOCABULARY))).toBe(
-      'Checked 1 nodes and edges in Test plan. Nothing to report.',
+      'Checked 1 node or edge in Test plan. Nothing to report.',
     );
   });
 
@@ -661,7 +661,7 @@ describe('renderValidation', () => {
     expect(renderValidation(doc, validatePlan(doc, DEFAULT_VOCABULARY)).split('\n')).toEqual([
       'Checked 5 nodes and edges in Test plan: 1 error, 2 warnings, 0 notes.',
       '',
-      'error   dependency cycle: a → b → a. None of these can be started first; remove one depends_on.',
+      'error   dependency cycle among a, b. None of these can be started first; remove one depends_on.',
       'warning "lone" (lone) is connected to nothing.',
       'warning "lone" (lone) has kind "epic", which the project does not define.',
     ]);

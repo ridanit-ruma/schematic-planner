@@ -58,6 +58,8 @@ export const plan: Messages['plan'] = {
     deleteNode: '노드 삭제',
     deleteNodeNote: '노드와 여기에 이어진 연결을 모두 삭제합니다.',
     due: '마감일',
+    dueUnreadable: (due: string) =>
+      `${quoted(due)}: 읽을 수 있는 날짜가 아닙니다. 날짜를 고르면 이 값을 대신합니다.`,
   },
   edgeInspector: {
     connection: '연결',
@@ -197,8 +199,8 @@ export const plan: Messages['plan'] = {
     clean: (checked: number) => `문제가 없습니다. 노드와 연결 ${checked}개를 확인했습니다.`,
     severity: { error: '오류', warning: '경고', info: '참고' },
     rules: {
-      dependencyCycle: (names: string) =>
-        `의존 순환: ${names}. 이 중 어느 것도 먼저 시작할 수 없습니다.`,
+      dependencyCycle: (names: string[]) =>
+        `서로 순환하며 의존합니다: ${names.join(', ')}. 이 중 어느 것도 먼저 시작할 수 없습니다.`,
       isolatedNode: (name: string) => `${quoted(name, '이')} 아무것과도 연결되어 있지 않습니다.`,
       outsideFlow: (name: string) => `${quoted(name, '이')} 어떤 흐름에도 속하지 않은 작업입니다.`,
       unknownKind: (name: string, kind: string) =>
@@ -215,6 +217,7 @@ export const plan: Messages['plan'] = {
     into: '이 플랜을 출처로 삼은 플랜',
     noneFrom: '이 플랜에는 출처가 없습니다. 에이전트가 set_plan_sources로 지정합니다.',
     noneInto: '이 플랜을 출처로 지정한 플랜이 없습니다.',
+    elsewhere: '열 수 없는 플랜',
     gone: '삭제된 플랜',
     state: { missing: '없음', moved: '다른 프로젝트에 있음' },
   },

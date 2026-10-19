@@ -121,6 +121,7 @@ describe('exportPlan', () => {
 describe('plan.md', () => {
   it('quotes D2 ids and escapes what would break a string', () => {
     expect(d2String('Say "hi"\nthen \\ leave')).toBe('"Say \\"hi\\" then \\\\ leave"');
+    expect(d2String('Budget ${cost}')).toBe('"Budget \\${cost}"');
   });
 
   it('draws nesting as containers and names a nested node by its path', () => {

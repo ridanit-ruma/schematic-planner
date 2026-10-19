@@ -14,7 +14,7 @@ function sentence(t: Messages, one: Diagnostic, title: (slug: string) => string)
   const [first = ''] = one.nodes;
   switch (one.rule) {
     case 'dependency-cycle':
-      return said.dependencyCycle([...one.nodes, first].map(title).join(' → '));
+      return said.dependencyCycle(one.nodes.map(title));
     case 'isolated-node':
       return said.isolatedNode(title(first));
     case 'outside-flow':
@@ -34,18 +34,30 @@ function sentence(t: Messages, one: Diagnostic, title: (slug: string) => string)
 export function DiagnosticsPanel({
   plan,
   vocabulary,
+  vocabularyLoaded,
   onShow,
   onClose,
 }: {
   /** The whole document: the canvas leaves out the containment it draws as boxes. */
   plan: Pick<PlanDoc, 'nodes' | 'edges'>;
   vocabulary: Vocabulary;
+  /**
+   * Whether `vocabulary` is the project's own yet. Until it is, the defaults
+   * stand in, and a kind or status the project does define would be reported
+   * as one it does not.
+   */
+  vocabularyLoaded: boolean;
   /** Takes the reader to a node the finding is about. */
   onShow: (slug: string) => void;
   onClose: () => void;
 }) {
   const t = useT();
-  const result = useMemo(() => validatePlan(plan, vocabulary), [plan, vocabulary]);
+  const result = useMemo(() => {
+    const found = validatePlan(plan, vocabulary);
+    if (vocabularyLoaded) return found;
+    const words = new Set(['unknown-kind', 'unknown-status']);
+    return { ...found, diagnostics: found.diagnostics.filter((one) => !words.has(one.rule)) };
+  }, [plan, vocabulary, vocabularyLoaded]);
   const titles = useMemo(() => new Map(plan.nodes.map((node) => [node.slug, node.title])), [plan]);
   const title = (slug: string): string => titles.get(slug) ?? slug;
 

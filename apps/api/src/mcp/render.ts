@@ -70,7 +70,9 @@ export function renderPlan(
       ...doc,
       nodes: doc.nodes.map((node) => ({ ...node, position: null, pinned: false, size: null })),
     };
-    return exportPlan(withoutPlacement, { canvas: false, planJson: false })
+    // No plan.md either: it repeats this same structure, and next_task is where
+    // an agent learns what is ready.
+    return exportPlan(withoutPlacement, { canvas: false, planJson: false, summary: false })
       .files.map((file) => `### ${file.path}\n\n${file.content}`)
       .join('\n\n');
   }
@@ -667,15 +669,17 @@ export function renderValidation(doc: PlanDoc, result: Validation): string {
     const n = result.diagnostics.filter((one) => one.severity === severity).length;
     return `${n} ${noun}${n === 1 ? '' : 's'}`;
   };
-  const head = `Checked ${result.checked} nodes and edges in ${doc.title}`;
+  const head = `Checked ${result.checked} ${result.checked === 1 ? 'node or edge' : 'nodes and edges'} in ${doc.title}`;
   if (result.diagnostics.length === 0) return `${head}. Nothing to report.`;
 
   const line = (one: Diagnostic): string => {
     const [first = ''] = one.nodes;
     switch (one.rule) {
       case 'dependency-cycle':
+        // The members of a cycle, not a path through it: which depends_on closes
+        // the loop is for get_plan to show.
         return (
-          `dependency cycle: ${[...one.nodes, first].join(' → ')}. ` +
+          `dependency cycle among ${one.nodes.join(', ')}. ` +
           'None of these can be started first; remove one depends_on.'
         );
       case 'isolated-node':

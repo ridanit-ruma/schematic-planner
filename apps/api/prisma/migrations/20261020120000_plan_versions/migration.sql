@@ -7,6 +7,7 @@ CREATE TABLE "PlanVersion" (
     "reason" TEXT NOT NULL,
     "label" TEXT,
     "doc" JSONB NOT NULL,
+    "nodeCount" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "PlanVersion_pkey" PRIMARY KEY ("id")
