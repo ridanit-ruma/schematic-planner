@@ -214,3 +214,25 @@ describe('upsert_edge on an edge somebody drew', () => {
     expect(edge?.labelPosition).toEqual({ x: 40, y: 40 });
   });
 });
+
+describe('upsert_edge naming an existing id for other ends', () => {
+  it('starts a new line rather than inheriting the old one’s drawing', () => {
+    const doc = applyPlanOps(makeDoc([{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }]), [
+      {
+        op: 'upsert_edge',
+        edge: {
+          id: 'line',
+          kind: 'flows_to',
+          from: 'a',
+          to: 'b',
+          waypoints: [{ x: 1, y: 2 }],
+          fromSide: 'top',
+        },
+      },
+    ]);
+    const [edge] = applyPlanOps(doc, [
+      { op: 'upsert_edge', edge: { id: 'line', kind: 'flows_to', from: 'c', to: 'b' } },
+    ]).edges;
+    expect(edge).toMatchObject({ from: 'c', waypoints: [], fromSide: null });
+  });
+});

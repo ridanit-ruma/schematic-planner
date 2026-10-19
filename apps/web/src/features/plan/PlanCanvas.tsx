@@ -17,8 +17,6 @@ import {
 import {
   CARD,
   isGroup,
-  normalizeEdge,
-  planEdgeInputSchema,
   type Box,
   type PlanOp,
   type Position,
@@ -1081,13 +1079,9 @@ export function PlanCanvas({
       onApplyOps([
         {
           op: 'upsert_edge',
-          edge: normalizeEdge(
-            planEdgeInputSchema.parse({
-              kind: 'flows_to',
-              from: params.source,
-              to: params.target,
-            }),
-          ),
+          // Only what a new line says: drawn again over an existing one, it
+          // keeps the bends and sides that one already had.
+          edge: { kind: 'flows_to', from: params.source, to: params.target },
         },
       ]);
     },
@@ -1531,7 +1525,7 @@ function union(rects: readonly Rect[]): Rect {
 function containsOp(from: string, to: string): PlanOp {
   return {
     op: 'upsert_edge',
-    edge: normalizeEdge(planEdgeInputSchema.parse({ kind: 'contains', from, to })),
+    edge: { kind: 'contains', from, to },
   };
 }
 

@@ -1,4 +1,4 @@
-import { normalizeEdge, planEdgeInputSchema, uniqueSlug, type PlanOp } from '@schematic/schema';
+import { uniqueSlug, type PlanOp } from '@schematic/schema';
 
 import { t } from '@/i18n';
 import type { Rect } from './group-drop';
@@ -98,6 +98,6 @@ export function groupOps(
 function contains(from: string, to: string): PlanOp {
   return {
     op: 'upsert_edge',
-    edge: normalizeEdge(planEdgeInputSchema.parse({ kind: 'contains', from, to })),
+    edge: { kind: 'contains', from, to },
   };
 }

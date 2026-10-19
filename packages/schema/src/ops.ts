@@ -235,7 +235,10 @@ export function applyPlanOps(doc: PlanDoc, ops: readonly PlanOp[]): PlanDoc {
       case 'upsert_edge': {
         const edge: PlanEdge = normalizeEdge(op.edge);
         const before = edges.get(edge.id);
-        edges.set(edge.id, before === undefined ? edge : { ...edge, ...drawing(before, op.edge) });
+        // The same line, not merely the same id: an explicit id naming another
+        // pair of ends is a new line, with nothing of the old one's drawing.
+        const same = before !== undefined && before.from === edge.from && before.to === edge.to;
+        edges.set(edge.id, same ? { ...edge, ...drawing(before, op.edge) } : edge);
         break;
       }
       case 'delete_edge': {
