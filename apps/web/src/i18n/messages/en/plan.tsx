@@ -171,6 +171,24 @@ export const plan = {
     rows: 'Rows',
     columns: 'Columns',
   },
+  diagnostics: {
+    title: 'Checks',
+    open: 'Check the plan',
+    hide: 'Hide checks',
+    clean: (checked: number) =>
+      `Nothing to report. Checked ${checked} ${checked === 1 ? 'node or edge' : 'nodes and edges'}.`,
+    severity: { error: 'Error', warning: 'Warning', info: 'Note' },
+    rules: {
+      dependencyCycle: (names: string) =>
+        `Dependency cycle: ${names}. None of these can be started first.`,
+      isolatedNode: (name: string) => `“${name}” is connected to nothing.`,
+      outsideFlow: (name: string) => `“${name}” is work outside every flow.`,
+      unknownKind: (name: string, kind: string) =>
+        `“${name}” has the kind “${kind}”, which this project does not define.`,
+      unknownStatus: (name: string, status: string) =>
+        `“${name}” has the status “${status}”, which this project does not define.`,
+    },
+  },
   titleBlock: {
     planSettings: 'Plan settings',
     nextNote: 'Go to the next open note',

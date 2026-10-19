@@ -7,6 +7,7 @@ import {
   Download,
   Grid3x3,
   Link2,
+  ListChecks,
   MessageSquare,
   MoreHorizontal,
   Plus,
@@ -55,6 +56,8 @@ export function TitleBlock({
   onShare,
   historyOpen,
   onHistory,
+  checksOpen,
+  onChecks,
   settingsHref,
 }: {
   title: string;
@@ -80,6 +83,9 @@ export function TitleBlock({
   onShare: () => void;
   historyOpen: boolean;
   onHistory: () => void;
+  /** The structural checks; not offered without `onChecks`. */
+  checksOpen?: boolean;
+  onChecks?: () => void;
   /** Where the plan's own settings live. The title is the way in. */
   settingsHref?: string;
 }) {
@@ -169,6 +175,12 @@ export function TitleBlock({
           <Clock className="size-3.5 text-ink-faint" />
           {historyOpen ? t.plan.titleBlock.hideHistory : t.plan.titleBlock.history}
         </DropdownAction>
+        {onChecks === undefined ? null : (
+          <DropdownAction onSelect={onChecks}>
+            <ListChecks className="size-3.5 text-ink-faint" />
+            {checksOpen === true ? t.plan.diagnostics.hide : t.plan.diagnostics.open}
+          </DropdownAction>
+        )}
         <DropdownAction onSelect={onExport}>
           <Download className="size-3.5 text-ink-faint" />
           {t.plan.titleBlock.export}

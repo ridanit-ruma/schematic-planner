@@ -163,6 +163,21 @@ export const plan: Messages['plan'] = {
     rows: '行',
     columns: '列',
   },
+  diagnostics: {
+    title: '检查',
+    open: '检查计划',
+    hide: '隐藏检查',
+    clean: (checked: number) => `没有问题。已检查 ${checked} 个节点和连接。`,
+    severity: { error: '错误', warning: '警告', info: '提示' },
+    rules: {
+      dependencyCycle: (names: string) => `依赖循环：${names}。其中任何一个都无法先开始。`,
+      isolatedNode: (name: string) => `“${name}”没有任何连接。`,
+      outsideFlow: (name: string) => `“${name}”是不在任何流程中的工作。`,
+      unknownKind: (name: string, kind: string) => `“${name}”的类型“${kind}”未在此项目中定义。`,
+      unknownStatus: (name: string, status: string) =>
+        `“${name}”的状态“${status}”未在此项目中定义。`,
+    },
+  },
   titleBlock: {
     planSettings: '计划设置',
     nextNote: '转到下一条未解决的评论',
