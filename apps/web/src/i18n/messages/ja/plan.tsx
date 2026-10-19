@@ -48,6 +48,8 @@ export const plan: Messages['plan'] = {
     deleteNode: 'ノードを削除',
     deleteNodeNote: 'ノードと、そこにつながるすべての接続を削除します。',
     due: '期限',
+    dueUnreadable: (due: string) =>
+      `「${due}」は読み取れる日付ではありません。日付を選ぶとこの値に置き換わります。`,
   },
   edgeInspector: {
     connection: '接続',
@@ -182,8 +184,8 @@ export const plan: Messages['plan'] = {
     clean: (checked: number) => `問題はありません。ノードと接続を ${checked} 件確認しました。`,
     severity: { error: 'エラー', warning: '警告', info: '注記' },
     rules: {
-      dependencyCycle: (names: string) =>
-        `依存の循環：${names}。どれも先に始めることができません。`,
+      dependencyCycle: (names: string[]) =>
+        `互いに循環して依存しています：${names.join('、')}。どれも先に始めることができません。`,
       isolatedNode: (name: string) => `「${name}」は何ともつながっていません。`,
       outsideFlow: (name: string) => `「${name}」はどのフローにも入っていない作業です。`,
       unknownKind: (name: string, kind: string) =>
@@ -200,6 +202,7 @@ export const plan: Messages['plan'] = {
     into: 'このプランを出典とするプラン',
     noneFrom: 'このプランには出典がありません。エージェントが set_plan_sources で設定します。',
     noneInto: 'このプランを出典に挙げているプランはありません。',
+    elsewhere: '開けないプラン',
     gone: '削除されたプラン',
     state: { missing: '見つかりません', moved: '別のプロジェクトにあります' },
   },

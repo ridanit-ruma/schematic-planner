@@ -72,9 +72,11 @@ const NOTE_LIFT = 13;
 
 /** A node's box on the canvas, for a line that meets a side somebody chose. */
 function boxOf(node: ReturnType<typeof useInternalNode>) {
-  if (node === undefined) return null;
+  // Unmeasured, it has no sides yet: the handle React Flow gives stands in until it does.
+  const { width, height } = node?.measured ?? {};
+  if (node === undefined || width === undefined || height === undefined) return null;
   const { x, y } = node.internals.positionAbsolute;
-  return { x, y, width: node.measured.width ?? 0, height: node.measured.height ?? 0 };
+  return { x, y, width, height };
 }
 
 function Line({

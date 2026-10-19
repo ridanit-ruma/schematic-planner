@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { slugSchema, vocabularyValueSchema, type PlanNode } from './plan.js';
+import { uniqueSlug } from './slug.js';
 import { isWorkKind, statusOf, type Vocabulary, type VocabularyStatus } from './vocabulary.js';
 
 /** The views a project can save. The canvas is always there and is not saved. */
@@ -8,6 +9,9 @@ export const SAVED_VIEW_TYPES = ['table', 'board', 'timeline', 'matrix'] as cons
 export type SavedViewType = (typeof SAVED_VIEW_TYPES)[number];
 
 export const SAVED_VIEWS_MAX = 50;
+
+/** Ids a saved view may not take, because `?view=` already means a built-in view by them. */
+export const BUILT_IN_VIEW_IDS: readonly string[] = ['canvas', ...SAVED_VIEW_TYPES];
 
 /**
  * Which nodes a view shows. Within one list any value matches; across lists
@@ -37,7 +41,7 @@ export const DEFAULT_MATRIX_AXES: MatrixAxes = { rows: 'kind', columns: 'status'
 
 export const savedViewSchema = z.object({
   /** Addressed by `?view=`, so it is a slug, and never one of the built-in view names. */
-  id: slugSchema.refine((id) => !['canvas', ...SAVED_VIEW_TYPES].includes(id), {
+  id: slugSchema.refine((id) => !BUILT_IN_VIEW_IDS.includes(id), {
     message: 'that name belongs to a built-in view',
   }),
   /** The project's own words, shown as written. */
@@ -64,12 +68,28 @@ export const savedViewsSchema = z.object({
 export type SavedViews = z.infer<typeof savedViewsSchema>;
 
 /**
- * A project's saved views as stored. Null is a project nobody has saved one in;
- * anything that does not parse reads as none rather than failing the plan.
+ * A project's saved views as stored. Null is a project nobody has saved one in.
+ *
+ * Read one view at a time, so one that no longer parses costs only itself: a
+ * view saved as `timeline` before that became a built-in view's name is given
+ * another id rather than taking every other view in the project down with it,
+ * and anything else unreadable is left out.
  */
 export function readSavedViews(stored: unknown, version: number): SavedViews {
-  const parsed = savedViewListSchema.safeParse(stored ?? []);
-  return { version, views: parsed.success ? parsed.data : [] };
+  const views: SavedView[] = [];
+  const taken = new Set(BUILT_IN_VIEW_IDS);
+  for (const raw of Array.isArray(stored) ? stored : []) {
+    const id: unknown = (raw as { id?: unknown } | null)?.id;
+    const renamed =
+      typeof id === 'string' && taken.has(id)
+        ? { ...(raw as object), id: uniqueSlug(`${id}-view`, taken) }
+        : raw;
+    const parsed = savedViewSchema.safeParse(renamed);
+    if (!parsed.success || views.length >= SAVED_VIEWS_MAX) continue;
+    taken.add(parsed.data.id);
+    views.push(parsed.data);
+  }
+  return { version, views };
 }
 
 export function isEmptyFilter(filter: ViewFilter): boolean {

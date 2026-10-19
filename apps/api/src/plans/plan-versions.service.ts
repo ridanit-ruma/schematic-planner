@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { planDocFromSnapshot, restoreOps, type PlanDoc } from '@schematic/schema';
+import { planDocFromSnapshot, type PlanDoc } from '@schematic/schema';
 
 import { PrismaService } from '../common/prisma.service.js';
 import { AccessService } from '../workspaces/access.service.js';
@@ -42,7 +42,7 @@ export class PlanVersionsService {
         label: true,
         apiKeyId: true,
         createdAt: true,
-        doc: true,
+        nodeCount: true,
         user: { select: { id: true, name: true, avatarUrl: true } },
       },
     });
@@ -53,9 +53,7 @@ export class PlanVersionsService {
       label: row.label,
       at: row.createdAt,
       by: row.user === null ? null : { ...row.user, agent: agents.get(row.apiKeyId ?? '') ?? null },
-      nodes: Array.isArray((row.doc as { nodes?: unknown }).nodes)
-        ? (row.doc as { nodes: unknown[] }).nodes.length
-        : 0,
+      nodes: row.nodeCount,
     }));
   }
 
@@ -69,6 +67,8 @@ export class PlanVersionsService {
       { userId },
       label,
     );
+    // Only an agent's batch is ever folded into an earlier version.
+    if (id === null) throw new Error('A saved version is always kept');
     return { id };
   }
 
@@ -80,9 +80,9 @@ export class PlanVersionsService {
     });
     if (version === null) throw new NotFoundException('Version not found');
 
-    const current = await this.plans.current(planId);
-    const target = planDocFromSnapshot(version.doc, current);
-    await recordVersion(this.prisma, planId, current, 'before-restore', { userId });
-    return this.plans.applyOps(userId, planId, restoreOps(current, target), { userId });
+    const target = planDocFromSnapshot(version.doc, await this.plans.current(planId));
+    const { before, after } = await this.plans.restoreTo(userId, planId, target);
+    await recordVersion(this.prisma, planId, before, 'before-restore', { userId });
+    return after;
   }
 }

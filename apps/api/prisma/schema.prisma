@@ -305,6 +305,8 @@ model PlanVersion {
   label    String?
   /// The read model at that moment: a PlanDoc.
   doc      Json
+  /// How many nodes `doc` holds, so a list need not load every document.
+  nodeCount Int    @default(0)
 
   createdAt DateTime @default(now())
 

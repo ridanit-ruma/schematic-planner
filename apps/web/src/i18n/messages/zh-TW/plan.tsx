@@ -47,6 +47,7 @@ export const plan: Messages['plan'] = {
     deleteNode: '刪除節點',
     deleteNodeNote: '刪除這個節點，以及與它相連的所有連接。',
     due: '截止日期',
+    dueUnreadable: (due: string) => `「${due}」不是可讀取的日期；選擇一個日期會取代它。`,
   },
   edgeInspector: {
     connection: '連接',
@@ -179,7 +180,8 @@ export const plan: Messages['plan'] = {
     clean: (checked: number) => `沒有問題。已檢查 ${checked} 個節點與連線。`,
     severity: { error: '錯誤', warning: '警告', info: '提示' },
     rules: {
-      dependencyCycle: (names: string) => `依賴循環：${names}。其中任何一個都無法先開始。`,
+      dependencyCycle: (names: string[]) =>
+        `這些節點循環依賴：${names.join('、')}。其中任何一個都無法先開始。`,
       isolatedNode: (name: string) => `「${name}」沒有任何連線。`,
       outsideFlow: (name: string) => `「${name}」是不在任何流程中的工作。`,
       unknownKind: (name: string, kind: string) => `「${name}」的類型「${kind}」未在此專案中定義。`,
@@ -195,6 +197,7 @@ export const plan: Messages['plan'] = {
     into: '以本計畫為來源的計畫',
     noneFrom: '本計畫沒有來源。由代理透過 set_plan_sources 設定。',
     noneInto: '沒有計畫把本計畫列為來源。',
+    elsewhere: '你無法開啟的計畫',
     gone: '已刪除的計畫',
     state: { missing: '缺失', moved: '在其他專案中' },
   },

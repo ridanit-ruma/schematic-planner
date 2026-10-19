@@ -13,9 +13,13 @@ import { oneLine } from './inline.js';
 /** How many ready tasks `plan.md` lists before saying how many it left out. */
 export const READY_LISTED = 24;
 
-/** A D2 string literal: quotes and backslashes escaped, everything on one line. */
+/**
+ * A D2 string literal: everything on one line, with quotes, backslashes and `$`
+ * escaped — D2 substitutes `${name}` inside double quotes, and a title like
+ * `Budget ${cost}` would stop the whole diagram compiling.
+ */
 export function d2String(text: string): string {
-  return `"${oneLine(text).replace(/[\\"]/g, (char) => `\\${char}`)}"`;
+  return `"${oneLine(text).replace(/[\\"$]/g, (char) => `\\${char}`)}"`;
 }
 
 /** A Markdown table cell: one line, and a pipe that would end the cell escaped. */
