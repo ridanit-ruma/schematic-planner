@@ -7,6 +7,7 @@ import {
   Download,
   FileSymlink,
   Grid3x3,
+  History,
   Link2,
   ListChecks,
   MessageSquare,
@@ -61,6 +62,8 @@ export function TitleBlock({
   onChecks,
   sourcesOpen,
   onSources,
+  versionsOpen,
+  onVersions,
   settingsHref,
 }: {
   title: string;
@@ -92,6 +95,9 @@ export function TitleBlock({
   /** What the plan was written from; not offered without `onSources`. */
   sourcesOpen?: boolean;
   onSources?: () => void;
+  /** Earlier states of the plan to go back to; not offered without `onVersions`. */
+  versionsOpen?: boolean;
+  onVersions?: () => void;
   /** Where the plan's own settings live. The title is the way in. */
   settingsHref?: string;
 }) {
@@ -181,6 +187,12 @@ export function TitleBlock({
           <Clock className="size-3.5 text-ink-faint" />
           {historyOpen ? t.plan.titleBlock.hideHistory : t.plan.titleBlock.history}
         </DropdownAction>
+        {onVersions === undefined ? null : (
+          <DropdownAction onSelect={onVersions}>
+            <History className="size-3.5 text-ink-faint" />
+            {versionsOpen === true ? t.plan.versions.hide : t.plan.versions.open}
+          </DropdownAction>
+        )}
         {onChecks === undefined ? null : (
           <DropdownAction onSelect={onChecks}>
             <ListChecks className="size-3.5 text-ink-faint" />

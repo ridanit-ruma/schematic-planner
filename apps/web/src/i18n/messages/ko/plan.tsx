@@ -216,6 +216,22 @@ export const plan: Messages['plan'] = {
     gone: '삭제된 플랜',
     state: { missing: '없음', moved: '다른 프로젝트에 있음' },
   },
+  versions: {
+    title: '버전',
+    open: '버전',
+    hide: '버전 숨기기',
+    save: '저장',
+    labelHint: '이 버전의 이름 (선택)',
+    saved: '저장한 버전',
+    beforeAgent: '에이전트가 바꾸기 전',
+    beforeRestore: '복원하기 전',
+    restore: '복원',
+    restoreTitle: '이 버전으로 복원할까요?',
+    restoreDescription:
+      '플랜이 그때 상태로 돌아가며, 모두에게 그대로 보입니다. 지금 상태를 먼저 버전으로 남겨 두므로 되돌릴 수 있습니다.',
+    empty:
+      '아직 없습니다. 에이전트가 플랜을 바꾸기 전마다, 그리고 누군가 저장할 때마다 버전이 남습니다.',
+  },
   titleBlock: {
     planSettings: '플랜 설정',
     nextNote: '다음 미해결 댓글로 이동',

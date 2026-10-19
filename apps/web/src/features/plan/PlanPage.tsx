@@ -27,6 +27,7 @@ import { HistoryPanel } from './HistoryPanel';
 import { Inspector } from './Inspector';
 import { PlanCanvas, type PlanCanvasHandle } from './PlanCanvas';
 import { SourcesPanel } from './SourcesPanel';
+import { VersionsPanel } from './VersionsPanel';
 import { TitleBlock } from './TitleBlock';
 import { usePlanDocument } from './use-plan-document';
 import { usePlanUndo, useUndoKeys } from './use-undo';
@@ -99,7 +100,7 @@ function PlanWorkspace({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   // One panel at a time on the right: opening the history puts down whatever
   // was selected, and selecting something puts the history away.
-  const [panel, setPanel] = useState<'history' | 'checks' | 'sources' | null>(null);
+  const [panel, setPanel] = useState<'history' | 'checks' | 'sources' | 'versions' | null>(null);
   const toggle = (which: NonNullable<typeof panel>) => (): void => {
     setPanel((open) => (open === which ? null : which));
     select(null);
@@ -262,6 +263,8 @@ function PlanWorkspace({
         onChecks={toggle('checks')}
         sourcesOpen={panel === 'sources'}
         onSources={toggle('sources')}
+        versionsOpen={panel === 'versions'}
+        onVersions={toggle('versions')}
       />
 
       {(error ?? reading.saved.error) !== null ? (
@@ -371,6 +374,8 @@ function PlanWorkspace({
             }}
             onClose={() => setPanel(null)}
           />
+        ) : panel === 'versions' ? (
+          <VersionsPanel planId={planId} canEdit={words.canEdit} onClose={() => setPanel(null)} />
         ) : panel === 'sources' ? (
           <SourcesPanel planId={planId} onClose={() => setPanel(null)} />
         ) : panel === 'history' ? (

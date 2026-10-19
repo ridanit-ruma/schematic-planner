@@ -202,6 +202,21 @@ export const plan: Messages['plan'] = {
     gone: '削除されたプラン',
     state: { missing: '見つかりません', moved: '別のプロジェクトにあります' },
   },
+  versions: {
+    title: 'バージョン',
+    open: 'バージョン',
+    hide: 'バージョンを隠す',
+    save: '保存',
+    labelHint: 'このバージョンの名前（任意）',
+    saved: '保存したバージョン',
+    beforeAgent: 'エージェントの変更前',
+    beforeRestore: '復元の前',
+    restore: '復元',
+    restoreTitle: 'このバージョンに復元しますか？',
+    restoreDescription:
+      'プランはその時点の状態に戻り、全員にそのまま表示されます。現在の状態は先にバージョンとして残すので、元に戻せます。',
+    empty: 'まだありません。エージェントが変更する前と、誰かが保存したときにバージョンが残ります。',
+  },
   titleBlock: {
     planSettings: 'プラン設定',
     nextNote: '次の未解決コメントへ',

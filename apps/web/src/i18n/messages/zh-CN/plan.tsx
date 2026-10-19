@@ -192,6 +192,21 @@ export const plan: Messages['plan'] = {
     gone: '已删除的计划',
     state: { missing: '缺失', moved: '在其他项目中' },
   },
+  versions: {
+    title: '版本',
+    open: '版本',
+    hide: '隐藏版本',
+    save: '保存',
+    labelHint: '为此版本命名（可选）',
+    saved: '已保存的版本',
+    beforeAgent: '代理修改之前',
+    beforeRestore: '恢复之前',
+    restore: '恢复',
+    restoreTitle: '恢复到这个版本？',
+    restoreDescription:
+      '计划会回到当时的样子，所有人都会看到。当前状态会先保存为一个版本，因此可以撤销。',
+    empty: '还没有版本。每次代理修改之前，以及有人保存时，都会保留一个版本。',
+  },
   titleBlock: {
     planSettings: '计划设置',
     nextNote: '转到下一条未解决的评论',

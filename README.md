@@ -1223,7 +1223,7 @@ Still missing:
 - [x] A node's detail as a block editor several people write in at once
 - [ ] GitHub and Google sign-in callbacks
 - [ ] Email: invitations, address changes, password reset
-- [ ] Plan version history and restore
+- [x] Plan version history and restore
 
 ## Non-goals
 

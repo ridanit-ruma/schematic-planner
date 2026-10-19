@@ -257,3 +257,36 @@ export function applyPlanOps(doc: PlanDoc, ops: readonly PlanOp[]): PlanDoc {
   }
   return parsed.data;
 }
+
+/**
+ * The operations that turn `current` back into `target`: everything `target`
+ * has is written in full, and everything it lacks is deleted.
+ *
+ * A restore is an ordinary write rather than a swap of the document, so it
+ * reaches every open canvas, is recorded in the history like any edit, and can
+ * itself be restored over.
+ */
+export function restoreOps(
+  current: Pick<PlanDoc, 'nodes' | 'edges' | 'comments'>,
+  target: Pick<PlanDoc, 'title' | 'description' | 'nodes' | 'edges' | 'comments'>,
+): PlanOp[] {
+  const keep = <T>(items: readonly T[], key: (item: T) => string) => new Set(items.map(key));
+  const nodes = keep(target.nodes, (node) => node.slug);
+  const edges = keep(target.edges, (edge) => edge.id);
+  const comments = keep(target.comments, (comment) => comment.id);
+  return [
+    { op: 'set_plan', title: target.title, description: target.description },
+    ...current.comments
+      .filter((comment) => !comments.has(comment.id))
+      .map((comment): PlanOp => ({ op: 'delete_comment', id: comment.id })),
+    ...current.edges
+      .filter((edge) => !edges.has(edge.id))
+      .map((edge): PlanOp => ({ op: 'delete_edge', id: edge.id, kind: edge.kind })),
+    ...current.nodes
+      .filter((node) => !nodes.has(node.slug))
+      .map((node): PlanOp => ({ op: 'delete_node', slug: node.slug })),
+    ...target.nodes.map((node): PlanOp => ({ op: 'upsert_node', node })),
+    ...target.edges.map((edge): PlanOp => ({ op: 'upsert_edge', edge })),
+    ...target.comments.map((comment): PlanOp => ({ op: 'upsert_comment', comment })),
+  ];
+}

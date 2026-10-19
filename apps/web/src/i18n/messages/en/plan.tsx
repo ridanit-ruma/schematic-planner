@@ -203,6 +203,22 @@ export const plan = {
     gone: 'A deleted plan',
     state: { missing: 'Missing', moved: 'In another project' },
   },
+  versions: {
+    title: 'Versions',
+    open: 'Versions',
+    hide: 'Hide versions',
+    save: 'Save',
+    labelHint: 'Name this version (optional)',
+    saved: 'Saved',
+    beforeAgent: "Before an agent's change",
+    beforeRestore: 'Before a restore',
+    restore: 'Restore',
+    restoreTitle: 'Restore this version?',
+    restoreDescription:
+      'The plan goes back to how it was then, for everyone. How it is now is kept as a version first, so this can be undone.',
+    empty:
+      'None yet. One is kept before every change an agent makes, and whenever somebody saves one.',
+  },
   titleBlock: {
     planSettings: 'Plan settings',
     nextNote: 'Go to the next open note',
