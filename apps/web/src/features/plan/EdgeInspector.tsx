@@ -1,4 +1,10 @@
-import { planEdgeKinds, type PlanEdge, type PlanOp } from '@schematic/schema';
+import {
+  EDGE_SIDES,
+  planEdgeKinds,
+  type EdgeSide,
+  type PlanEdge,
+  type PlanOp,
+} from '@schematic/schema';
 import { Spline, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -6,6 +12,16 @@ import { Field, Input } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
 import { useT, type Messages } from '@/i18n';
 import { SIDE_PANEL } from './side-panel';
+
+/** What a side picker shows for "leave it to the drawing". */
+const AUTO = 'auto';
+
+function sideOptions(t: Messages) {
+  return [AUTO, ...EDGE_SIDES].map((side) => ({
+    value: side as EdgeSide | typeof AUTO,
+    label: t.plan.edgeInspector.sides[side as EdgeSide | typeof AUTO],
+  }));
+}
 
 const kindOptions = (t: Messages) =>
   planEdgeKinds.map((kind) => ({
@@ -39,7 +55,9 @@ export function EdgeInspector({
   onClose: () => void;
 }) {
   const t = useT();
-  const change = (next: Partial<Pick<PlanEdge, 'kind' | 'label' | 'via' | 'carries'>>): void => {
+  const change = (
+    next: Partial<Pick<PlanEdge, 'kind' | 'label' | 'via' | 'carries' | 'fromSide' | 'toSide'>>,
+  ): void => {
     const merged = {
       kind: next.kind ?? edge.kind,
       label: next.label === undefined ? edge.label : next.label,
@@ -47,6 +65,8 @@ export function EdgeInspector({
       carries: next.carries === undefined ? edge.carries : next.carries,
       labelPosition: edge.labelPosition,
       waypoints: edge.waypoints,
+      fromSide: next.fromSide === undefined ? edge.fromSide : next.fromSide,
+      toSide: next.toSide === undefined ? edge.toSide : next.toSide,
     };
 
     onApplyOps([
@@ -124,6 +144,28 @@ export function EdgeInspector({
             )}
           </Field>
         )}
+
+        <div className="grid grid-cols-2 gap-3">
+          {(['fromSide', 'toSide'] as const).map((end) => (
+            <Field
+              key={end}
+              label={
+                end === 'fromSide' ? t.plan.edgeInspector.leaves : t.plan.edgeInspector.arrives
+              }
+            >
+              {(id) => (
+                <Select
+                  id={id}
+                  value={edge[end] ?? AUTO}
+                  options={sideOptions(t)}
+                  disabled={readOnly}
+                  onChange={(side) => change({ [end]: side === AUTO ? null : side })}
+                />
+              )}
+            </Field>
+          ))}
+        </div>
+        <p className="-mt-2 text-xs text-ink-faint">{t.plan.edgeInspector.sidesHint}</p>
       </div>
 
       {!readOnly && (

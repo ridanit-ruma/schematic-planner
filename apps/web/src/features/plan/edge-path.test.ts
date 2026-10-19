@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { labelAt, legalize, midpoint, pathOf, routeOf, type Side } from './edge-path';
+import {
+  labelAt,
+  legalize,
+  midpoint,
+  pathOf,
+  routeOf,
+  sidePoint,
+  sideRoute,
+  type Side,
+} from './edge-path';
 
 const source = { x: 0, y: 0 };
 const target = { x: 400, y: 200 };
@@ -321,5 +330,40 @@ describe('where the writing on a line sits', () => {
   it('answers for a line with nothing to sit on', () => {
     expect(labelAt([{ x: 7, y: 9 }])).toEqual({ x: 7, y: 9 });
     expect(labelAt([])).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe('sideRoute', () => {
+  it('leaves and arrives square along the chosen sides', () => {
+    const route = sideRoute({ x: 0, y: 0 }, 'bottom', { x: 100, y: 200 }, 'top');
+    expect(route[1]).toEqual({ x: 0, y: 12 });
+    expect(route[route.length - 2]).toEqual({ x: 100, y: 188 });
+    for (let i = 1; i < route.length; i += 1) {
+      const a = route[i - 1]!;
+      const b = route[i]!;
+      expect(a.x === b.x || a.y === b.y).toBe(true);
+    }
+  });
+
+  it('turns once when one end is vertical and the other horizontal', () => {
+    expect(sideRoute({ x: 0, y: 0 }, 'bottom', { x: 100, y: 100 }, 'left')).toEqual([
+      { x: 0, y: 0 },
+      { x: 0, y: 12 },
+      { x: 0, y: 100 },
+      { x: 88, y: 100 },
+      { x: 100, y: 100 },
+    ]);
+  });
+
+  it('goes round both boxes rather than through them when it has to come back', () => {
+    const lower = { x: 0, y: 200, width: 100, height: 50 };
+    const upper = { x: 0, y: 0, width: 100, height: 50 };
+    const route = sideRoute({ x: 50, y: 250 }, 'bottom', { x: 50, y: 0 }, 'top', [lower, upper]);
+    expect(Math.max(...route.map((point) => point.x))).toBeGreaterThan(100);
+  });
+
+  it('finds the middle of a side', () => {
+    expect(sidePoint({ x: 10, y: 20, width: 100, height: 40 }, 'top')).toEqual({ x: 60, y: 20 });
+    expect(sidePoint({ x: 10, y: 20, width: 100, height: 40 }, 'right')).toEqual({ x: 110, y: 40 });
   });
 });

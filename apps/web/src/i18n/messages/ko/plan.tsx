@@ -71,6 +71,11 @@ export const plan: Messages['plan'] = {
     labelHint: '선 위에 표시됩니다. 선택 사항입니다.',
     straighten: '직선으로',
     removeConnection: '연결 삭제',
+    leaves: '나가는 면',
+    arrives: '들어오는 면',
+    sidesHint:
+      '면을 지정한 선은 두 면 사이를 직각으로 그리며, 구부릴 수 없습니다. 자동으로 두면 구부릴 수 있습니다.',
+    sides: { auto: '자동', top: '위', right: '오른쪽', bottom: '아래', left: '왼쪽' },
   },
   history: {
     title: '기록',

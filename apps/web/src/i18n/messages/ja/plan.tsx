@@ -61,6 +61,10 @@ export const plan: Messages['plan'] = {
     labelHint: '線の上に表示されます。任意。',
     straighten: 'まっすぐにする',
     removeConnection: '接続を削除',
+    leaves: '出る辺',
+    arrives: '入る辺',
+    sidesHint: '辺を指定した線はその間を直角に描き、曲げられません。自動に戻すと曲げられます。',
+    sides: { auto: '自動', top: '上', right: '右', bottom: '下', left: '左' },
   },
   history: {
     title: '履歴',

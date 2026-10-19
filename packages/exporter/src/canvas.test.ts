@@ -37,6 +37,34 @@ describe('toCanvas', () => {
     expect(edge).toMatchObject({ fromNode: 'database', toNode: 'auth' });
   });
 
+  it('keeps the sides a person chose, turned round with a dependency', () => {
+    const doc = planDocSchema.parse({
+      id: 'p',
+      title: 'P',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: [
+        { slug: 'a', title: 'A' },
+        { slug: 'b', title: 'B' },
+      ],
+      edges: [
+        { id: 'f', kind: 'flows_to', from: 'a', to: 'b', fromSide: 'bottom', toSide: 'top' },
+        { id: 'd', kind: 'depends_on', from: 'a', to: 'b', fromSide: 'left' },
+      ],
+    });
+    const graph = buildPlanGraph(doc);
+    const { edges } = toCanvas(doc, graph, assignPaths(doc, graph).fileOf);
+    expect(edges.find((edge) => edge.id === 'f')).toMatchObject({
+      fromSide: 'bottom',
+      toSide: 'top',
+    });
+    expect(edges.find((edge) => edge.id === 'd')).toMatchObject({
+      fromNode: 'b',
+      fromSide: 'right',
+      toNode: 'a',
+      toSide: 'left',
+    });
+  });
+
   it('draws containment top to bottom', () => {
     const edge = canvasOf().edges.find((e) => e.id === 'contains:foundation>auth');
     expect(edge).toMatchObject({ fromSide: 'bottom', toSide: 'top' });

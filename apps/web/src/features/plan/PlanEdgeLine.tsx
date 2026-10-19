@@ -1,6 +1,7 @@
 import {
   BaseEdge,
   EdgeLabelRenderer,
+  useInternalNode,
   useReactFlow,
   useStore,
   type EdgeProps,
@@ -16,6 +17,8 @@ import {
   movableSegments,
   pathOf,
   routeOf,
+  sidePoint,
+  sideRoute,
   type Side,
 } from './edge-path';
 import { snapValue } from './snap';
@@ -67,8 +70,17 @@ const NOTE_LIFT = 13;
 
 
 
+/** A node's box on the canvas, for a line that meets a side somebody chose. */
+function boxOf(node: ReturnType<typeof useInternalNode>) {
+  if (node === undefined) return null;
+  const { x, y } = node.internals.positionAbsolute;
+  return { x, y, width: node.measured.width ?? 0, height: node.measured.height ?? 0 };
+}
+
 function Line({
   id,
+  source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -101,18 +113,34 @@ function Line({
   } | null>(null);
 
   const edgeData = data?.edge;
+  // A dependency is drawn from what it needs, so its chosen sides swap ends with it.
+  const reversed = edgeData?.kind === 'depends_on';
+  const sourceChosen = (reversed ? edgeData?.toSide : edgeData?.fromSide) ?? null;
+  const targetChosen = (reversed ? edgeData?.fromSide : edgeData?.toSide) ?? null;
+  const sided = sourceChosen !== null || targetChosen !== null;
+  const sourceBox = boxOf(useInternalNode(source));
+  const targetBox = boxOf(useInternalNode(target));
   const ends = {
-    source: { x: sourceX, y: sourceY },
-    target: { x: targetX, y: targetY },
-    sourceSide: sourcePosition as Side,
-    targetSide: targetPosition as Side,
+    source:
+      sourceChosen !== null && sourceBox !== null
+        ? sidePoint(sourceBox, sourceChosen)
+        : { x: sourceX, y: sourceY },
+    target:
+      targetChosen !== null && targetBox !== null
+        ? sidePoint(targetBox, targetChosen)
+        : { x: targetX, y: targetY },
+    sourceSide: sourceChosen ?? (sourcePosition as Side),
+    targetSide: targetChosen ?? (targetPosition as Side),
   };
 
   // One router, always. Drawing an untouched line with React Flow's smooth-step
   // and a touched one with this meant the shape changed the instant a line was
-  // grabbed, for no reason the person dragging it could see.
+  // grabbed, for no reason the person dragging it could see. A line whose sides
+  // somebody chose is the exception: it is drawn square between them, unbent.
   const chain: readonly Position[] = held ?? edgeData?.waypoints ?? [];
-  const route = routeOf(ends.source, ends.sourceSide, ends.target, ends.targetSide, chain);
+  const route = sided
+    ? sideRoute(ends.source, ends.sourceSide, ends.target, ends.targetSide, [sourceBox, targetBox])
+    : routeOf(ends.source, ends.sourceSide, ends.target, ends.targetSide, chain);
   const path = pathOf(route);
 
   /*
@@ -203,7 +231,7 @@ function Line({
         `stroke` rather than `all` so only the run itself takes the pointer and
         not the box around it.
       */}
-      {!editable
+      {!editable || sided
         ? null
         : movableSegments(route).map((run) => (
             <path

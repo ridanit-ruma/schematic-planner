@@ -58,6 +58,11 @@ export const plan = {
     labelHint: 'Drawn on the line. Optional.',
     straighten: 'Straighten',
     removeConnection: 'Remove connection',
+    leaves: 'Leaves from',
+    arrives: 'Arrives at',
+    sidesHint:
+      'A line with a chosen side is drawn square between them and cannot be bent. Automatic gives the bends back.',
+    sides: { auto: 'Automatic', top: 'Top', right: 'Right', bottom: 'Bottom', left: 'Left' },
   },
   history: {
     title: 'History',

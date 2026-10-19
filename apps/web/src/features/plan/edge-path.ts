@@ -173,6 +173,67 @@ function clamped(corners: readonly Position[], from: Position, to: Position): Po
   }));
 }
 
+/** Where a side of a box is, at its middle. */
+export function sidePoint(
+  box: { x: number; y: number; width: number; height: number },
+  side: Side,
+): Position {
+  switch (side) {
+    case 'left':
+      return { x: box.x, y: box.y + box.height / 2 };
+    case 'right':
+      return { x: box.x + box.width, y: box.y + box.height / 2 };
+    case 'top':
+      return { x: box.x + box.width / 2, y: box.y };
+    case 'bottom':
+      return { x: box.x + box.width / 2, y: box.y + box.height };
+  }
+}
+
+/**
+ * A square route between two sides somebody chose, which may be the top or the
+ * bottom. The bendable router above assumes a line leaves rightwards and
+ * arrives leftwards; a line with chosen sides is drawn this simpler way
+ * instead, and is not bent by hand.
+ */
+export function sideRoute(
+  source: Position,
+  sourceSide: Side,
+  target: Position,
+  targetSide: Side,
+  /** The two boxes, so a line that has to come back on itself goes round them. */
+  boxes: readonly ({ x: number; y: number; width: number; height: number } | null)[] = [],
+): Position[] {
+  const out = outward(sourceSide);
+  const into = outward(targetSide);
+  const from = { x: source.x + out.x * STUB, y: source.y + out.y * STUB };
+  const to = { x: target.x + into.x * STUB, y: target.y + into.y * STUB };
+  const leavesVertically = out.x === 0;
+  const arrivesVertically = into.x === 0;
+  const known = boxes.filter((box) => box !== null);
+  let elbow: Position[];
+  if (leavesVertically && arrivesVertically && (to.y - from.y) * out.y < 0) {
+    // Leaving away from where it is going: round the right of both boxes.
+    const side = Math.max(from.x, to.x, ...known.map((box) => box.x + box.width)) + BYPASS;
+    elbow = [{ x: side, y: from.y }, { x: side, y: to.y }];
+  } else if (!leavesVertically && !arrivesVertically && (to.x - from.x) * out.x < 0) {
+    // The same, sideways: round the bottom of both boxes.
+    const below = Math.max(from.y, to.y, ...known.map((box) => box.y + box.height)) + BYPASS;
+    elbow = [{ x: from.x, y: below }, { x: to.x, y: below }];
+  } else if (leavesVertically && arrivesVertically) {
+    const midY = Math.round((from.y + to.y) / 2);
+    elbow = [{ x: from.x, y: midY }, { x: to.x, y: midY }];
+  } else if (leavesVertically) {
+    elbow = [{ x: from.x, y: to.y }];
+  } else if (arrivesVertically) {
+    elbow = [{ x: to.x, y: from.y }];
+  } else {
+    const midX = Math.round((from.x + to.x) / 2);
+    elbow = [{ x: midX, y: from.y }, { x: midX, y: to.y }];
+  }
+  return dedupe([source, from, ...elbow, to, target]);
+}
+
 /** Two corners in the same place are not a corner. */
 function dedupe(points: readonly Position[]): Position[] {
   const kept: Position[] = [];
