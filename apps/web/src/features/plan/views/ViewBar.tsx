@@ -1,8 +1,11 @@
 import {
   EMPTY_FILTER,
+  MATRIX_AXES,
   isEmptyFilter,
   pickable,
   uniqueSlug,
+  type MatrixAxes,
+  type MatrixAxis,
   type SavedView,
   type SavedViewType,
   type ViewFilter,
@@ -21,6 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Field, Input } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
+import { Select } from '@/components/ui/select';
 import { kindName, statusName } from '@/components/ui/vocabulary';
 import { useT } from '@/i18n';
 import type { ViewsEdit } from '@/lib/saved-views';
@@ -28,8 +32,7 @@ import type { ViewsEdit } from '@/lib/saved-views';
 const toggle = (values: string[], value: string): string[] =>
   values.includes(value) ? values.filter((one) => one !== value) : [...values, value];
 
-const sameFilter = (a: ViewFilter, b: ViewFilter): boolean =>
-  JSON.stringify(a) === JSON.stringify(b);
+const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 /**
  * What a table or a board shows, and the views the project has saved.
@@ -40,6 +43,8 @@ export function ViewBar({
   type,
   filter,
   onFilter,
+  axes,
+  onAxes,
   vocabulary,
   tags,
   views,
@@ -51,6 +56,9 @@ export function ViewBar({
   type: SavedViewType;
   filter: ViewFilter;
   onFilter: (filter: ViewFilter) => void;
+  /** What a matrix lays out along each side. */
+  axes: MatrixAxes;
+  onAxes: (axes: MatrixAxes) => void;
   vocabulary: Vocabulary;
   /** Every tag there is to filter by: the project's, and any a node carries that it does not list. */
   tags: readonly string[];
@@ -64,7 +72,9 @@ export function ViewBar({
 }) {
   const t = useT();
   const [naming, setNaming] = useState<string | null>(null);
-  const edited = current !== null && !sameFilter(current.filter, filter);
+  const edited =
+    current !== null &&
+    !(same(current.filter, filter) && (type !== 'matrix' || same(current.axes, axes)));
   const count =
     filter.kinds.length +
     filter.statuses.length +
@@ -73,7 +83,7 @@ export function ViewBar({
 
   const saveAs = async (name: string): Promise<void> => {
     const id = uniqueSlug(name, ['canvas', 'table', 'board', ...views.map((view) => view.id)]);
-    const view: SavedView = { id, name, type, filter };
+    const view: SavedView = { id, name, type, filter, axes };
     await onSave((list) => [...list, view]);
     onOpen(view);
   };
@@ -112,7 +122,7 @@ export function ViewBar({
               <DropdownAction
                 onSelect={() =>
                   void onSave((list) =>
-                    list.map((view) => (view.id === current.id ? { ...view, filter } : view)),
+                    list.map((view) => (view.id === current.id ? { ...view, filter, axes } : view)),
                   )
                 }
               >
@@ -194,6 +204,8 @@ export function ViewBar({
         </DropdownAction>
       </DropdownMenu>
 
+      {type === 'matrix' ? <AxisPickers axes={axes} onAxes={onAxes} /> : null}
+
       <label className="relative min-w-40 flex-1 sm:max-w-64">
         <span className="sr-only">{t.plan.views.search}</span>
         <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-ink-faint" />
@@ -243,5 +255,35 @@ export function ViewBar({
         </form>
       </Modal>
     </div>
+  );
+}
+
+/** Two pickers, rows and columns; choosing for one side what the other has swaps them. */
+function AxisPickers({ axes, onAxes }: { axes: MatrixAxes; onAxes: (axes: MatrixAxes) => void }) {
+  const t = useT();
+  const names: Record<MatrixAxis, string> = {
+    status: t.plan.inspector.status,
+    kind: t.plan.inspector.kind,
+    tag: t.plan.inspector.tags,
+  };
+  const options = MATRIX_AXES.map((axis) => ({ value: axis, label: names[axis] }));
+  const pick = (side: keyof MatrixAxes) => (axis: MatrixAxis) => {
+    const other = side === 'rows' ? 'columns' : 'rows';
+    onAxes({ ...axes, [side]: axis, ...(axes[other] === axis && { [other]: axes[side] }) });
+  };
+  return (
+    <>
+      {(['rows', 'columns'] as const).map((side) => (
+        <label key={side} className="flex items-center gap-1.5 text-xs text-ink-muted">
+          {t.plan.views[side]}
+          <Select
+            value={axes[side]}
+            options={options}
+            onChange={pick(side)}
+            className="h-7 w-28 py-0 text-xs"
+          />
+        </label>
+      ))}
+    </>
   );
 }

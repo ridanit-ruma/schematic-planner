@@ -1,4 +1,10 @@
-import { EMPTY_FILTER, type SavedView, type ViewFilter } from '@schematic/schema';
+import {
+  DEFAULT_MATRIX_AXES,
+  EMPTY_FILTER,
+  type MatrixAxes,
+  type SavedView,
+  type ViewFilter,
+} from '@schematic/schema';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 
@@ -21,10 +27,14 @@ export function usePlanView(projectId: string | null) {
 
   // Opening a saved view puts its filter on screen; changing it afterwards is an edit to save or not.
   const [filter, setFilter] = useState<ViewFilter>(EMPTY_FILTER);
+  const [axes, setAxes] = useState<MatrixAxes>(DEFAULT_MATRIX_AXES);
   const [opened, setOpened] = useState<string | null>(null);
   if ((current?.id ?? null) !== opened) {
     setOpened(current?.id ?? null);
-    if (current !== null) setFilter(current.filter);
+    if (current !== null) {
+      setFilter(current.filter);
+      setAxes(current.axes);
+    }
   }
 
   const go = (next: string | null): void =>
@@ -43,6 +53,8 @@ export function usePlanView(projectId: string | null) {
     current,
     filter,
     setFilter,
+    axes,
+    setAxes,
     saved,
     showView: (next: PlanView) => go(next === 'canvas' ? null : next),
     /** A saved view, or the view on screen unsaved when null. */

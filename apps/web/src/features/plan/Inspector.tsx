@@ -1,4 +1,5 @@
 import {
+  dueDate,
   isSlug,
   kindOf,
   pickable,
@@ -245,6 +246,25 @@ export function Inspector({
             )}
           </Field>
         </div>
+
+        {/* Kept in `meta.due`, the frontmatter key the export already writes
+            back, so a date set here is a date an agent and a vault can read. */}
+        <Field label={t.plan.inspector.due}>
+          {(id) => (
+            <Input
+              id={id}
+              type="date"
+              value={dueDate(node) ?? ''}
+              disabled={readOnly}
+              onChange={(event) => {
+                const { due: _previous, ...rest } = node.meta;
+                patch({
+                  meta: event.target.value === '' ? rest : { ...rest, due: event.target.value },
+                });
+              }}
+            />
+          )}
+        </Field>
 
         <Field label={t.plan.inspector.tags} hint={readOnly ? undefined : t.vocab.tags.hint}>
           {(id) => (

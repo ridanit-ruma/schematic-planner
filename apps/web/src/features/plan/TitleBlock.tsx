@@ -1,9 +1,11 @@
 import type { Presence } from '@schematic/ydoc';
 import {
+  CalendarDays,
   Clock,
   Columns3,
   Crosshair,
   Download,
+  Grid3x3,
   Link2,
   MessageSquare,
   MoreHorizontal,
@@ -182,7 +184,13 @@ export function TitleBlock({
   );
 }
 
-const VIEW_ICONS = { canvas: Workflow, table: Table2, board: Columns3 } as const;
+const VIEW_ICONS = {
+  canvas: Workflow,
+  table: Table2,
+  board: Columns3,
+  timeline: CalendarDays,
+  matrix: Grid3x3,
+} as const;
 
 /** One button per view, pressed for the one on screen. */
 function ViewSwitch({ view, onView }: { view: PlanView; onView: (view: PlanView) => void }) {
