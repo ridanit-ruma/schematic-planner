@@ -1,6 +1,6 @@
 import { topologicalOrder } from './graph.js';
 import type { PlanDoc } from './plan.js';
-import { isWorkKind, kindOf, statusOf, type Vocabulary } from './vocabulary.js';
+import { GROUP_KIND, isWorkKind, kindOf, statusOf, type Vocabulary } from './vocabulary.js';
 
 export const DIAGNOSTIC_SEVERITIES = ['error', 'warning', 'info'] as const;
 export type DiagnosticSeverity = (typeof DIAGNOSTIC_SEVERITIES)[number];
@@ -61,8 +61,9 @@ export function validatePlan(
     doc.edges.filter((edge) => edge.kind === 'flows_to').flatMap((edge) => [edge.from, edge.to]),
   );
   for (const node of doc.nodes) {
-    // A plan of one node has nothing to connect it to.
-    if (doc.nodes.length > 1 && !touched.has(node.slug)) {
+    // A plan of one node has nothing to connect it to, and an empty group is a
+    // box waiting for what goes in it.
+    if (doc.nodes.length > 1 && !touched.has(node.slug) && node.kind !== GROUP_KIND) {
       found.push({ severity: 'warning', rule: 'isolated-node', nodes: [node.slug], params: {} });
     } else if (
       flowing.size > 0 &&
