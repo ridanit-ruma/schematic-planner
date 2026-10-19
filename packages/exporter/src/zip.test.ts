@@ -23,6 +23,7 @@ describe('exportPlanToZip', () => {
       'README.md',
       'plan.canvas',
       'plan.json',
+      'plan.md',
     ]);
 
     const auth = await zip.file('01-Foundation/02-Auth.md')?.async('string');

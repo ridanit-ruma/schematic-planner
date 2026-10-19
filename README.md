@@ -426,6 +426,7 @@ plan-export.zip
 │   └── 02-Auth.md
 ├── 02-Editor/
 │   └── Canvas.md          no prefix: nothing here depends on anything here
+├── plan.md                one document: where the work stands, what is ready, a D2 diagram
 ├── plan.canvas            Obsidian Canvas, original coordinates preserved
 └── plan.json              machine-readable source of the same content
 ```
@@ -453,7 +454,7 @@ way and a reader should not have to check which.
 
 **A node cannot take a name the bundle has already written.** The overview is
 `README.md`, every container owns the `README.md` of its own directory, and the
-root also holds `plan.canvas` and `plan.json`. A zip keeps the last entry written
+root also holds `plan.md`, `plan.canvas` and `plan.json`. A zip keeps the last entry written
 for a path and says nothing, so a node titled `README` used to replace the
 overview silently. Those names are reserved per level now.
 

@@ -298,6 +298,12 @@ describe('what the bundle writes itself', () => {
     expect(paths.filter((path) => path === 'README.md')).toHaveLength(1);
   });
 
+  it('leaves plan.md to the summary', () => {
+    const paths = exportPlan(named('plan')).files.map((file) => file.path);
+    expect(paths.filter((path) => path === 'plan.md')).toHaveLength(1);
+    expect(paths).toContain('plan (mine).md');
+  });
+
   it('keeps the overview intact when one is tried', () => {
     expect(fileAt(named('README'), 'README.md')).toContain('## Contents');
   });
