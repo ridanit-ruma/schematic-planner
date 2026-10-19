@@ -70,7 +70,9 @@ export function renderPlan(
       ...doc,
       nodes: doc.nodes.map((node) => ({ ...node, position: null, pinned: false, size: null })),
     };
-    return exportPlan(withoutPlacement, { canvas: false, planJson: false })
+    // No plan.md either: it repeats this same structure, and next_task is where
+    // an agent learns what is ready.
+    return exportPlan(withoutPlacement, { canvas: false, planJson: false, summary: false })
       .files.map((file) => `### ${file.path}\n\n${file.content}`)
       .join('\n\n');
   }

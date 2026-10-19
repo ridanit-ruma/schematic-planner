@@ -903,8 +903,12 @@ export class McpFactory {
       },
       async ({ planId }) => {
         try {
-          const doc = await this.plans.read(identity.userId, planId);
-          const bundle = exportPlan(doc, { canvas: false, planJson: false });
+          const [doc, vocabulary] = await Promise.all([
+            this.plans.read(identity.userId, planId),
+            this.vocabulary.ofPlan(planId),
+          ]);
+          // The project's words, or plan.md would count its statuses by the defaults.
+          const bundle = exportPlan(doc, { canvas: false, planJson: false, vocabulary });
           const warnings =
             bundle.warnings.length === 0
               ? ''
