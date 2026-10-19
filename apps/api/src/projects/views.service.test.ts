@@ -41,6 +41,7 @@ const blocked: SavedView = {
   name: 'Blocked',
   type: 'board',
   filter: { kinds: [], statuses: ['blocked'], tags: [], text: '' },
+  axes: { rows: 'kind', columns: 'status' },
 };
 
 describe('ViewsService', () => {

@@ -29,7 +29,9 @@ import { TitleBlock } from './TitleBlock';
 import { usePlanDocument } from './use-plan-document';
 import { usePlanUndo, useUndoKeys } from './use-undo';
 import { BoardView } from './views/BoardView';
+import { MatrixView } from './views/MatrixView';
 import { TableView } from './views/TableView';
+import { TimelineView } from './views/TimelineView';
 import { usePlanView } from './views/use-plan-view';
 import { ViewBar } from './views/ViewBar';
 
@@ -262,6 +264,8 @@ function PlanWorkspace({
               type={view}
               filter={reading.filter}
               onFilter={reading.setFilter}
+              axes={reading.axes}
+              onAxes={reading.setAxes}
               vocabulary={words.vocabulary}
               tags={tags}
               views={reading.saved.views}
@@ -291,6 +295,21 @@ function PlanWorkspace({
               readOnly={false}
               onSelect={select}
               onApplyOps={apply}
+            />
+          ) : view === 'timeline' ? (
+            <TimelineView
+              nodes={planNodes}
+              vocabulary={words.vocabulary}
+              selected={selected}
+              onSelect={select}
+            />
+          ) : view === 'matrix' ? (
+            <MatrixView
+              nodes={planNodes}
+              vocabulary={words.vocabulary}
+              axes={reading.axes}
+              selected={selected}
+              onSelect={select}
             />
           ) : (
             <div className="min-h-0 flex-1">

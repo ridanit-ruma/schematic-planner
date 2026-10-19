@@ -5,7 +5,11 @@ import {
   DEFAULT_VOCABULARY,
   EMPTY_FILTER,
   applyFilter,
+  DEFAULT_MATRIX_AXES,
   boardColumns,
+  dueDate,
+  matrixCells,
+  timelineBuckets,
   readSavedViews,
   savedViewListSchema,
   savedViewSchema,
@@ -106,9 +110,76 @@ describe('saved views', () => {
     expect(savedViewListSchema.safeParse([view, view]).success).toBe(false);
   });
 
+  it('renames a view stored under what is now a built-in name, and keeps the rest', () => {
+    const read = readSavedViews(
+      [
+        { id: 'timeline', name: 'Timeline', type: 'table' },
+        { id: 'x' },
+        { id: 'blocked-work', name: 'Blocked', type: 'board' },
+      ],
+      3,
+    );
+    expect(read.views.map((one) => [one.id, one.name])).toEqual([
+      ['timeline-view', 'Timeline'],
+      ['blocked-work', 'Blocked'],
+    ]);
+  });
+
   it('reads nothing stored, or something broken, as no views', () => {
     expect(readSavedViews(null, 0)).toEqual({ version: 0, views: [] });
     expect(readSavedViews([{ id: 'x' }], 4)).toEqual({ version: 4, views: [] });
     expect(readSavedViews([view], 2).views[0]?.filter).toEqual(EMPTY_FILTER);
+  });
+});
+
+describe('timelineBuckets', () => {
+  it('groups work by the month it is due, earliest first, undated last', () => {
+    const doc = makeDoc([
+      { slug: 'late', meta: { due: '2026-12-01' } },
+      { slug: 'soon-b', meta: { due: '2026-10-30' } },
+      { slug: 'soon-a', meta: { due: '2026-10-02T09:00:00Z' } },
+      { slug: 'nonsense', meta: { due: '2026-02-30' } },
+      { slug: 'never' },
+      { slug: 'remark', kind: 'note', meta: { due: '2026-10-01' } },
+    ]);
+    expect(
+      timelineBuckets(doc.nodes, DEFAULT_VOCABULARY).map((bucket) => [
+        bucket.month,
+        bucket.nodes.map((node) => node.slug),
+      ]),
+    ).toEqual([
+      ['2026-10', ['soon-a', 'soon-b']],
+      ['2026-12', ['late']],
+      [null, ['nonsense', 'never']],
+    ]);
+  });
+
+  it('reads only real dates', () => {
+    expect(dueDate({ meta: { due: '2026-10-19' } })).toBe('2026-10-19');
+    expect(dueDate({ meta: { due: 'next week' } })).toBeNull();
+    expect(dueDate({ meta: {} })).toBeNull();
+  });
+});
+
+describe('matrixCells', () => {
+  it('lays nodes out by two properties, a node with two tags in both rows', () => {
+    const doc = makeDoc([
+      { slug: 'a', kind: 'feature', status: 'done', tags: ['auth', 'web'] },
+      { slug: 'b', kind: 'task', status: 'blocked' },
+    ]);
+    const matrix = matrixCells(doc.nodes, DEFAULT_VOCABULARY, { rows: 'tag', columns: 'status' });
+    expect(matrix.rows).toEqual(['auth', 'web', null]);
+    const at = (row: string | null, column: string) =>
+      matrix.cells[matrix.rows.indexOf(row)]?.[matrix.columns.indexOf(column)]?.map((n) => n.slug);
+    expect(at('auth', 'done')).toEqual(['a']);
+    expect(at('web', 'done')).toEqual(['a']);
+    expect(at(null, 'blocked')).toEqual(['b']);
+  });
+
+  it('keeps a value the project never defined as its own row', () => {
+    const doc = makeDoc([{ slug: 'a', kind: 'epic' }]);
+    expect(matrixCells(doc.nodes, DEFAULT_VOCABULARY, DEFAULT_MATRIX_AXES).rows.at(-1)).toBe(
+      'epic',
+    );
   });
 });

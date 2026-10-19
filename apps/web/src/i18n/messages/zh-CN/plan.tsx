@@ -46,6 +46,8 @@ export const plan: Messages['plan'] = {
     nothingYet: '暂无内容',
     deleteNode: '删除节点',
     deleteNodeNote: '删除此节点及其上的所有连接。',
+    due: '截止日期',
+    dueUnreadable: (due: string) => `“${due}”不是可读取的日期；选择一个日期会替换它。`,
   },
   edgeInspector: {
     connection: '连接',
@@ -155,6 +157,12 @@ export const plan: Messages['plan'] = {
     viewName: '名称',
     noMatch: '没有符合此筛选的节点',
     filterCount: (count: number) => `筛选 · ${count}`,
+    timeline: '时间线',
+    matrix: '矩阵',
+    noDate: '无日期',
+    noTag: '无标签',
+    rows: '行',
+    columns: '列',
   },
   titleBlock: {
     planSettings: '计划设置',

@@ -47,6 +47,9 @@ export const plan: Messages['plan'] = {
     nothingYet: 'まだ何もありません',
     deleteNode: 'ノードを削除',
     deleteNodeNote: 'ノードと、そこにつながるすべての接続を削除します。',
+    due: '期限',
+    dueUnreadable: (due: string) =>
+      `「${due}」は読み取れる日付ではありません。日付を選ぶとこの値に置き換わります。`,
   },
   edgeInspector: {
     connection: '接続',
@@ -163,6 +166,12 @@ export const plan: Messages['plan'] = {
     viewName: '名前',
     noMatch: 'このフィルターに一致するノードはありません',
     filterCount: (count: number) => `フィルター · ${count}`,
+    timeline: 'タイムライン',
+    matrix: 'マトリクス',
+    noDate: '日付なし',
+    noTag: 'タグなし',
+    rows: '行',
+    columns: '列',
   },
   titleBlock: {
     planSettings: 'プラン設定',

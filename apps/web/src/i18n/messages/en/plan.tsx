@@ -44,6 +44,9 @@ export const plan = {
     nothingYet: 'Nothing yet',
     deleteNode: 'Delete node',
     deleteNodeNote: 'Removes the node and every connection attached to it.',
+    due: 'Due',
+    dueUnreadable: (due: string) =>
+      `“${due}” is not a date this can read; picking one replaces it.`,
   },
   edgeInspector: {
     connection: 'Connection',
@@ -163,6 +166,12 @@ export const plan = {
     viewName: 'Name',
     noMatch: 'Nothing matches this filter',
     filterCount: (count: number) => `Filter · ${count}`,
+    timeline: 'Timeline',
+    matrix: 'Matrix',
+    noDate: 'No date',
+    noTag: 'No tag',
+    rows: 'Rows',
+    columns: 'Columns',
   },
   titleBlock: {
     planSettings: 'Plan settings',

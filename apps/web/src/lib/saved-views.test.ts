@@ -9,6 +9,7 @@ const view = (id: string): SavedView => ({
   name: id,
   type: 'table',
   filter: { kinds: [], statuses: [], tags: [], text: '' },
+  axes: { rows: 'kind', columns: 'status' },
 });
 
 /** A server holding one list, refusing a save from an older version the way the API does. */

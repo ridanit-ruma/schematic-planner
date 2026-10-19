@@ -5,6 +5,8 @@ interface NodeSeed {
   title?: string;
   kind?: string;
   status?: string;
+  tags?: string[];
+  meta?: Record<string, string>;
 }
 
 interface EdgeSeed {

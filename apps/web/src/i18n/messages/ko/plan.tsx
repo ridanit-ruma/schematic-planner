@@ -57,6 +57,9 @@ export const plan: Messages['plan'] = {
     nothingYet: '아직 없음',
     deleteNode: '노드 삭제',
     deleteNodeNote: '노드와 여기에 이어진 연결을 모두 삭제합니다.',
+    due: '마감일',
+    dueUnreadable: (due: string) =>
+      `${quoted(due)}: 읽을 수 있는 날짜가 아닙니다. 날짜를 고르면 이 값을 대신합니다.`,
   },
   edgeInspector: {
     connection: '연결',
@@ -177,6 +180,12 @@ export const plan: Messages['plan'] = {
     viewName: '이름',
     noMatch: '이 필터에 맞는 노드가 없습니다',
     filterCount: (count: number) => `필터 · ${count}`,
+    timeline: '타임라인',
+    matrix: '매트릭스',
+    noDate: '날짜 없음',
+    noTag: '태그 없음',
+    rows: '행',
+    columns: '열',
   },
   titleBlock: {
     planSettings: '플랜 설정',
