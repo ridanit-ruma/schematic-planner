@@ -45,6 +45,8 @@ const plan: PlanDoc = {
       to: 'lone',
       via: 'click',
       waypoints: [{ x: 300, y: 50 }],
+      fromSide: 'bottom',
+      toSide: 'top',
     }),
     edge({ kind: 'flows_to', from: 'lone', to: 'other' }),
   ],
@@ -116,7 +118,13 @@ describe('pasting nodes', () => {
     );
     const result = applyPlanOps(plan, pasted.ops);
     const flow = result.edges.find((each) => each.from === 'inner-2');
-    expect(flow).toMatchObject({ to: 'lone-2', via: 'click', waypoints: [{ x: 320, y: 70 }] });
+    expect(flow).toMatchObject({
+      to: 'lone-2',
+      via: 'click',
+      waypoints: [{ x: 320, y: 70 }],
+      fromSide: 'bottom',
+      toSide: 'top',
+    });
     expect(result.edges.some((each) => each.kind === 'contains' && each.to === 'inner-2')).toBe(
       true,
     );
