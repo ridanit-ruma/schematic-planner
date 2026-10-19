@@ -202,6 +202,17 @@ export const plan: Messages['plan'] = {
         `${quoted(name)}의 상태 ${quoted(status, '이')} 이 프로젝트에 정의되어 있지 않습니다.`,
     },
   },
+  sources: {
+    title: '출처',
+    open: '출처',
+    hide: '출처 숨기기',
+    from: '이 플랜의 출처',
+    into: '이 플랜을 출처로 삼은 플랜',
+    noneFrom: '이 플랜에는 출처가 없습니다. 에이전트가 set_plan_sources로 지정합니다.',
+    noneInto: '이 플랜을 출처로 지정한 플랜이 없습니다.',
+    gone: '삭제된 플랜',
+    state: { missing: '없음', moved: '다른 프로젝트에 있음' },
+  },
   titleBlock: {
     planSettings: '플랜 설정',
     nextNote: '다음 미해결 댓글로 이동',

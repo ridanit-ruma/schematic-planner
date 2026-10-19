@@ -183,6 +183,17 @@ export const plan: Messages['plan'] = {
         `「${name}」的狀態「${status}」未在此專案中定義。`,
     },
   },
+  sources: {
+    title: '來源',
+    open: '來源',
+    hide: '隱藏來源',
+    from: '本計畫的來源',
+    into: '以本計畫為來源的計畫',
+    noneFrom: '本計畫沒有來源。由代理透過 set_plan_sources 設定。',
+    noneInto: '沒有計畫把本計畫列為來源。',
+    gone: '已刪除的計畫',
+    state: { missing: '缺失', moved: '在其他專案中' },
+  },
   titleBlock: {
     planSettings: '計畫設定',
     nextNote: '前往下一則未解決的留言',

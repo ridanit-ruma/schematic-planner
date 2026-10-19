@@ -189,6 +189,17 @@ export const plan = {
         `“${name}” has the status “${status}”, which this project does not define.`,
     },
   },
+  sources: {
+    title: 'Sources',
+    open: 'Sources',
+    hide: 'Hide sources',
+    from: 'Written from',
+    into: 'Written into',
+    noneFrom: 'This plan names no source. An agent sets them with set_plan_sources.',
+    noneInto: 'No plan names this one as its source.',
+    gone: 'A deleted plan',
+    state: { missing: 'Missing', moved: 'In another project' },
+  },
   titleBlock: {
     planSettings: 'Plan settings',
     nextNote: 'Go to the next open note',

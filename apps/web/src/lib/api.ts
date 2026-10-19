@@ -551,6 +551,18 @@ export const folders = {
   remove: (id: string) => api<{ ok: true }>(`/folders/${id}`, { method: 'DELETE' }),
 };
 
+/** What a plan was written from, resolved as of now, and what was written from it. */
+export interface PlanProvenance {
+  sources: {
+    id: string;
+    /** Null when the plan it named no longer exists at all. */
+    title: string | null;
+    folder: string | null;
+    state: 'ok' | 'missing' | 'moved';
+  }[];
+  sourcedBy: { id: string; title: string }[];
+}
+
 export const plans = {
   list: (projectId: string) => api<PlanSummary[]>(`/projects/${projectId}/plans`),
   recent: () => api<RecentPlan[]>('/recent'),
@@ -570,6 +582,7 @@ export const plans = {
     }),
   navigation: (planId: string) => api<PlanNavigation>(`/plans/${planId}/navigation`),
   changes: (planId: string) => api<PlanChangeRecord[]>(`/plans/${planId}/changes`),
+  provenance: (planId: string) => api<PlanProvenance>(`/plans/${planId}/provenance`),
   remove: (planId: string) => api<{ ok: true }>(`/plans/${planId}`, { method: 'DELETE' }),
   applyOps: (planId: string, ops: PlanOp[]) =>
     api<PlanDoc>(`/plans/${planId}/ops`, { method: 'POST', ...json({ ops }) }),

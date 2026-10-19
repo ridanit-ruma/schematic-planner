@@ -26,6 +26,7 @@ import { EdgeInspector } from './EdgeInspector';
 import { HistoryPanel } from './HistoryPanel';
 import { Inspector } from './Inspector';
 import { PlanCanvas, type PlanCanvasHandle } from './PlanCanvas';
+import { SourcesPanel } from './SourcesPanel';
 import { TitleBlock } from './TitleBlock';
 import { usePlanDocument } from './use-plan-document';
 import { usePlanUndo, useUndoKeys } from './use-undo';
@@ -98,13 +99,16 @@ function PlanWorkspace({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   // One panel at a time on the right: opening the history puts down whatever
   // was selected, and selecting something puts the history away.
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [checksOpen, setChecksOpen] = useState(false);
+  const [panel, setPanel] = useState<'history' | 'checks' | 'sources' | null>(null);
+  const toggle = (which: NonNullable<typeof panel>) => (): void => {
+    setPanel((open) => (open === which ? null : which));
+    select(null);
+  };
   // What the checks read: the document itself, since the canvas's edges leave
   // out the containment it draws as boxes. Read again whenever the drawing changes.
   const plan = useMemo(
-    () => (checksOpen ? readPlanDoc(doc).doc : null),
-    [checksOpen, doc, nodes, edges],
+    () => (panel === 'checks' ? readPlanDoc(doc).doc : null),
+    [panel, doc, nodes, edges],
   );
   /** Where the last jump stopped, so the button walks the notes rather than
       returning to the same one. */
@@ -252,18 +256,12 @@ function PlanWorkspace({
         onExport={() => void exportZip()}
         onShare={() => void share()}
         settingsHref={`/plan/${planId}/settings`}
-        historyOpen={historyOpen}
-        onHistory={() => {
-          setHistoryOpen((open) => !open);
-          setChecksOpen(false);
-          select(null);
-        }}
-        checksOpen={checksOpen}
-        onChecks={() => {
-          setChecksOpen((open) => !open);
-          setHistoryOpen(false);
-          select(null);
-        }}
+        historyOpen={panel === 'history'}
+        onHistory={toggle('history')}
+        checksOpen={panel === 'checks'}
+        onChecks={toggle('checks')}
+        sourcesOpen={panel === 'sources'}
+        onSources={toggle('sources')}
       />
 
       {(error ?? reading.saved.error) !== null ? (
@@ -361,7 +359,7 @@ function PlanWorkspace({
             onStraighten={() => routeEdge(selectedEdgeData.id, [])}
             onClose={() => selectEdge(null)}
           />
-        ) : checksOpen && plan !== null ? (
+        ) : panel === 'checks' && plan !== null ? (
           <DiagnosticsPanel
             plan={plan}
             vocabulary={words.vocabulary}
@@ -370,13 +368,15 @@ function PlanWorkspace({
               if (view === 'canvas')
                 void fitView({ nodes: [{ id: slug }], duration: 320, maxZoom: 1 });
             }}
-            onClose={() => setChecksOpen(false)}
+            onClose={() => setPanel(null)}
           />
-        ) : historyOpen ? (
+        ) : panel === 'sources' ? (
+          <SourcesPanel planId={planId} onClose={() => setPanel(null)} />
+        ) : panel === 'history' ? (
           <HistoryPanel
             planId={planId}
             vocabulary={words.vocabulary}
-            onClose={() => setHistoryOpen(false)}
+            onClose={() => setPanel(null)}
           />
         ) : null}
       </div>

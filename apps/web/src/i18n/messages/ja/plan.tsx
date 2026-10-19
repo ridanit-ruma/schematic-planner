@@ -188,6 +188,17 @@ export const plan: Messages['plan'] = {
         `「${name}」のステータス「${status}」はこのプロジェクトで定義されていません。`,
     },
   },
+  sources: {
+    title: '出典',
+    open: '出典',
+    hide: '出典を隠す',
+    from: 'このプランの出典',
+    into: 'このプランを出典とするプラン',
+    noneFrom: 'このプランには出典がありません。エージェントが set_plan_sources で設定します。',
+    noneInto: 'このプランを出典に挙げているプランはありません。',
+    gone: '削除されたプラン',
+    state: { missing: '見つかりません', moved: '別のプロジェクトにあります' },
+  },
   titleBlock: {
     planSettings: 'プラン設定',
     nextNote: '次の未解決コメントへ',

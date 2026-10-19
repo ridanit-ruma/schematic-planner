@@ -178,6 +178,17 @@ export const plan: Messages['plan'] = {
         `“${name}”的状态“${status}”未在此项目中定义。`,
     },
   },
+  sources: {
+    title: '来源',
+    open: '来源',
+    hide: '隐藏来源',
+    from: '本计划的来源',
+    into: '以本计划为来源的计划',
+    noneFrom: '本计划没有来源。由代理通过 set_plan_sources 设置。',
+    noneInto: '没有计划把本计划列为来源。',
+    gone: '已删除的计划',
+    state: { missing: '缺失', moved: '在其他项目中' },
+  },
   titleBlock: {
     planSettings: '计划设置',
     nextNote: '转到下一条未解决的评论',

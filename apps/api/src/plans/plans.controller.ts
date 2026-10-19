@@ -86,6 +86,12 @@ export class PlansController {
     return { revision: await this.plans.revision(id) };
   }
 
+  /** The plans this one says it was written from, each resolved now, and the plans that cite it. */
+  @Get('plans/:id/provenance')
+  provenance(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.plans.provenance(user.id, id);
+  }
+
   /** The workspace tree around this plan, for the switcher on the canvas. */
   @Get('plans/:id/navigation')
   navigation(@CurrentUser() user: AuthUser, @Param('id') id: string) {
