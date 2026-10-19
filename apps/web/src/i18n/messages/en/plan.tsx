@@ -181,8 +181,8 @@ export const plan = {
       `Nothing to report. Checked ${checked} ${checked === 1 ? 'node or edge' : 'nodes and edges'}.`,
     severity: { error: 'Error', warning: 'Warning', info: 'Note' },
     rules: {
-      dependencyCycle: (names: string) =>
-        `Dependency cycle: ${names}. None of these can be started first.`,
+      dependencyCycle: (names: string[]) =>
+        `These depend on each other in a cycle: ${names.join(', ')}. None of them can be started first.`,
       isolatedNode: (name: string) => `“${name}” is connected to nothing.`,
       outsideFlow: (name: string) => `“${name}” is work outside every flow.`,
       unknownKind: (name: string, kind: string) =>

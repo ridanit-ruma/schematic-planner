@@ -171,7 +171,8 @@ export const plan: Messages['plan'] = {
     clean: (checked: number) => `没有问题。已检查 ${checked} 个节点和连接。`,
     severity: { error: '错误', warning: '警告', info: '提示' },
     rules: {
-      dependencyCycle: (names: string) => `依赖循环：${names}。其中任何一个都无法先开始。`,
+      dependencyCycle: (names: string[]) =>
+        `这些节点循环依赖：${names.join('、')}。其中任何一个都无法先开始。`,
       isolatedNode: (name: string) => `“${name}”没有任何连接。`,
       outsideFlow: (name: string) => `“${name}”是不在任何流程中的工作。`,
       unknownKind: (name: string, kind: string) => `“${name}”的类型“${kind}”未在此项目中定义。`,
