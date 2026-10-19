@@ -58,6 +58,8 @@ export const plan: Messages['plan'] = {
     deleteNode: '노드 삭제',
     deleteNodeNote: '노드와 여기에 이어진 연결을 모두 삭제합니다.',
     due: '마감일',
+    dueUnreadable: (due: string) =>
+      `${quoted(due)}: 읽을 수 있는 날짜가 아닙니다. 날짜를 고르면 이 값을 대신합니다.`,
   },
   edgeInspector: {
     connection: '연결',

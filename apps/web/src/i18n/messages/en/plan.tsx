@@ -45,6 +45,8 @@ export const plan = {
     deleteNode: 'Delete node',
     deleteNodeNote: 'Removes the node and every connection attached to it.',
     due: 'Due',
+    dueUnreadable: (due: string) =>
+      `“${due}” is not a date this can read; picking one replaces it.`,
   },
   edgeInspector: {
     connection: 'Connection',
