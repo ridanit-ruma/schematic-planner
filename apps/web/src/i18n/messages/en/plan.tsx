@@ -45,6 +45,8 @@ export const plan = {
     deleteNode: 'Delete node',
     deleteNodeNote: 'Removes the node and every connection attached to it.',
     due: 'Due',
+    dueUnreadable: (due: string) =>
+      `“${due}” is not a date this can read; picking one replaces it.`,
   },
   edgeInspector: {
     connection: 'Connection',
@@ -179,8 +181,8 @@ export const plan = {
       `Nothing to report. Checked ${checked} ${checked === 1 ? 'node or edge' : 'nodes and edges'}.`,
     severity: { error: 'Error', warning: 'Warning', info: 'Note' },
     rules: {
-      dependencyCycle: (names: string) =>
-        `Dependency cycle: ${names}. None of these can be started first.`,
+      dependencyCycle: (names: string[]) =>
+        `These depend on each other in a cycle: ${names.join(', ')}. None of them can be started first.`,
       isolatedNode: (name: string) => `“${name}” is connected to nothing.`,
       outsideFlow: (name: string) => `“${name}” is work outside every flow.`,
       unknownKind: (name: string, kind: string) =>
@@ -197,6 +199,7 @@ export const plan = {
     into: 'Written into',
     noneFrom: 'This plan names no source. An agent sets them with set_plan_sources.',
     noneInto: 'No plan names this one as its source.',
+    elsewhere: 'A plan you cannot open',
     gone: 'A deleted plan',
     state: { missing: 'Missing', moved: 'In another project' },
   },

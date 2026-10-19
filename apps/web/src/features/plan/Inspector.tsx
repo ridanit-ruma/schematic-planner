@@ -249,7 +249,15 @@ export function Inspector({
 
         {/* Kept in `meta.due`, the frontmatter key the export already writes
             back, so a date set here is a date an agent and a vault can read. */}
-        <Field label={t.plan.inspector.due}>
+        <Field
+          label={t.plan.inspector.due}
+          hint={
+            // Written by an agent or a vault in words the date picker cannot show.
+            node.meta['due'] !== undefined && dueDate(node) === null
+              ? t.plan.inspector.dueUnreadable(node.meta['due'])
+              : undefined
+          }
+        >
           {(id) => (
             <Input
               id={id}

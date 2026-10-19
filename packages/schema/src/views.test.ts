@@ -110,6 +110,21 @@ describe('saved views', () => {
     expect(savedViewListSchema.safeParse([view, view]).success).toBe(false);
   });
 
+  it('renames a view stored under what is now a built-in name, and keeps the rest', () => {
+    const read = readSavedViews(
+      [
+        { id: 'timeline', name: 'Timeline', type: 'table' },
+        { id: 'x' },
+        { id: 'blocked-work', name: 'Blocked', type: 'board' },
+      ],
+      3,
+    );
+    expect(read.views.map((one) => [one.id, one.name])).toEqual([
+      ['timeline-view', 'Timeline'],
+      ['blocked-work', 'Blocked'],
+    ]);
+  });
+
   it('reads nothing stored, or something broken, as no views', () => {
     expect(readSavedViews(null, 0)).toEqual({ version: 0, views: [] });
     expect(readSavedViews([{ id: 'x' }], 4)).toEqual({ version: 4, views: [] });
