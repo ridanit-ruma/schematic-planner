@@ -780,6 +780,11 @@ round both boxes when it has to come back on itself — and cannot be bent until
 are automatic again. The canvas export writes them as JSON Canvas's own `fromSide` and
 `toSide`. Neither is part of the edge's id.
 
+An `upsert_edge` that does not mention a line's drawing — `waypoints`,
+`labelPosition`, `fromSide`, `toSide` — keeps what is there, so an agent rewriting
+what sets a flow off does not throw away the bends a person drew. `null` or `[]`
+still clears them.
+
 What is stored is the corners of the route, and `legalize` in `edge-path.ts` turns
 whatever is stored into a legal one. Every node has one target handle on its left and
 one source handle on its right, so a line always leaves rightwards and arrives

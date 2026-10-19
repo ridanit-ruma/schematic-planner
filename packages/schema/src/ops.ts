@@ -144,6 +144,26 @@ function resolveEdgeId(op: Extract<PlanOp, { op: 'delete_edge' }>): string {
   return edgeId(op.kind, op.from, op.to, op.via ?? null);
 }
 
+/** How a line is drawn: only a person sets these, and nothing else writes them. */
+const DRAWING = ['labelPosition', 'waypoints', 'fromSide', 'toSide'] as const;
+
+/**
+ * What an upsert keeps of an edge's drawing because it did not mention it.
+ *
+ * An agent rewriting a connection — to say what sets it off, say — sends the
+ * ends and the words and never the geometry. Replacing the edge whole used to
+ * throw away the bends and sides a person had drawn. Saying `null` or `[]`
+ * still clears them.
+ */
+function drawing(
+  before: PlanEdge,
+  input: Partial<Record<(typeof DRAWING)[number], unknown>>,
+): Partial<PlanEdge> {
+  return Object.fromEntries(
+    DRAWING.filter((key) => input[key] === undefined).map((key) => [key, before[key]]),
+  );
+}
+
 /**
  * Pure reference implementation of the write path. `packages/ydoc` performs the
  * same operations against a CRDT; this version is the oracle both are tested
@@ -214,7 +234,8 @@ export function applyPlanOps(doc: PlanDoc, ops: readonly PlanOp[]): PlanDoc {
       }
       case 'upsert_edge': {
         const edge: PlanEdge = normalizeEdge(op.edge);
-        edges.set(edge.id, edge);
+        const before = edges.get(edge.id);
+        edges.set(edge.id, before === undefined ? edge : { ...edge, ...drawing(before, op.edge) });
         break;
       }
       case 'delete_edge': {
