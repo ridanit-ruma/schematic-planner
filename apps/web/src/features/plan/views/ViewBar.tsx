@@ -1,4 +1,5 @@
 import {
+  BUILT_IN_VIEW_IDS,
   EMPTY_FILTER,
   MATRIX_AXES,
   isEmptyFilter,
@@ -82,7 +83,7 @@ export function ViewBar({
     (filter.text === '' ? 0 : 1);
 
   const saveAs = async (name: string): Promise<void> => {
-    const id = uniqueSlug(name, ['canvas', 'table', 'board', ...views.map((view) => view.id)]);
+    const id = uniqueSlug(name, [...BUILT_IN_VIEW_IDS, ...views.map((view) => view.id)]);
     const view: SavedView = { id, name, type, filter, axes };
     await onSave((list) => [...list, view]);
     onOpen(view);

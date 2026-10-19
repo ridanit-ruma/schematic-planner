@@ -46,6 +46,12 @@ describe('validate', () => {
     ).toEqual([['isolated-node', 'c']]);
   });
 
+  it('leaves an empty group alone: it is a box waiting to be filled', () => {
+    expect(rules([{ slug: 'a' }, { slug: 'box', kind: 'group' }])).toEqual([
+      ['isolated-node', 'a'],
+    ]);
+  });
+
   it('notes work left out of the flows when the plan has flows', () => {
     expect(
       rules(

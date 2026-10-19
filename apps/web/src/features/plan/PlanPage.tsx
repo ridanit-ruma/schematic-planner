@@ -363,6 +363,7 @@ function PlanWorkspace({
           <DiagnosticsPanel
             plan={plan}
             vocabulary={words.vocabulary}
+            vocabularyLoaded={words.loaded}
             onShow={(slug) => {
               select(slug);
               if (view === 'canvas')
