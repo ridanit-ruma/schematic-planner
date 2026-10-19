@@ -7,6 +7,7 @@ import {
 } from '@schematic/schema';
 
 import { toCanvas } from './canvas.js';
+import { planSummary } from './fences.js';
 import { linkText, oneLine } from './inline.js';
 import { nodeToMarkdown } from './markdown.js';
 import { assignPaths } from './paths.js';
@@ -25,6 +26,8 @@ export interface ExportBundle {
 export interface ExportOptions {
   /** Emit `plan.canvas`. Default true. */
   readonly canvas?: boolean;
+  /** Emit `plan.md`, the plan as one document with a ```diagram fence. Default true. */
+  readonly summary?: boolean;
   /** Emit `plan.json`, the machine-readable original. Default true. */
   readonly planJson?: boolean;
   /**
@@ -137,6 +140,13 @@ export function exportPlan(doc: PlanDoc, options: ExportOptions = {}): ExportBun
         null,
         2,
       )}\n`,
+    });
+  }
+
+  if (options.summary !== false) {
+    files.push({
+      path: 'plan.md',
+      content: planSummary(doc, options.vocabulary ?? DEFAULT_VOCABULARY),
     });
   }
 
