@@ -47,6 +47,7 @@ export const plan: Messages['plan'] = {
     deleteNode: '刪除節點',
     deleteNodeNote: '刪除這個節點，以及與它相連的所有連接。',
     due: '截止日期',
+    dueUnreadable: (due: string) => `「${due}」不是可讀取的日期；選擇一個日期會取代它。`,
   },
   edgeInspector: {
     connection: '連接',
