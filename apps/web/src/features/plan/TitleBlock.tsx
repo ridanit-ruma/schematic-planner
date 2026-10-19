@@ -5,6 +5,7 @@ import {
   Columns3,
   Crosshair,
   Download,
+  FileSymlink,
   Grid3x3,
   Link2,
   ListChecks,
@@ -58,6 +59,8 @@ export function TitleBlock({
   onHistory,
   checksOpen,
   onChecks,
+  sourcesOpen,
+  onSources,
   settingsHref,
 }: {
   title: string;
@@ -86,6 +89,9 @@ export function TitleBlock({
   /** The structural checks; not offered without `onChecks`. */
   checksOpen?: boolean;
   onChecks?: () => void;
+  /** What the plan was written from; not offered without `onSources`. */
+  sourcesOpen?: boolean;
+  onSources?: () => void;
   /** Where the plan's own settings live. The title is the way in. */
   settingsHref?: string;
 }) {
@@ -179,6 +185,12 @@ export function TitleBlock({
           <DropdownAction onSelect={onChecks}>
             <ListChecks className="size-3.5 text-ink-faint" />
             {checksOpen === true ? t.plan.diagnostics.hide : t.plan.diagnostics.open}
+          </DropdownAction>
+        )}
+        {onSources === undefined ? null : (
+          <DropdownAction onSelect={onSources}>
+            <FileSymlink className="size-3.5 text-ink-faint" />
+            {sourcesOpen === true ? t.plan.sources.hide : t.plan.sources.open}
           </DropdownAction>
         )}
         <DropdownAction onSelect={onExport}>
