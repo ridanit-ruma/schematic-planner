@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_VOCABULARY, planDocSchema, type Vocabulary } from '@schematic/schema';
+import {
+  DEFAULT_VOCABULARY,
+  planDocSchema,
+  validatePlan,
+  type Vocabulary,
+} from '@schematic/schema';
 
 import {
   matchingLine,
@@ -9,6 +14,7 @@ import {
   renderNext,
   renderNodes,
   renderPlan,
+  renderValidation,
   renderVocabulary,
 } from './render.js';
 
@@ -621,5 +627,43 @@ describe('a project with its own statuses and kinds', () => {
     expect(said).toContain('risk — Risk (not work)');
     expect(said).toContain('group — Group (a box around others)');
     expect(said).not.toContain('retired');
+  });
+});
+
+describe('renderValidation', () => {
+  const makeDoc = (
+    nodes: { slug: string; title?: string; kind?: string }[],
+    edges: { kind: string; from: string; to: string }[] = [],
+  ) =>
+    planDocSchema.parse({
+      id: 'p1',
+      title: 'Test plan',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      nodes: nodes.map((node) => ({ title: node.slug, ...node })),
+      edges: edges.map((edge) => ({ id: `${edge.kind}:${edge.from}>${edge.to}`, ...edge })),
+    });
+
+  it('says so when there is nothing to report', () => {
+    const doc = makeDoc([{ slug: 'a' }]);
+    expect(renderValidation(doc, validatePlan(doc, DEFAULT_VOCABULARY))).toBe(
+      'Checked 1 node or edge in Test plan. Nothing to report.',
+    );
+  });
+
+  it('writes each finding in English, worst first', () => {
+    const doc = makeDoc(
+      [{ slug: 'a', title: 'Alpha' }, { slug: 'b' }, { slug: 'lone', kind: 'epic' }],
+      [
+        { kind: 'depends_on', from: 'a', to: 'b' },
+        { kind: 'depends_on', from: 'b', to: 'a' },
+      ],
+    );
+    expect(renderValidation(doc, validatePlan(doc, DEFAULT_VOCABULARY)).split('\n')).toEqual([
+      'Checked 5 nodes and edges in Test plan: 1 error, 2 warnings, 0 notes.',
+      '',
+      'error   dependency cycle among a, b. None of these can be started first; remove one depends_on.',
+      'warning "lone" (lone) is connected to nothing.',
+      'warning "lone" (lone) has kind "epic", which the project does not define.',
+    ]);
   });
 });
