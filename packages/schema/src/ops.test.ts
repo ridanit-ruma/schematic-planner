@@ -167,3 +167,72 @@ describe('restoreOps', () => {
     expect({ ...restored, updatedAt: before.updatedAt }).toEqual(before);
   });
 });
+
+describe('upsert_edge on an edge somebody drew', () => {
+  const drawn = applyPlanOps(makeDoc([{ slug: 'a' }, { slug: 'b' }]), [
+    {
+      op: 'upsert_edge',
+      edge: {
+        kind: 'flows_to',
+        from: 'a',
+        to: 'b',
+        waypoints: [
+          { x: 40, y: 0 },
+          { x: 40, y: 80 },
+        ],
+        labelPosition: { x: 40, y: 40 },
+        fromSide: 'bottom',
+        toSide: 'top',
+      },
+    },
+  ]);
+
+  it('keeps the bends and sides an agent did not mention', () => {
+    const [edge] = applyPlanOps(drawn, [
+      { op: 'upsert_edge', edge: { kind: 'flows_to', from: 'a', to: 'b', carries: 'a token' } },
+    ]).edges;
+    expect(edge).toMatchObject({
+      carries: 'a token',
+      waypoints: [
+        { x: 40, y: 0 },
+        { x: 40, y: 80 },
+      ],
+      labelPosition: { x: 40, y: 40 },
+      fromSide: 'bottom',
+      toSide: 'top',
+    });
+  });
+
+  it('clears them when told to', () => {
+    const [edge] = applyPlanOps(drawn, [
+      {
+        op: 'upsert_edge',
+        edge: { kind: 'flows_to', from: 'a', to: 'b', waypoints: [], fromSide: null, toSide: null },
+      },
+    ]).edges;
+    expect(edge).toMatchObject({ waypoints: [], fromSide: null, toSide: null });
+    expect(edge?.labelPosition).toEqual({ x: 40, y: 40 });
+  });
+});
+
+describe('upsert_edge naming an existing id for other ends', () => {
+  it('starts a new line rather than inheriting the old one’s drawing', () => {
+    const doc = applyPlanOps(makeDoc([{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }]), [
+      {
+        op: 'upsert_edge',
+        edge: {
+          id: 'line',
+          kind: 'flows_to',
+          from: 'a',
+          to: 'b',
+          waypoints: [{ x: 1, y: 2 }],
+          fromSide: 'top',
+        },
+      },
+    ]);
+    const [edge] = applyPlanOps(doc, [
+      { op: 'upsert_edge', edge: { id: 'line', kind: 'flows_to', from: 'c', to: 'b' } },
+    ]).edges;
+    expect(edge).toMatchObject({ from: 'c', waypoints: [], fromSide: null });
+  });
+});
